@@ -162,7 +162,7 @@ def hinter_sampling(min_n_pts, radius=1):
     return pts, pts_level
 
 def pts2views(pts, azimuth_range, elev_range):
-
+    # moved here from sample_views, because we may add some pts manually
     views = []
     for pt in pts:
         # Azimuth from (0, 2 * pi)
@@ -230,7 +230,7 @@ def sample_views(min_n_views, radius=1,
         pts = fibonacci_sampling(min_n_views + 1, radius=radius)
         pts_level = [0 for _ in range(len(pts))]
 
-    return pts2views(pts,azimuth_range, elev_range), pts_level
+    return pts2views(pts, azimuth_range, elev_range), pts_level
 
 def save_vis(path, views, views_level=None):
     '''
