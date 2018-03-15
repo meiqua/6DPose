@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import cv2
 import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pysixd import view_sampler, inout, misc, renderer
+from pysixd import view_sampler, inout, misc
+from pysixd.renderer import Renderer
 from params.dataset_params import get_dataset_params
 from os.path import join
 
@@ -116,7 +117,7 @@ elif mode == 'train':
             # have read rgb, depth, pose, obj_bb, obj_id here
 
 elif mode == 'render':
-
+    renderer = Renderer()
     radii = [400]  # Radii of the view sphere [mm]
     azimuth_range = (0, 2 * math.pi)
     elev_range = (0, 0.5 * math.pi)
