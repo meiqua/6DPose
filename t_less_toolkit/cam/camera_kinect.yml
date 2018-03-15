@@ -1,0 +1,17 @@
+# T-LESS
+# Camera: Microsoft Kinect v2
+
+# Depth scaling - multiply the depth images with this factor to get depth in mm.
+depth_scale: 0.1
+
+# Intrinsic camera parameters
+# IMPORTANT: The parameters differ for each training/test image (due to
+# cropping) and should be loaded from file info.yml that is provided for each
+# training/test image set. The parameters below are meant for simulation of the
+# sensor when rendering the training images.
+width: 1920
+height: 1080
+fx: 1076.74064739
+fy: 1075.17825536
+cx: 971.982649675
+cy: 541.591818362

@@ -1,0 +1,17 @@
+# T-LESS
+# Camera: Primesense CARMINE 1.09
+
+# Depth scaling - multiply the depth images with this factor to get depth in mm.
+depth_scale: 0.1
+
+# Intrinsic camera parameters
+# IMPORTANT: The parameters differ for each training/test image (due to
+# cropping) and should be loaded from file info.yml that is provided for each
+# training/test image set. The parameters below are meant for simulation of the
+# sensor when rendering the training images.
+width: 1280
+height: 1024
+fx: 1075.65091572
+fy: 1073.90347929
+cx: 641.068883438
+cy: 507.72159802

@@ -1,0 +1,14 @@
+# T-LESS
+# Camera: Canon IXUS 950 IS, zoom level = 1
+
+# Intrinsic camera parameters
+# IMPORTANT: The parameters differ for each training/test image (due to
+# cropping) and should be loaded from file info.yml that is provided for each
+# training/test image set. The parameters below are meant for simulation of the
+# sensor when rendering the training images.
+width: 3264
+height: 2448
+fx: 3630.26229559
+fy: 3627.6973661
+cx: 1663.14577835
+cy: 1187.22160257
