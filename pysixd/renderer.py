@@ -336,21 +336,21 @@ def render(model, im_size, K, R, t, clip_near=100, clip_far=2000,
     if mode == 'depth':
         vertices_type = [('a_position', np.float32, 3),
                          ('a_color', np.float32, colors.shape[1])]
-        vertices = np.array(zip(model['pts'], colors), vertices_type)
+        vertices = np.array(list(zip(model['pts'], colors)), vertices_type)
     else:
         if shading == 'flat':
             vertices_type = [('a_position', np.float32, 3),
                              ('a_color', np.float32, colors.shape[1]),
                              ('a_texcoord', np.float32, 2)]
-            vertices = np.array(zip(model['pts'], colors, texture_uv),
+            vertices = np.array(list(zip(model['pts'], colors, texture_uv)),
                                 vertices_type)
         else: # shading == 'phong'
             vertices_type = [('a_position', np.float32, 3),
                              ('a_normal', np.float32, 3),
                              ('a_color', np.float32, colors.shape[1]),
                              ('a_texcoord', np.float32, 2)]
-            vertices = np.array(zip(model['pts'], model['normals'],
-                                    colors, texture_uv), vertices_type)
+            vertices = np.array(list(zip(model['pts'], model['normals'],
+                                    colors, texture_uv)), vertices_type)
 
     # Rendering
     #---------------------------------------------------------------------------
@@ -418,3 +418,5 @@ def render(model, im_size, K, R, t, clip_near=100, clip_far=2000,
     else:
         print('Error: Unknown rendering mode.')
         exit(-1)
+
+

@@ -137,7 +137,7 @@ elif mode == 'render':
     p['cam'] = inout.load_cam_params(p['cam_params_path'])
     # Minimum required number of views on the whole view sphere. The final number of
     # views depends on the sampling method.
-    min_n_views = 1000
+    min_n_views = 100
 
     clip_near = 10  # [mm]
     clip_far = 10000  # [mm]
