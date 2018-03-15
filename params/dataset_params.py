@@ -16,7 +16,7 @@ def get_dataset_params(name, model_type='', train_type='', test_type='',
     common_base_path = '../public/datasets/'
 
     # Path to the T-LESS Toolkit (https://github.com/thodan/t-less_toolkit)
-    tless_tk_path = '../t-less_toolkit/'
+    tless_tk_path = '../t_less_toolkit/'
 
     if name == 'hinterstoisser':
         p['obj_count'] = 15
