@@ -57,7 +57,8 @@ def save_im(path, im):
 def load_depth(path):
     # PyPNG library is used since it allows to save 16-bit PNG
     r = png.Reader(filename=path)
-    im = np.vstack(itertools.imap(np.uint16, r.asDirect()[2])).astype(np.float32)
+    im = np.vstack(map(np.uint16, r.asDirect()[2])).astype(np.float32)
+    # itertools.imap is removed in py3
     return im
 
 def load_depth2(path):
