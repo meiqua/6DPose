@@ -135,7 +135,8 @@ def load_results_sixd17(path):
             for est in res['ests']:
                 est['R'] = np.array(est['R']).reshape((3, 3))
                 est['t'] = np.array(est['t']).reshape((3, 1))
-                if isinstance(est['score'], basestring):
+                # change basestring to str for py3
+                if isinstance(est['score'], str):
                     if 'nan' in est['score']:
                         est['score'] = 0.0
                     else:
