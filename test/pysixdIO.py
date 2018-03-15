@@ -165,7 +165,7 @@ elif mode == 'render':
     im_size_rgb = [int(round(x * float(ssaa_fact))) for x in p['cam']['im_size']]
     K_rgb = p['cam']['K'] * ssaa_fact
 
-    obj_ids = range(1, p['obj_count'])
+    obj_ids = range(1, p['obj_count']+1)
     for obj_id in obj_ids:
         # Prepare folders
         misc.ensure_dir(os.path.dirname(out_rgb_mpath.format(obj_id, 0)))
@@ -190,8 +190,8 @@ elif mode == 'render':
             views, views_level = view_sampler.sample_views(min_n_views, radius,
                                                            azimuth_range, elev_range)
             print('Sampled views: ' + str(len(views)))
-            view_sampler.save_vis(out_views_vis_mpath.format(str(radius)),
-                                  views, views_level)
+            # view_sampler.save_vis(out_views_vis_mpath.format(str(radius)),
+            #                       views, views_level)
 
             # Render the object model from all the views
             for view_id, view in enumerate(views):
