@@ -1,3 +1,3 @@
-import cv2
+import cxxlinemod
 
-print(cv2.__spec__)
+print(cxxlinemod.add(1, 2) == 3)

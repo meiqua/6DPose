@@ -24,7 +24,7 @@ dp = get_dataset_params(dataset)
 
 # train
 start_time = time.time()
-obj_ids = [1, 2]  # for each obj
+obj_ids = [2]  # for each obj
 im_ids = list(range(1, 1000, 10))  # obj's img
 
 visual = True
@@ -32,6 +32,9 @@ visual = True
 templateInfo = []
 detector = cv2.linemod.getDefaultLINEMOD()
 
+# colorGt = cv2.linemod_Modality.create('ColorGradient')
+# depthNm = cv2.linemod_Modality.create('DepthNormal')
+# detector = cv2.linemod_Detector([colorGt, depthNm], [1, 2])
 
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
@@ -71,8 +74,10 @@ for obj_id in obj_ids_curr:
         templateInfo.append(aTemplateInfo)
 
         mask = (depth > 0).astype(np.uint8)*255
+        # kernel = np.ones((5, 5), np.uint8)
+        # mask = cv2.dilate(mask, kernel, iterations=1)
 
-        visual = False
+        # visual = False
         if visual:
             cv2.namedWindow('rgb')
             cv2.imshow('rgb', rgb)
@@ -87,8 +92,8 @@ for obj_id in obj_ids_curr:
 
 elapsed_time = time.time() - start_time
 print('train time: {}\n'.format(elapsed_time))
-saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
-misc.ensure_dir(os.path.dirname(saved_to))
-detector.writeClasses(saved_to)
+# saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
+# misc.ensure_dir(os.path.dirname(saved_to))
+# detector.writeClasses(saved_to)
 
 print('end line for debug')
