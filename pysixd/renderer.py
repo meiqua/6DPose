@@ -7,8 +7,8 @@ import numpy as np
 from glumpy import app, gloo, gl
 
 # Set backend (http://glumpy.readthedocs.io/en/latest/api/app-backends.html)
-# app.use('glfw')
-app.use('qt5')
+app.use('glfw')
+# app.use('qt5')
 # app.use('pyside')
 
 # Set logging level

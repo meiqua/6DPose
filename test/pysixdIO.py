@@ -122,12 +122,13 @@ elif mode == 'render':
     azimuth_range = (0, 2 * math.pi)
     elev_range = (0, 0.5 * math.pi)
 
-    p = {'name': 'customDataset'}
+    p = dict()
+    p['name'] = 'customDataset'
     p['obj_count'] = 2
     p['scene_count'] = 2
     p['train_im_size'] = (640, 480)
     p['test_im_size'] = (640, 480)
-    p['base_path'] = join('../public/datasets/', p['name'])
+    p['base_path'] = join('/home/meiqua/6DPose/public/datasets/', p['name'])
     misc.ensure_dir(p['base_path'])
 
     p['model_mpath'] = join(p['base_path'], 'models', 'obj_{:02d}.ply')
