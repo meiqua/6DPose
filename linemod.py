@@ -24,9 +24,9 @@ dp = get_dataset_params(dataset)
 
 # train
 start_time = time.time()
-obj_ids = [2]  # for each obj
-im_ids = list(range(1, 1000, 10))  # obj's img
-
+obj_ids = []  # for each obj
+# im_ids = list(range(1, 1000, 10))  # obj's img
+im_ids = []
 visual = True
 
 templateInfo = []
@@ -79,7 +79,7 @@ for obj_id in obj_ids_curr:
         # kernel = np.ones((5, 5), np.uint8)
         # mask = cv2.dilate(mask, kernel, iterations=1)
 
-        # visual = False
+        visual = False
         if visual:
             cv2.namedWindow('rgb')
             cv2.imshow('rgb', rgb)
@@ -94,8 +94,8 @@ for obj_id in obj_ids_curr:
 
 elapsed_time = time.time() - start_time
 print('train time: {}\n'.format(elapsed_time))
-# saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
-# misc.ensure_dir(os.path.dirname(saved_to))
-# detector.writeClasses(saved_to)
+saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
+misc.ensure_dir(os.path.dirname(saved_to))
+detector.writeClasses(saved_to)
 
 print('end line for debug')
