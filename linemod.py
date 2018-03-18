@@ -55,10 +55,12 @@ for obj_id in obj_ids_curr:
         # Load the images
         rgb = inout.load_im(dp['train_rgb_mpath'].format(obj_id, im_id))
         depth = inout.load_depth(dp['train_depth_mpath'].format(obj_id, im_id))
-        depth = depth.astype(np.float32)  # [mm]
-        depth *= dp['cam']['depth_scale']  # to [mm]
 
-        depth /= 1000.0  # [m]
+        # convert to float32 will fail, after a painful try under c++ T_T
+        depth = depth.astype(np.uint16)  # [mm]
+        # depth *= dp['cam']['depth_scale']  # to [mm]
+
+        # depth /= 1000.0  # [m]
         # during training, there's only one obj
         gt = scene_gt[im_id][0]
 

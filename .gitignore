@@ -1,3 +1,4 @@
 .idea/
 public/
 cxxlinemod/build/
+cxxlinemod/CMakeLists.txt.user
