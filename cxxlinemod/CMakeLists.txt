@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 2.8)
 set (CMAKE_CXX_STANDARD 14)
 project(cxxlinemod)
 
+SET(CMAKE_BUILD_TYPE "Debug")
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
+#SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
+
 set(CMAKE_PREFIX_PATH /home/meiqua/anaconda3/envs/furnace)
 # we install cuda9 but build opencv with cuda8, have to set mannually
 set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)

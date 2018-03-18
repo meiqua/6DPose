@@ -22,7 +22,6 @@ int main(){
         double min, max;
         minMaxIdx(depth, &min, &max);
         std::cout << max <<std::endl;
-         cv::waitKey(5000);
         auto mask = depth > 0;
 
         std::vector<cv::Mat> sources(2);
