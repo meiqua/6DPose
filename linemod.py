@@ -20,6 +20,7 @@ dataset = 'hinterstoisser'
 # dataset = 'doumanoglou'
 # dataset = 'toyotalight'
 
+# set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
 detector = cv2.linemod.getDefaultLINEMOD()
 

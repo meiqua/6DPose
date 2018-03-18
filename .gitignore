@@ -1,6 +1,5 @@
 .idea/
 public/
 cxxlinemod/build/
-cxxlinemod/Debug/
 cxxlinemod/CMakeLists.txt.user
 __pycache__
