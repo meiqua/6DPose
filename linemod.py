@@ -21,81 +21,86 @@ dataset = 'hinterstoisser'
 # dataset = 'toyotalight'
 
 dp = get_dataset_params(dataset)
-
-# train
-start_time = time.time()
-obj_ids = []  # for each obj
-# im_ids = list(range(1, 1000, 10))  # obj's img
-im_ids = []
-visual = True
-
-templateInfo = []
 detector = cv2.linemod.getDefaultLINEMOD()
 
-# colorGt = cv2.linemod_Modality.create('ColorGradient')
-# depthNm = cv2.linemod_Modality.create('DepthNormal')
-# detector = cv2.linemod_Detector([colorGt, depthNm], [1, 2])
-
+obj_ids = []  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-for obj_id in obj_ids_curr:
-    scene_info = inout.load_info(dp['obj_info_mpath'].format(obj_id))
-    scene_gt = inout.load_gt(dp['obj_gt_mpath'].format(obj_id))
+mode = 'train'
 
-    im_ids_curr = sorted(scene_info.keys())
+if mode == 'train':
+    start_time = time.time()
+    # im_ids = list(range(1, 1000, 10))  # obj's img
+    im_ids = []
+    visual = True
+    templateInfo = dict()
+    template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
+    tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
+    misc.ensure_dir(os.path.dirname(template_saved_to))
 
-    if im_ids:
-        im_ids_curr = set(im_ids_curr).intersection(im_ids)
+    for obj_id in obj_ids_curr:
+        scene_info = inout.load_info(dp['obj_info_mpath'].format(obj_id))
+        scene_gt = inout.load_gt(dp['obj_gt_mpath'].format(obj_id))
 
-    for im_id in im_ids_curr:
-        print('obj: {}, im: {}'.format(obj_id, im_id))
+        im_ids_curr = sorted(scene_info.keys())
 
-        # Load the images
-        rgb = inout.load_im(dp['train_rgb_mpath'].format(obj_id, im_id))
-        depth = inout.load_depth(dp['train_depth_mpath'].format(obj_id, im_id))
+        if im_ids:
+            im_ids_curr = set(im_ids_curr).intersection(im_ids)
 
-        # convert to float32 will fail, after a painful try under c++ T_T
-        depth = depth.astype(np.uint16)  # [mm]
-        # depth *= dp['cam']['depth_scale']  # to [mm]
+        for im_id in im_ids_curr:
+            print('obj: {}, im: {}'.format(obj_id, im_id))
 
-        # depth /= 1000.0  # [m]
-        # during training, there's only one obj
-        gt = scene_gt[im_id][0]
+            # Load the images
+            rgb = inout.load_im(dp['train_rgb_mpath'].format(obj_id, im_id))
+            depth = inout.load_depth(dp['train_depth_mpath'].format(obj_id, im_id))
 
-        K = scene_info[im_id]['cam_K']
-        R = gt['cam_R_m2c']
-        t = gt['cam_t_m2c']
-        # have read rgb, depth, pose, obj_bb, obj_id here
+            # convert to float32 will fail, after a painful try under c++ T_T
+            depth = depth.astype(np.uint16)  # [mm]
+            # depth *= dp['cam']['depth_scale']  # to [mm]
 
-        aTemplateInfo = dict()
-        aTemplateInfo['K'] = K
-        aTemplateInfo['R'] = R
-        aTemplateInfo['t'] = t
-        templateInfo.append(aTemplateInfo)
+            # depth /= 1000.0  # [m]
+            # during training, there's only one obj
+            gt = scene_gt[im_id][0]
 
-        mask = (depth > 0).astype(np.uint8)*255
-        # kernel = np.ones((5, 5), np.uint8)
-        # mask = cv2.dilate(mask, kernel, iterations=1)
+            K = scene_info[im_id]['cam_K']
+            R = gt['cam_R_m2c']
+            t = gt['cam_t_m2c']
+            # have read rgb, depth, pose, obj_bb, obj_id here
 
-        visual = False
-        if visual:
-            cv2.namedWindow('rgb')
-            cv2.imshow('rgb', rgb)
-            cv2.namedWindow('depth')
-            cv2.imshow('depth', depth)
-            cv2.namedWindow('mask')
-            cv2.imshow('mask', mask)
-            cv2.waitKey(1000)
+            aTemplateInfo = dict()
+            aTemplateInfo['cam_K'] = K
+            aTemplateInfo['cam_R_w2c'] = R
+            aTemplateInfo['cam_t_w2c'] = t
 
-        success = detector.addTemplate([rgb, depth], 'obj_{:02d}'.format(obj_id), mask)
-        print('success {}'.format(success))
+            mask = (depth > 0).astype(np.uint8) * 255
 
-elapsed_time = time.time() - start_time
-print('train time: {}\n'.format(elapsed_time))
-saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
-misc.ensure_dir(os.path.dirname(saved_to))
-detector.writeClasses(saved_to)
+            visual = False
+            if visual:
+                cv2.namedWindow('rgb')
+                cv2.imshow('rgb', rgb)
+                cv2.namedWindow('depth')
+                cv2.imshow('depth', depth)
+                cv2.namedWindow('mask')
+                cv2.imshow('mask', mask)
+                cv2.waitKey(1000)
+
+            # test what will happen if addTemplate fails
+            # no template will be added, rather than a empty template
+            # if im_id % 10 == 0:
+            #     depth = depth.astype(np.float32)
+
+            success = detector.addTemplate([rgb, depth], '{:02d}_template'.format(obj_id), mask)
+            print('success {}'.format(success))
+
+            if success[0] != -1:
+                templateInfo[success[0]] = aTemplateInfo
+
+        inout.save_info(tempInfo_saved_to.format(obj_id), templateInfo)
+
+    detector.writeClasses(template_saved_to)
+    elapsed_time = time.time() - start_time
+    print('train time: {}\n'.format(elapsed_time))
 
 print('end line for debug')
