@@ -9,7 +9,6 @@ from pysixd import view_sampler, inout, misc
 from pysixd.renderer import Renderer
 from params.dataset_params import get_dataset_params
 from os.path import join
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 dataset = 'hinterstoisser'
@@ -79,7 +78,7 @@ if mode == 'train':
 
             mask = (depth > 0).astype(np.uint8) * 255
 
-            visual = False
+            # visual = False
             if visual:
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
@@ -87,7 +86,7 @@ if mode == 'train':
                 cv2.imshow('depth', depth)
                 cv2.namedWindow('mask')
                 cv2.imshow('mask', mask)
-                cv2.waitKey(1000)
+                cv2.waitKey(1000000)
 
             # test what will happen if addTemplate fails
             # no template will be added, rather than a empty template
@@ -114,7 +113,7 @@ if mode == 'test':
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
 
-    scene_ids = [2]  # for each obj
+    scene_ids = [10]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
 
@@ -153,13 +152,12 @@ if mode == 'test':
             depth = inout.load_depth(dp['test_depth_mpath'].format(scene_id, im_id))
             depth = depth.astype(np.uint16)  # [mm]
             # depth *= dp['cam']['depth_scale']  # to [mm]
-
+            im_size = (depth.shape[1], depth.shape[0])
             start_time = time.time()
             match_ids = list()
             match_ids.append('{:02d}_template'.format(scene_id))
 
             # only search for one obj
-            print('{} matching...'.format(match_ids[0]))
             output = detector.match([rgb, depth], 50, match_ids)
             elapsed_time = time.time() - start_time
             print('match time: {}s'.format(elapsed_time))
@@ -171,15 +169,30 @@ if mode == 'test':
                   .format(most_like_match.x, most_like_match.y, most_like_match.similarity,
                             most_like_match.class_id, most_like_match.template_id))
 
+            template = detector.getTemplates(most_like_match.class_id, most_like_match.template_id)
+            startPos = (int(most_like_match.x), int(most_like_match.y))
+
+            # there are 4 templates, while 0-1 2-3 are same, width, height, pyramid_level
+            factor1 = 2 ^ template[0].pyramid_level
+            factor2 = 2 ^ template[2].pyramid_level
+            print('factor1: {}, factor2: {}'.format(factor1, factor2))
+            # cv2.circle(rgb, startPos, 4, (0, 0, 255), -1)
+            for m in range(5): # test if top5 matches drop in right area
+                startPos = (int(matches[m].x), int(matches[m].y))
+                centerPos = (int(startPos[0] + im_size[0] / factor1/2), int(startPos[1] + im_size[1] / factor1/2))
+                cv2.circle(rgb, centerPos, 3, (0, 0, 255), -1)
+                centerPos = (int(startPos[0] + im_size[0] / factor2/2), int(startPos[1] + im_size[1] / factor2/2))
+                cv2.circle(rgb, centerPos, 3, (0, 255, 0), -1)
+
             aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
 
             model = inout.load_ply(dp['model_mpath'].format(scene_id))
-            K = aTemplateInfo[most_like_match.template_id]['cam_K']
-            R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
-            t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
+            render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
+            render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
+            render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
+            oriRBG = inout.load_im(dp['train_rgb_mpath'].format(scene_id, most_like_match.template_id))
 
-            im_size = (depth.shape[1], depth.shape[0])
-            render_rgb, render_depth = renderer.render(model, im_size, K, R, t)
+            render_rgb, render_depth = renderer.render(model, im_size, render_K, render_R, render_t)
             visible_mask = render_depth < depth
             mask = render_depth > 0
             mask = mask.astype(np.uint8)
@@ -190,13 +203,13 @@ if mode == 'test':
             visual = True
             # visual = False
             if visual:
-                cv2.namedWindow('rgb')
-                cv2.imshow('rgb', render_rgb)
+                # cv2.namedWindow('rgb')
+                # cv2.imshow('rgb', render_rgb)
                 cv2.namedWindow('depth')
                 cv2.imshow('depth', rgb)
-                # cv2.namedWindow('quantized_images')
-                # cv2.imshow('quantized_images', quantized_images[0]*2)
-                cv2.waitKey(2000)
+                cv2.namedWindow('oriRBG')
+                cv2.imshow('oriRBG', oriRBG)
+                cv2.waitKey(1000)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:
