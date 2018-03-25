@@ -113,7 +113,7 @@ if mode == 'test':
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
 
-    scene_ids = [10]  # for each obj
+    scene_ids = [8]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
 
@@ -179,10 +179,11 @@ if mode == 'test':
             # cv2.circle(rgb, startPos, 4, (0, 0, 255), -1)
             for m in range(5): # test if top5 matches drop in right area
                 startPos = (int(matches[m].x), int(matches[m].y))
-                centerPos = (int(startPos[0] + im_size[0] / factor1/2), int(startPos[1] + im_size[1] / factor1/2))
-                cv2.circle(rgb, centerPos, 3, (0, 0, 255), -1)
-                centerPos = (int(startPos[0] + im_size[0] / factor2/2), int(startPos[1] + im_size[1] / factor2/2))
-                cv2.circle(rgb, centerPos, 3, (0, 255, 0), -1)
+                template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
+                factor1 = 2 ^ template[0].pyramid_level
+
+                centerPos = (int(startPos[0] + template[0].width / factor1/2), int(startPos[1] + template[0].height / factor1/2))
+                cv2.circle(rgb, centerPos, int(template[0].width / factor1/2), (0, 0, 255), 2)
 
             aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
 
@@ -203,13 +204,13 @@ if mode == 'test':
             visual = True
             # visual = False
             if visual:
-                # cv2.namedWindow('rgb')
-                # cv2.imshow('rgb', render_rgb)
-                cv2.namedWindow('depth')
-                cv2.imshow('depth', rgb)
+                # cv2.namedWindow('rgb_render')
+                # cv2.imshow('rgb_render', render_rgb)
+                cv2.namedWindow('rgb')
+                cv2.imshow('rgb', rgb)
                 cv2.namedWindow('oriRBG')
                 cv2.imshow('oriRBG', oriRBG)
-                cv2.waitKey(1000)
+                cv2.waitKey(500)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:

@@ -27,4 +27,6 @@ Though detection is fine, but the result is really confusing
 I think the original img should look similar to test scene,
 and the predicted center drop in right area, but it seems not that good.
 In ork, there is an ICP process following that, maybe ICP helps a lot?  
-Well, I'll implement others' paper to compare with linemod without ICP first.
+Well, I'll implement others' paper to compare with linemod without ICP first.  
+I think it's caused by scale, all the training set is from R=400mm, and linemod is not
+scale invariant
