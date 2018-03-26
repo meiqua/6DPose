@@ -30,7 +30,7 @@ if dataset == 'hinterstoisser':
     # Range of object dist. in test images: 346.31 - 1499.84 mm - with extended GT
     # (there are only 3 occurrences under 400 mm)
     # Range of object dist. in test images: 600.90 - 1102.35 mm - with only original GT
-    radii = [400] # Radii of the view sphere [mm]
+    radii = [400, 500, 600, 700, 800, 900, 1000] # Radii of the view sphere [mm]
     # radii = range(600, 1101, 100)
     # radii = range(400, 1501, 100)
 

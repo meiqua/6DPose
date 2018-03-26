@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import cv2
 import math
 from pysixd import view_sampler, inout, misc
-from pysixd.renderer import Renderer
+from  pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,18 +23,19 @@ dataset = 'hinterstoisser'
 dp = get_dataset_params(dataset)
 detector = cv2.linemod.getDefaultLINEMOD()
 
-obj_ids = []  # for each obj
+obj_ids = [6, 8]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-renderer = Renderer()
+# renderer = Renderer()
 
-mode = 'test'
+mode = 'render_train'
 
-template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
-if mode == 'train':
+template_saved_to = join(dp['base_path'], 'linemod_data', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_data', '{:02d}_info.yaml')
+
+if mode == 'data_train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
     im_ids = []
@@ -86,7 +87,7 @@ if mode == 'train':
                 cv2.imshow('depth', depth)
                 cv2.namedWindow('mask')
                 cv2.imshow('mask', mask)
-                cv2.waitKey(1000000)
+                cv2.waitKey(1000)
 
             # test what will happen if addTemplate fails
             # no template will be added, rather than a empty template
@@ -98,6 +99,108 @@ if mode == 'train':
 
             if success[0] != -1:
                 templateInfo[success[0]] = aTemplateInfo
+
+        inout.save_info(tempInfo_saved_to.format(obj_id), templateInfo)
+
+    detector.writeClasses(template_saved_to)
+    elapsed_time = time.time() - start_time
+    print('train time: {}\n'.format(elapsed_time))
+
+if mode == 'render_train':
+    template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
+    tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
+    start_time = time.time()
+    visual = True
+    misc.ensure_dir(os.path.dirname(template_saved_to))
+
+    # Super-sampling anti-aliasing (SSAA)
+    # https://github.com/vispy/vispy/wiki/Tech.-Antialiasing
+    # The RGB image is rendered at ssaa_fact times higher resolution and then
+    # down-sampled to the required resolution.
+    ssaa_fact = 4
+    im_size_rgb = [int(round(x * float(ssaa_fact))) for x in dp['cam']['im_size']]
+    K_rgb = dp['cam']['K'] * ssaa_fact
+
+    for obj_id in obj_ids_curr:
+        templateInfo = dict()
+
+        radii = [600, 700, 800, 900, 1000]
+        azimuth_range = (0, 2 * math.pi)
+        elev_range = (0, 0.5 * math.pi)
+        min_n_views = 100
+        clip_near = 10  # [mm]
+        clip_far = 10000  # [mm]
+        ambient_weight = 0.8  # Weight of ambient light [0, 1]
+        shading = 'phong'  # 'flat', 'phong'
+
+        # Load model
+        model_path = dp['model_mpath'].format(obj_id)
+        model = inout.load_ply(model_path)
+
+        # Load model texture
+        if dp['model_texture_mpath']:
+            model_texture_path = dp['model_texture_mpath'].format(obj_id)
+            model_texture = inout.load_im(model_texture_path)
+        else:
+            model_texture = None
+
+        im_id = 0
+        for radius in radii:
+            # Sample views
+            views, views_level = view_sampler.sample_views(min_n_views, radius,
+                                                           azimuth_range, elev_range)
+            print('Sampled views: ' + str(len(views)))
+
+            # Render the object model from all the views
+            for view_id, view in enumerate(views):
+                if view_id % 10 == 0:
+                    print('obj,radius,view: ' + str(obj_id) +
+                          ',' + str(radius) + ',' + str(view_id))
+
+                # Render depth image
+                depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
+                                        view['R'], view['t'],
+                                        clip_near, clip_far, mode='depth')
+
+                # Convert depth so it is in the same units as the real test images
+                depth /= dp['cam']['depth_scale']
+                depth = depth.astype(np.uint16)
+
+                # Render RGB image
+                rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
+                                      clip_near, clip_far, texture=model_texture,
+                                      ambient_weight=ambient_weight, shading=shading,
+                                      mode='rgb')
+                rgb = cv2.resize(rgb, dp['cam']['im_size'], interpolation=cv2.INTER_AREA)
+
+                K = dp['cam']['K']
+                R = view['R']
+                t = view['t']
+                # have read rgb, depth, pose, obj_bb, obj_id here
+
+                aTemplateInfo = dict()
+                aTemplateInfo['cam_K'] = K
+                aTemplateInfo['cam_R_w2c'] = R
+                aTemplateInfo['cam_t_w2c'] = t
+
+                mask = (depth > 0).astype(np.uint8) * 255
+
+                visual = False
+                if visual:
+                    cv2.namedWindow('rgb')
+                    cv2.imshow('rgb', rgb)
+                    cv2.namedWindow('depth')
+                    cv2.imshow('depth', depth)
+                    cv2.namedWindow('mask')
+                    cv2.imshow('mask', mask)
+                    cv2.waitKey(1000)
+
+                success = detector.addTemplate([rgb, depth], '{:02d}_template'.format(obj_id), mask)
+                print('success {}'.format(success))
+                del rgb, depth, mask
+
+                if success[0] != -1:
+                    templateInfo[success[0]] = aTemplateInfo
 
         inout.save_info(tempInfo_saved_to.format(obj_id), templateInfo)
 
