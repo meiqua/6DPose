@@ -23,7 +23,7 @@ dataset = 'hinterstoisser'
 dp = get_dataset_params(dataset)
 detector = cv2.linemod.getDefaultLINEMOD()
 
-obj_ids = [6, 8]  # for each obj
+obj_ids = []  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
@@ -32,10 +32,11 @@ if obj_ids:
 
 mode = 'render_train'
 
-template_saved_to = join(dp['base_path'], 'linemod_data', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_data', '{:02d}_info.yaml')
-
-if mode == 'data_train':
+# template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
+# tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
+template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
+if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
     im_ids = []
@@ -107,8 +108,6 @@ if mode == 'data_train':
     print('train time: {}\n'.format(elapsed_time))
 
 if mode == 'render_train':
-    template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
-    tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
     start_time = time.time()
     visual = True
     misc.ensure_dir(os.path.dirname(template_saved_to))
@@ -127,7 +126,7 @@ if mode == 'render_train':
         radii = [600, 700, 800, 900, 1000]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
-        min_n_views = 100
+        min_n_views = 200
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
         ambient_weight = 0.8  # Weight of ambient light [0, 1]
@@ -294,9 +293,8 @@ if mode == 'test':
             render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
             render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
             render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
-            oriRBG = inout.load_im(dp['train_rgb_mpath'].format(scene_id, most_like_match.template_id))
 
-            render_rgb, render_depth = renderer.render(model, im_size, render_K, render_R, render_t)
+            render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t)
             visible_mask = render_depth < depth
             mask = render_depth > 0
             mask = mask.astype(np.uint8)
@@ -307,12 +305,10 @@ if mode == 'test':
             visual = True
             # visual = False
             if visual:
-                # cv2.namedWindow('rgb_render')
-                # cv2.imshow('rgb_render', render_rgb)
+                cv2.namedWindow('rgb_render')
+                cv2.imshow('rgb_render', render_rgb)
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.namedWindow('oriRBG')
-                cv2.imshow('oriRBG', oriRBG)
                 cv2.waitKey(500)
 
             gt_ids_curr = range(len(scene_gt[im_id]))

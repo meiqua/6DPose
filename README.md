@@ -29,4 +29,6 @@ and the predicted center drop in right area, but it seems not that good.
 In ork, there is an ICP process following that, maybe ICP helps a lot?  
 Well, I'll implement others' paper to compare with linemod without ICP first.  
 I think it's caused by scale, all the training set is from R=400mm, and linemod is not
-scale invariant
+scale invariant  
+Amazing(惊了)!when train from rendered img of different R, the result is
+much better than before. Linemod is quite sensitive to scales.
