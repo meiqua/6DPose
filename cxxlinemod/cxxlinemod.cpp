@@ -7,6 +7,29 @@
 #include<boost/format.hpp>
 using namespace std;
 using namespace cv;
+
+void show_image(cv::Mat image)
+{
+    cv::imshow("image_from_Cpp", image);
+    cv::waitKey(0);
+}
+
+cv::Mat read_image(std::string image_name)
+{
+    cv::Mat image = cv::imread(image_name, CV_LOAD_IMAGE_COLOR);
+    return image;
+}
+
+cv::Mat passthru(cv::Mat image)
+{
+    return image;
+}
+
+cv::Mat cloneimg(cv::Mat image)
+{
+    return image.clone();
+}
+
 int main(){
     auto detector = cv::linemod::getDefaultLINEMOD();
 

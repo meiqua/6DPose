@@ -6,6 +6,8 @@ SET(CMAKE_BUILD_TYPE "Debug")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
 #SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 
+
+
 set(CMAKE_PREFIX_PATH /home/meiqua/anaconda3/envs/furnace)
 # we install cuda9 but build opencv with cuda8, have to set mannually
 set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)
@@ -14,10 +16,14 @@ set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)
 find_package(OpenCV 3 REQUIRED)
 #message(STATUS "dir='${OpenCV_DIR}'")
 
+find_package(PythonLibs REQUIRED)
 find_package(pybind11 REQUIRED)
 
-include_directories(${OpenCV_INCLUDE_DIRS})
-pybind11_add_module(${PROJECT_NAME} ${PROJECT_NAME}.cpp pybind11.cpp)
+include(Cmake/FindNumPy.cmake)
+
+include_directories(${OpenCV_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS} ${PYTHON_NUMPY_INCLUDE_DIR})
+
+pybind11_add_module(${PROJECT_NAME} ${PROJECT_NAME}.cpp pybind11.cpp ndarray_converter.cpp)
 
 add_executable(${PROJECT_NAME}_executable ${PROJECT_NAME}.cpp)
 target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS})

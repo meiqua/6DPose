@@ -30,7 +30,7 @@ if obj_ids:
 
 # renderer = Renderer()
 
-mode = 'render_train'
+mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
@@ -215,7 +215,7 @@ if mode == 'test':
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
 
-    scene_ids = [8]  # for each obj
+    scene_ids = [9]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
 
@@ -236,6 +236,8 @@ if mode == 'test':
         # Load scene info and gt poses
         scene_info = inout.load_info(dp['scene_info_mpath'].format(scene_id))
         scene_gt = inout.load_gt(dp['scene_gt_mpath'].format(scene_id))
+        model = inout.load_ply(dp['model_mpath'].format(scene_id))
+        aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
 
         # Considered subset of images for the current scene
         if im_ids_sets is not None:
@@ -285,11 +287,19 @@ if mode == 'test':
                 factor1 = 2 ^ template[0].pyramid_level
 
                 centerPos = (int(startPos[0] + template[0].width / factor1/2), int(startPos[1] + template[0].height / factor1/2))
-                cv2.circle(rgb, centerPos, int(template[0].width / factor1/2), (0, 0, 255), 2)
+                tempR = max(template[0].width / factor1/2, template[0].height / factor1/2)
+                cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
 
-            aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
+            for match in matches:
+                template = detector.getTemplates(match.class_id, match.template_id)
+                startPos = (int(match.x), int(match.y))
+                K = aTemplateInfo[match.template_id]['cam_K']
+                R = aTemplateInfo[match.template_id]['cam_R_w2c']
+                t = aTemplateInfo[match.template_id]['cam_t_w2c']
+                depth = render(model, im_size, K, R, t, mode='depth')
 
-            model = inout.load_ply(dp['model_mpath'].format(scene_id))
+
+
             render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
             render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
             render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
