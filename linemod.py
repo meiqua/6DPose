@@ -9,6 +9,7 @@ from pysixd import view_sampler, inout, misc
 from  pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
+import cxxlinemod_pybind
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 dataset = 'hinterstoisser'
@@ -251,6 +252,7 @@ if mode == 'test':
         for im_id in im_ids_curr:
             print('scene: {}, im: {}'.format(scene_id, im_id))
 
+            K = scene_info[im_id]['cam_K']
             # Load the images
             rgb = inout.load_im(dp['test_rgb_mpath'].format(scene_id, im_id))
             depth = inout.load_depth(dp['test_depth_mpath'].format(scene_id, im_id))
@@ -293,12 +295,13 @@ if mode == 'test':
             for match in matches:
                 template = detector.getTemplates(match.class_id, match.template_id)
                 startPos = (int(match.x), int(match.y))
-                K = aTemplateInfo[match.template_id]['cam_K']
-                R = aTemplateInfo[match.template_id]['cam_R_w2c']
-                t = aTemplateInfo[match.template_id]['cam_t_w2c']
-                depth = render(model, im_size, K, R, t, mode='depth')
+                K_match = aTemplateInfo[match.template_id]['cam_K']
+                R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
+                t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
+                depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
-
+                pc_render = cv2.rgbd.depthTo3d(depth_ren.astype(np.float32), K_match)
+                pc_scene = cv2.rgbd.depthTo3d(depth.astype(np.float32), K)
 
             render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
             render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
@@ -328,8 +331,6 @@ if mode == 'test':
             for gt_id in gt_ids_curr:
                 gt = scene_gt[im_id][gt_id]
                 obj_id = gt['obj_id']
-
-                K = scene_info[im_id]['cam_K']
                 R = gt['cam_R_m2c']
                 t = gt['cam_t_m2c']
                 # have read rgb, depth, pose, obj_bb, obj_id here

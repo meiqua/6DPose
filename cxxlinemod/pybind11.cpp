@@ -5,12 +5,6 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(cxxlinemod_pybind, m) {
     NDArrayConverter::init_numpy();
-    m.def("read_image", &read_image, "A function that read an image",
-        py::arg("image"));
-
-    m.def("show_image", &show_image, "A function that show an image",
-        py::arg("image"));
-
-    m.def("passthru", &passthru, "Passthru function", py::arg("image"));
-    m.def("clone", &cloneimg, "Clone function", py::arg("image"));
+    m.def("depth2pc", &depth2pc, "depth to point cloud",
+        py::arg("depth"), py::arg("K"));
 }
