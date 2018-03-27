@@ -1,3 +1,4 @@
+
 import os
 import re
 import sys
@@ -57,13 +58,13 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
 
 setup(
-    name='cxxlinemod',
+    name='cxxlinemod_pybind',
     version='0.0.1',
     author='Dean Moldovan',
     author_email='dean0x7d@gmail.com',
     description='A test project using pybind11 and CMake',
     long_description='',
-    ext_modules=[CMakeExtension('cxxlinemod')],
+    ext_modules=[CMakeExtension('cxxlinemod_pybind')],
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
 )
