@@ -6,6 +6,7 @@ namespace py = pybind11;
 PYBIND11_MODULE(cxxlinemod_pybind, m) {
     NDArrayConverter::init_numpy();
     py::class_<poseRefine>(m, "poseRefine")
+        .def(py::init<>())
         .def("getResidual", &poseRefine::getResidual)
         .def("process", &poseRefine::process);
 }

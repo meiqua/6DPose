@@ -12,12 +12,17 @@ using namespace cv;
 
 // for test
 int main(){
-    Mat depth = cv::imread("/home/meiqua/6DPose/public/datasets/hinterstoisser/test/09/depth/0000.png", IMREAD_ANYDEPTH);
-
+    // test case1
+    Mat depth = cv::imread("/home/meiqua/6DPose/cxxlinemod/test/case1/0003.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    Mat depth_ren = cv::imread("/home/meiqua/6DPose/cxxlinemod/test/case1/depth_ren.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
     Mat K = (Mat_<float>(3,3) << 572.4114, 0.0, 325.2611, 0.0, 573.57043, 242.04899, 0.0, 0.0, 1.0);
-//    Mat pc = depth2pc(depth, K);
+    Mat R = (Mat_<float>(3,3) << 1.00000000, 0.00000000, 0.00000000,
+             0.00000000, -0.90727223, -0.42054381, 0.00000000, 0.42054381, -0.90727223);
+    Mat t = (Mat_<float>(3,1) << 0.0, 0.0, 1000.0);
     auto pr = std::make_unique<poseRefine>();
-    pr->process(depth, depth, K, K, depth, depth, 0, 0);
+    cv::Mat pose = pr->process(depth, depth_ren, K, K, R, t, 352, 327);
+
+    cout << "M = "<< endl << " "  << pose << endl << endl;
 
     cout << "break point line" << endl;
     return 0;
@@ -26,36 +31,77 @@ int main(){
 Mat poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                         Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
-    cv::Mat modelCloud;  //rows x cols x 3
-    cv::rgbd::depthTo3d(modelDepth, modelK, modelCloud);
+//    double unit = 1.0;
+//    sceneDepth.convertTo(sceneDepth, CV_32F);
+//    modelDepth.convertTo(modelDepth, CV_32F);
+//    sceneK.convertTo(sceneK, CV_32F);
+//    modelK.convertTo(modelK, CV_32F);
+//    modelR.convertTo(modelR, CV_32F);
+//    modelT.convertTo(modelT, CV_32F);
+//    sceneDepth /= unit;
+//    modelDepth /= unit;
+//    sceneK /= unit;
+//    modelK /= unit;
+//    modelR /= unit;
+//    modelT /= unit;
+
     cv::Mat modelMask = modelDepth > 0;
-
-    cv::Mat sceneCloud;  //rows x cols x 3
-    cv::rgbd::depthTo3d(sceneDepth, sceneK, sceneCloud);
-    cv::Mat sceneMask = sceneDepth > 0;
-
-    // modelT xy is the xy of point in the scene at bbox center
     Mat non0p;
     findNonZero(modelMask,non0p);
     Rect bbox=boundingRect(non0p);
-    int offsetX = bbox.width/2 + detectX;
-    int offsetY = bbox.height/2 + detectY;
+
+    cv::Mat modelCloud_cropped;  //rows x cols x 3, cropped
+    cv::Mat modelDepth_cropped = modelDepth(bbox);
+    cv::Mat modelMask_cropped = modelMask(bbox);
+    cv::rgbd::depthTo3d(modelDepth_cropped, modelK, modelCloud_cropped);
+
+    //crop scene
+    int enhancedX = bbox.width/2;
+    int enhancedY = bbox.height/2;
+    //boundary check
+    int bboxX1 = detectX - enhancedX;
+    if(bboxX1 < 0) bboxX1 = 0;
+    int bboxX2 = detectX + bbox.width + enhancedX;
+    if(bboxX2 > sceneDepth.cols) bboxX2 = sceneDepth.cols;
+    int bboxY1 = detectY - enhancedY;
+    if(bboxY1 < 0) bboxY1 = 0;
+    int bboxY2 = detectY + bbox.height + enhancedY;
+    if(bboxY2 > sceneDepth.rows) bboxY1 = sceneDepth.rows;
+
+    cv::Rect ROI_sceneDepth(bboxX1, bboxY1, bboxX2-bboxX1, bboxY2-bboxY1);
+    cv::Mat sceneDepth_cropped = sceneDepth(ROI_sceneDepth);
+    cv::Mat sceneMask_cropped = sceneDepth_cropped > 0;
+    cv::Mat sceneCloud_cropped;
+    cv::rgbd::depthTo3d(sceneDepth_cropped, sceneK, sceneCloud_cropped);
+
+    cv::Mat modelCloudWithNorm, sceneCloudWithNorm;  //rows x cols x 6
+    modelCloudWithNorm = normalCompute(modelCloud_cropped, modelK, modelMask_cropped);
+    sceneCloudWithNorm = normalCompute(sceneCloud_cropped, sceneK, sceneMask_cropped);
+
+    auto icp = make_unique<cv::ppf_match_3d::ICP>(10); //10 iteration
+    cv::Matx44d pose;
+    icp->registerModelToScene(modelCloudWithNorm, sceneCloudWithNorm, residual, pose);
+
+    //poseInit has been applied to model
+    auto poseInit = make_unique<cv::ppf_match_3d::Pose3D>();
 
     int smoothSize = 5;
     //boundary check
+    int offsetX = sceneDepth_cropped.cols/2;
+    int offsetY = sceneDepth_cropped.rows/2;
     int startoffsetX1 = offsetX - smoothSize/2;
     if(startoffsetX1 < 0) startoffsetX1 = 0;
     int startoffsetX2 = offsetX + smoothSize/2;
-    if(startoffsetX2 > sceneCloud.cols) startoffsetX2 = sceneCloud.cols;
+    if(startoffsetX2 > sceneDepth_cropped.cols) startoffsetX2 = sceneDepth_cropped.cols;
     int startoffsetY1 = offsetY - smoothSize/2;
     if(startoffsetY1 < 0) startoffsetY1 = 0;
     int startoffsetY2 = offsetY + smoothSize/2;
-    if(startoffsetY2 > sceneCloud.rows) startoffsetY2 = sceneCloud.rows;
+    if(startoffsetY2 > sceneDepth_cropped.rows) startoffsetY2 = sceneDepth_cropped.rows;
 
     cv::Vec3f avePoint; int count=0;
     for(auto i=startoffsetX1; i<startoffsetX2; i++){
         for(auto j=startoffsetY1; j<startoffsetY2; j++){
-            auto p = sceneCloud.at<cv::Vec3f>(j, i);
+            auto p = sceneDepth_cropped.at<cv::Vec3f>(j, i);
             avePoint += p;
             count++;
         }
@@ -63,29 +109,12 @@ Mat poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mode
     avePoint /= count;
     modelT.at<float>(0, 0) = avePoint[0];
     modelT.at<float>(1, 0) = avePoint[1];
-    avePoint[2] = 0;  //  don't transfer modelCloud's z
-
-    auto modelIt = modelCloud.begin<cv::Vec3f>();
-    for(; modelIt != modelCloud.begin<cv::Vec3f>(); modelIt++){
-        *modelIt += avePoint;
-    }
-
-    cv::Mat modelCloudWithNorm, sceneCloudWithNorm;  //rows x cols x 6
-    modelCloudWithNorm = normalCompute(modelCloud, modelK, modelMask);
-    sceneCloudWithNorm = normalCompute(sceneCloud, sceneK, sceneMask);
-
-    //poseInit has been applied to model
-    auto poseInit = make_unique<cv::ppf_match_3d::Pose3D>();
     // well, it looks stupid
     auto m33 = cv::Matx33d(modelR.at<float>(0, 0), modelR.at<float>(0, 1), modelR.at<float>(0, 2),
                        modelR.at<float>(1, 0), modelR.at<float>(1, 1), modelR.at<float>(1, 2),
                        modelR.at<float>(2, 0), modelR.at<float>(2, 1), modelR.at<float>(2, 2));
     auto v3d = cv::Vec3d(modelT.at<float>(0, 0), modelT.at<float>(1, 0), modelT.at<float>(2, 0));
     poseInit->updatePose(m33, v3d);
-
-    auto icp = make_unique<cv::ppf_match_3d::ICP>(10); //10 iteration
-    cv::Matx44d pose;
-    icp->registerModelToScene(modelCloudWithNorm, sceneCloudWithNorm, residual, pose);
     poseInit->appendPose(pose);
     return Mat(4, 4, CV_32FC1, &poseInit->pose);
 }
