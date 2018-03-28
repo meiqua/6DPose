@@ -8,5 +8,7 @@ PYBIND11_MODULE(cxxlinemod_pybind, m) {
     py::class_<poseRefine>(m, "poseRefine")
         .def(py::init<>())
         .def("getResidual", &poseRefine::getResidual)
-        .def("process", &poseRefine::process);
+        .def("process", &poseRefine::process)
+        .def("getR", &poseRefine::getR)
+        .def("getT", &poseRefine::getT);
 }

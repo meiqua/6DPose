@@ -28,7 +28,8 @@ set(SOURCE_PYBIND
     np2mat/ndarray_converter.cpp)
 
 set(SOURCE
-    cxxlinemod.cpp)
+    cxxlinemod.cpp
+    linemod_icp.cpp)
 
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})

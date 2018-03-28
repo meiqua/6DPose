@@ -8,13 +8,14 @@
 class poseRefine{
 public:
     poseRefine(): residual(-1){}
-    cv::Mat process(cv::Mat& sceneDepth, cv::Mat& modelDepth, cv::Mat& sceneK, cv::Mat& modelK,
+    void process(cv::Mat& sceneDepth, cv::Mat& modelDepth, cv::Mat& sceneK, cv::Mat& modelK,
                     cv::Mat& modelR, cv::Mat& modelT, int detectX, int detectY);
-    double getResidual();
+    float getResidual();
+    cv::Mat getR();
+    cv::Mat getT();
 private:
-    cv::Mat normalCompute(cv::Mat& cloud, cv::Mat& K, cv::Mat& mask);
-
-    double residual;
+    cv::Mat R_refined, t_refiend;
+    float residual;
 };
 
 #endif

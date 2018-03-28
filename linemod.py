@@ -298,7 +298,7 @@ if mode == 'test':
                 depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
                 poseRefine = cxxlinemod_pybind.poseRefine()
-                pose = poseRefine.process(depth, depth_ren, K, K_match, R_match, t_match, match.x, match.y)
+                poseRefine.process(depth, depth_ren, K, K_match, R_match, t_match, match.x, match.y)
 
                 print("bp line")
 
