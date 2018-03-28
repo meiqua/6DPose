@@ -9,15 +9,6 @@
 #include <opencv2/surface_matching.hpp>
 using namespace std;
 using namespace cv;
-cv::Mat depth2pc(cv::Mat depth, cv::Mat K)
-{
-     cv::Mat pc;
-//     auto mask = depth>0;
-     cv::rgbd::depthTo3d(depth, K, pc);
-     return pc;
-}
-
-
 
 // for test
 int main(){
@@ -32,51 +23,91 @@ int main(){
     return 0;
 }
 
-
 Mat poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                         Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
+    cv::Mat modelCloud;  //rows x cols x 3
+    cv::rgbd::depthTo3d(modelDepth, modelK, modelCloud);
+    cv::Mat modelMask = modelDepth > 0;
+
+    cv::Mat sceneCloud;  //rows x cols x 3
+    cv::rgbd::depthTo3d(sceneDepth, sceneK, sceneCloud);
+    cv::Mat sceneMask = sceneDepth > 0;
+
+    // modelT xy is the xy of point in the scene at bbox center
+    Mat non0p;
+    findNonZero(modelMask,non0p);
+    Rect bbox=boundingRect(non0p);
+    int offsetX = bbox.width/2 + detectX;
+    int offsetY = bbox.height/2 + detectY;
+
+    int smoothSize = 5;
+    //boundary check
+    int startoffsetX1 = offsetX - smoothSize/2;
+    if(startoffsetX1 < 0) startoffsetX1 = 0;
+    int startoffsetX2 = offsetX + smoothSize/2;
+    if(startoffsetX2 > sceneCloud.cols) startoffsetX2 = sceneCloud.cols;
+    int startoffsetY1 = offsetY - smoothSize/2;
+    if(startoffsetY1 < 0) startoffsetY1 = 0;
+    int startoffsetY2 = offsetY + smoothSize/2;
+    if(startoffsetY2 > sceneCloud.rows) startoffsetY2 = sceneCloud.rows;
+
+    cv::Vec3f avePoint; int count=0;
+    for(auto i=startoffsetX1; i<startoffsetX2; i++){
+        for(auto j=startoffsetY1; j<startoffsetY2; j++){
+            auto p = sceneCloud.at<cv::Vec3f>(j, i);
+            avePoint += p;
+            count++;
+        }
+    }
+    avePoint /= count;
+    modelT.at<float>(0, 0) = avePoint[0];
+    modelT.at<float>(1, 0) = avePoint[1];
+    avePoint[2] = 0;  //  don't transfer modelCloud's z
+
+    auto modelIt = modelCloud.begin<cv::Vec3f>();
+    for(; modelIt != modelCloud.begin<cv::Vec3f>(); modelIt++){
+        *modelIt += avePoint;
+    }
+
     cv::Mat modelCloudWithNorm, sceneCloudWithNorm;  //rows x cols x 6
+    modelCloudWithNorm = normalCompute(modelCloud, modelK, modelMask);
+    sceneCloudWithNorm = normalCompute(sceneCloud, sceneK, sceneMask);
 
-    modelCloudWithNorm = normalCompute(modelDepth, modelK);
-    sceneCloudWithNorm = normalCompute(sceneDepth, sceneK);
-
+    //poseInit has been applied to model
     auto poseInit = make_unique<cv::ppf_match_3d::Pose3D>();
-
-    // well, I can't find a better method
+    // well, it looks stupid
     auto m33 = cv::Matx33d(modelR.at<float>(0, 0), modelR.at<float>(0, 1), modelR.at<float>(0, 2),
                        modelR.at<float>(1, 0), modelR.at<float>(1, 1), modelR.at<float>(1, 2),
                        modelR.at<float>(2, 0), modelR.at<float>(2, 1), modelR.at<float>(2, 2));
     auto v3d = cv::Vec3d(modelT.at<float>(0, 0), modelT.at<float>(1, 0), modelT.at<float>(2, 0));
     poseInit->updatePose(m33, v3d);
-    auto icp = make_unique<cv::ppf_match_3d::ICP>(10);
-//    icp.registerModelToScene(modelCloudWithNorm, sceneCloudWithNorm);
 
-    return modelCloudWithNorm;
+    auto icp = make_unique<cv::ppf_match_3d::ICP>(10); //10 iteration
+    cv::Matx44d pose;
+    icp->registerModelToScene(modelCloudWithNorm, sceneCloudWithNorm, residual, pose);
+    poseInit->appendPose(pose);
+    return Mat(4, 4, CV_32FC1, &poseInit->pose);
 }
 
-float poseRefine::getConfidence()
+double poseRefine::getResidual()
 {
-    return confidence;
+    return residual;
 }
 
-Mat poseRefine::normalCompute(Mat & depth, Mat &K)
+Mat poseRefine::normalCompute(Mat &cloud, Mat &K, Mat &mask)
 {
-    cv::Mat modelCloud;  //rows x cols x 3
-    cv::rgbd::depthTo3d(depth, K, modelCloud);
+    int modelCloudNum = cv::countNonZero(mask);
 
-    cv::Mat modelMask = depth > 0;
-    int modelCloudNum = cv::countNonZero(modelMask);
-
-    auto normal_computer = cv::rgbd::RgbdNormals(depth.rows, depth.cols, CV_32F, K);
+    auto normal_computer = cv::rgbd::RgbdNormals(mask.rows, mask.cols, CV_32F, K);
     cv::Mat modelNormals;
-    normal_computer(modelCloud, modelNormals);
+    normal_computer(cloud, modelNormals);
 
     cv::Mat modelCloudWithNorm(modelCloudNum, 6, CV_32FC1);
-    auto modelIt = modelCloud.begin<cv::Vec3f>();
-    auto normIt = modelCloud.begin<cv::Vec3f>();
-    auto maskIt = depth.begin<float>();
-    for(auto i=0; modelIt != modelCloud.begin<cv::Vec3f>(); modelIt++, normIt++, maskIt++){
+    auto modelIt = cloud.begin<cv::Vec3f>();
+    auto normIt = modelNormals.begin<cv::Vec3f>();
+    auto maskIt = mask.begin<float>();
+    for(auto i=0; modelIt != cloud.begin<cv::Vec3f>(); modelIt++, normIt++, maskIt++){
         if(*maskIt > 0){
             auto cloud3f = *modelIt;
             auto norm3f = *normIt;
@@ -89,3 +120,4 @@ Mat poseRefine::normalCompute(Mat & depth, Mat &K)
     }
     return modelCloudWithNorm;
 }
+

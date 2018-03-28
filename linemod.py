@@ -266,10 +266,10 @@ if mode == 'test':
             # only search for one obj
             output = detector.match([rgb, depth], 50, match_ids)
             elapsed_time = time.time() - start_time
-            print('match time: {}s'.format(elapsed_time))
+
             matches = output[0]
             quantized_images = output[1]  # 2^0 --- 2^7
-
+            print('match time: {}s, {} matches'.format(elapsed_time, len(matches)))
             most_like_match = matches[0]
             print('(x={}, y={}, float similarity={:.2f}, class_id={}, template_id={})'
                   .format(most_like_match.x, most_like_match.y, most_like_match.similarity,
@@ -278,27 +278,29 @@ if mode == 'test':
             template = detector.getTemplates(most_like_match.class_id, most_like_match.template_id)
             startPos = (int(most_like_match.x), int(most_like_match.y))
 
-            # there are 4 templates, while 0-1 2-3 are same, width, height, pyramid_level
-            factor1 = 2 ^ template[0].pyramid_level
-            factor2 = 2 ^ template[2].pyramid_level
-            print('factor1: {}, factor2: {}'.format(factor1, factor2))
             # cv2.circle(rgb, startPos, 4, (0, 0, 255), -1)
             for m in range(5): # test if top5 matches drop in right area
                 startPos = (int(matches[m].x), int(matches[m].y))
                 template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
                 factor1 = 2 ^ template[0].pyramid_level
 
-                centerPos = (int(startPos[0] + template[0].width / factor1/2), int(startPos[1] + template[0].height / factor1/2))
-                tempR = max(template[0].width / factor1/2, template[0].height / factor1/2)
+                centerPos = (int(startPos[0] + template[0].width/2 ), int(startPos[1] + template[0].height/2))
+                tempR = max(template[0].width/2, template[0].height/2)
                 cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
 
-            for match in matches:
+            for i in range(5):
+                match = matches[i]
                 template = detector.getTemplates(match.class_id, match.template_id)
                 startPos = (int(match.x), int(match.y))
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
                 depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
+
+                poseRefine = cxxlinemod_pybind.poseRefine()
+                poseRefine.process(depth, depth_ren, K, K_match, R_match, t_match, match.x, match.y)
+
+
 
 
             render_K = aTemplateInfo[most_like_match.template_id]['cam_K']

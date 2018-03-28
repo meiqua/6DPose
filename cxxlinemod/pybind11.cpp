@@ -5,6 +5,7 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(cxxlinemod_pybind, m) {
     NDArrayConverter::init_numpy();
-    m.def("depth2pc", &depth2pc, "depth to point cloud",
-        py::arg("depth"), py::arg("K"));
+    py::class_<poseRefine>(m, "poseRefine")
+        .def("getResidual", &poseRefine::getResidual)
+        .def("process", &poseRefine::process);
 }
