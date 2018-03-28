@@ -216,7 +216,7 @@ if mode == 'test':
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
 
-    scene_ids = [9]  # for each obj
+    scene_ids = [6]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
 
@@ -278,17 +278,20 @@ if mode == 'test':
             template = detector.getTemplates(most_like_match.class_id, most_like_match.template_id)
             startPos = (int(most_like_match.x), int(most_like_match.y))
 
-            # cv2.circle(rgb, startPos, 4, (0, 0, 255), -1)
-            for m in range(5): # test if top5 matches drop in right area
-                startPos = (int(matches[m].x), int(matches[m].y))
-                template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
-                factor1 = 2 ^ template[0].pyramid_level
+            # for m in range(5): # test if top5 matches drop in right area
+            #     startPos = (int(matches[m].x), int(matches[m].y))
+            #     template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
+            #     factor1 = 2 ^ template[0].pyramid_level
+            #
+            #     centerPos = (int(startPos[0] + template[0].width/2 ), int(startPos[1] + template[0].height/2))
+            #     tempR = max(template[0].width/2, template[0].height/2)
+            #     cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
 
-                centerPos = (int(startPos[0] + template[0].width/2 ), int(startPos[1] + template[0].height/2))
-                tempR = max(template[0].width/2, template[0].height/2)
-                cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
+            render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
+            render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
+            render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
 
-            for i in range(5):
+            for i in range(1):
                 match = matches[i]
                 template = detector.getTemplates(match.class_id, match.template_id)
                 startPos = (int(match.x), int(match.y))
@@ -297,19 +300,22 @@ if mode == 'test':
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
                 depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
+                start_time = time.time()
                 poseRefine = cxxlinemod_pybind.poseRefine()
-                poseRefine.process(depth, depth_ren, K, K_match, R_match, t_match, match.x, match.y)
+                # make sure data type is consistent
+                poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
+                                   K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
+                                   , match.x, match.y)
+                refinedR = poseRefine.getR()
+                refinedT = poseRefine.getT()
 
-                print("bp line")
+                render_R = refinedR
+                render_t = refinedT
 
+                elapsed_time = time.time() - start_time
+                print("pose refine time: {}s".format(elapsed_time))
 
-
-
-            render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
-            render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
-            render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
-
-            render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t)
+            render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
             visible_mask = render_depth < depth
             mask = render_depth > 0
             mask = mask.astype(np.uint8)

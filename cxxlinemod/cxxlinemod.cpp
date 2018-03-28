@@ -8,6 +8,7 @@
 #include <iostream>
 #include <opencv2/surface_matching.hpp>
 #include "linemod_icp.h"
+#include <assert.h>
 using namespace std;
 using namespace cv;
 
@@ -71,6 +72,11 @@ int main(){
 void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                         Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
+//    sceneDepth.convertTo(sceneDepth, CV_16U);
+//    modelDepth.convertTo(modelDepth, CV_16U);
+    assert(sceneDepth.type() == CV_16U);
+    assert(sceneK.type() == CV_32F);
+
     cv::Mat modelMask = modelDepth > 0;
     Mat non0p;
     findNonZero(modelMask,non0p);
