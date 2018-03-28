@@ -300,8 +300,6 @@ if mode == 'test':
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
                 depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
-                pc_render = cv2.rgbd.depthTo3d(depth_ren.astype(np.float32), K_match)
-                pc_scene = cv2.rgbd.depthTo3d(depth.astype(np.float32), K)
 
             render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
             render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
