@@ -169,3 +169,4 @@ def calc_pts_diameter2(pts):
     dists = distance.cdist(pts, pts, 'euclidean')
     diameter = np.max(dists)
     return diameter
+

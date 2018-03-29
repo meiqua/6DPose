@@ -12,6 +12,17 @@ from os.path import join
 import cxxlinemod_pybind
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+def draw_axis(img, R, t, K):
+    rotV, _ = cv2.Rodrigues(R)
+    points = np.float32([[100, 0, 0], [0, 100, 0], [0, 0, 100], [0, 0, 0]]).reshape(-1, 3)
+    axisPoints, _ = cv2.projectPoints(points, rotV, t, K, (0, 0, 0, 0))
+    img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[0].ravel()), (255,0,0), 3)
+    img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[1].ravel()), (0,255,0), 3)
+    img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[2].ravel()), (0,0,255), 3)
+    return img
+
+
+
 dataset = 'hinterstoisser'
 # dataset = 'tless'
 # dataset = 'tudlight'
@@ -216,7 +227,7 @@ if mode == 'test':
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
 
-    scene_ids = [6]  # for each obj
+    scene_ids = [10]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
 
@@ -312,6 +323,8 @@ if mode == 'test':
                 render_R = refinedR
                 render_t = refinedT
 
+                print('residual: {}'.format(poseRefine.getResidual()))
+
                 elapsed_time = time.time() - start_time
                 print("pose refine time: {}s".format(elapsed_time))
 
@@ -322,6 +335,9 @@ if mode == 'test':
             rgb_mask = np.dstack([mask]*3)
             render_rgb = render_rgb*rgb_mask
             render_rgb = rgb*(1-rgb_mask) + render_rgb
+
+            draw_axis(rgb, render_R, render_t, render_K)
+            # draw_axis(render_rgb, render_R, render_t, render_K)
 
             visual = True
             # visual = False
