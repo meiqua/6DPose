@@ -13,6 +13,7 @@ import cxxlinemod_pybind
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def draw_axis(img, R, t, K):
+    # unit is mm
     rotV, _ = cv2.Rodrigues(R)
     points = np.float32([[100, 0, 0], [0, 100, 0], [0, 0, 100], [0, 0, 0]]).reshape(-1, 3)
     axisPoints, _ = cv2.projectPoints(points, rotV, t, K, (0, 0, 0, 0))
@@ -227,7 +228,7 @@ if mode == 'test':
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
 
-    scene_ids = [10]  # for each obj
+    scene_ids = [6]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
 
