@@ -35,4 +35,19 @@ much better than before. Linemod is quite sensitive to scales.
 However, as is expected, matching time increase dramatically(2.5s per frame now).  
 
 ##### Pose refine OK, look pretty good, refer to ork linemod icp.  
-![image](./test/results/scene6_match.png)
+![image](./test/results/scene6_match.png)  
+  
+  
+![image2](./test/results/axis.png)
+
+## linemodLevelup
+To deal with occlusion and scale problems:  
+at each matching pos, scale template depth to scene depth;  
+cut template to 4 parts, one of 4's the average response should be above
+a threshold. For example, if half of the obj is hidden, original holistic match's
+average response will drop to 50%, while part-based match keeps 100%.  
+
+Currently part-based is finished, but there is a strange bug:  
+part-based detector reads original info, then it works just fine?  
+We don't even have parts index, so I think the result should be random...
+
