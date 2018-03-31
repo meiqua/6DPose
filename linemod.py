@@ -9,7 +9,11 @@ from pysixd import view_sampler, inout, misc
 from  pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
+
 import cxxlinemod_pybind
+
+# import linemodLevelup_pybind
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def draw_axis(img, R, t, K):
@@ -22,8 +26,6 @@ def draw_axis(img, R, t, K):
     img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[2].ravel()), (0,0,255), 3)
     return img
 
-
-
 dataset = 'hinterstoisser'
 # dataset = 'tless'
 # dataset = 'tudlight'
@@ -35,7 +37,7 @@ dataset = 'hinterstoisser'
 # set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
 detector = cv2.linemod.getDefaultLINEMOD()
-
+# detector = linemodLevelup_pybind.Detector()
 obj_ids = []  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
