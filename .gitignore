@@ -1,5 +1,7 @@
 .idea/
 public/
+linemodLevelup/build/
+linemodLevelup/CMakeLists.txt.user
 cxxlinemod/build/
 cxxlinemod/CMakeLists.txt.user
 __pycache__
