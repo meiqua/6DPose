@@ -47,5 +47,9 @@ cut template to 4 parts, one of 4's the average response should be above
 a threshold. For example, if half of the obj is hidden, original holistic match's
 average response will drop to 50%, while part-based match keeps 100%.  
 
+After some effort, 4 parts version works fine, though a lot slower, and bring
+more mismatches.  
+Maybe just run 4 times is better?  
+Well, the scale is a more important problem.
 
 
