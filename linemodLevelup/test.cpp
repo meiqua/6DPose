@@ -54,7 +54,7 @@ void train_test(){
 int main(){
     // test case1
     /*
-     * (x=327, y=127, float similarity=92.66, class_id=06_template, template_id=1435)
+     * (x=327, y=127, float similarity=92.66, class_id=06_template, template_id=424)
      * render K R t:
   cam_K: [572.41140000, 0.00000000, 325.26110000, 0.00000000, 573.57043000, 242.04899000, 0.00000000, 0.00000000, 1.00000000]
   cam_R_w2c: [0.34768538, 0.93761126, 0.00000000, 0.70540612, -0.26157897, -0.65877056, -0.61767070, 0.22904489, -0.75234390]
@@ -92,10 +92,13 @@ int main(){
     ori_detector->readClasses(classes_ori, prefix + "/up/%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    vector<cv::linemod::Match> matches;
-    ori_detector->match(sources, 70, matches, classes_ori);
-//    auto matches = detector.match(sources, 70, classes);
+//    vector<cv::linemod::Match> matches;
+//    ori_detector->match(sources, 70, matches, classes_ori);
+    vector<linemodLevelup::Match> matches =
+    detector.match(sources, 70, classes);
     auto match = matches[0];
+
+    cout << "x: " << match.x << "\ny: " << match.y << "\ntemplate id: " << match.template_id<<endl;
 
     auto templ = detector.getTemplates(matches[0].class_id, matches[0].template_id);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;

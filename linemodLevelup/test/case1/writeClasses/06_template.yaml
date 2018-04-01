@@ -89,7 +89,7 @@ template_pyramids:
             width: 46
             height: 91
             pyramid_level: 0
-            depth: 7.8069842529296875e+02
+            depth: -2.0555196461292794e+30
             features:
                - [ 33, 22, 7 ]
                - [ 25, 52, 2 ]

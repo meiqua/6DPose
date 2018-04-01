@@ -1677,7 +1677,7 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
               int activePart = 0;
               for(int i=0;i<partSim.size();++i){
                   float res = partSim[i].at<float>(r,c);
-                  if(res>raw_threshold){
+                  if(res>raw_threshold || true){
                       simi_mod.at<float>(r,c) += res;
                       activePart++;
                   }
@@ -1769,7 +1769,7 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
                   for(int i=0;i<partSim.size();++i){
                       float res = partSim[i].at<float>(r,c);
 //                      cout << res << endl;
-                      if(res>raw_threshold){
+                      if(res>raw_threshold || true){
                           simi_mod.at<float>(r,c) += res;
                           activePart++;
                       }

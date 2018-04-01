@@ -35,6 +35,8 @@ dataset = 'hinterstoisser'
 # set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector()
+ori_detector = cv2.linemod.getDefaultLINEMOD()
+
 obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
@@ -226,7 +228,7 @@ if mode == 'test':
     for obj_id in obj_ids_curr:
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
-
+    ori_detector.readClasses(template_read_classes, template_saved_to)
     scene_ids = [6]  # for each obj
     im_ids = []  # obj's img
     gt_ids = []  # multi obj in one img
@@ -275,7 +277,9 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
             # only search for one obj
-            matches = detector.match([rgb, depth], 70.0, match_ids, masks=[])
+            # matches = detector.match([rgb, depth], 70.0, match_ids, masks=[])
+            matches = ori_detector.match([rgb, depth], 80, match_ids)
+            matches = matches[0]
             elapsed_time = time.time() - start_time
 
             print('match time: {}s, {} matches'.format(elapsed_time, len(matches)))
@@ -341,7 +345,7 @@ if mode == 'test':
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.waitKey(500)
+                cv2.waitKey(2000)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:
