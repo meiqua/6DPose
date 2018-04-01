@@ -32,6 +32,6 @@ set(SOURCE
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
 
-add_executable(${PROJECT_NAME}_executable ${SOURCE})
+add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
 target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS})
 
