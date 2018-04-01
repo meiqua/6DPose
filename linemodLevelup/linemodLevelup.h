@@ -376,6 +376,7 @@ protected:
                   float threshold, std::vector<Match>& matches,
                   const std::string& class_id,
                   const std::vector<TemplatePyramid>& template_pyramids) const;
+  std::vector<Template> make4template(const Template& templ) const;
 };
 
 /**

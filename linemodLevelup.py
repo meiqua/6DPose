@@ -277,9 +277,8 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
             # only search for one obj
-            # matches = detector.match([rgb, depth], 70.0, match_ids, masks=[])
-            matches = ori_detector.match([rgb, depth], 80, match_ids)
-            matches = matches[0]
+            matches = detector.match([rgb, depth], 75.0, match_ids, masks=[])
+            # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
             elapsed_time = time.time() - start_time
 
             print('match time: {}s, {} matches'.format(elapsed_time, len(matches)))
@@ -322,10 +321,10 @@ if mode == 'test':
                 render_R = refinedR
                 render_t = refinedT
 
-                print('residual: {}'.format(poseRefine.getResidual()))
+                # print('residual: {}'.format(poseRefine.getResidual()))
 
                 elapsed_time = time.time() - start_time
-                print("pose refine time: {}s".format(elapsed_time))
+                # print("pose refine time: {}s".format(elapsed_time))
 
             render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
             visible_mask = render_depth < depth

@@ -8,9 +8,10 @@
 using namespace std;
 using namespace cv;
 
+static std::string prefix = "/home/meiqua/6DPose/linemodLevelup/test/case1/";
 // for test
-string type2str(int type) {
-  string r;
+std::string type2str(int type) {
+  std::string r;
 
   uchar depth = type & CV_MAT_DEPTH_MASK;
   uchar chans = 1 + (type >> CV_CN_SHIFT);
@@ -31,9 +32,6 @@ string type2str(int type) {
 
   return r;
 }
-
-static std::string prefix = "/home/meiqua/6DPose/linemodLevelup/test/case1/";
-
 void train_test(){
     Mat rgb = cv::imread(prefix+"train_rgb.png");
     Mat depth = cv::imread(prefix+"train_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
@@ -95,10 +93,11 @@ int main(){
 //    vector<cv::linemod::Match> matches;
 //    ori_detector->match(sources, 70, matches, classes_ori);
     vector<linemodLevelup::Match> matches =
-    detector.match(sources, 70, classes);
+    detector.match(sources, 80, classes);
     auto match = matches[0];
 
-    cout << "x: " << match.x << "\ny: " << match.y << "\ntemplate id: " << match.template_id<<endl;
+    cout << "x: " << match.x << "\ny: " << match.y << "\ntemplate id: " << match.template_id
+         << "\nsimilarity: "<< match.similarity <<endl;
 
     auto templ = detector.getTemplates(matches[0].class_id, matches[0].template_id);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;

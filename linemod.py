@@ -278,7 +278,7 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
 
             # only search for one obj
-            output = detector.match([rgb, depth], 70, match_ids)
+            output = detector.match([rgb, depth], 75, match_ids)
             elapsed_time = time.time() - start_time
 
             matches = output[0]
@@ -349,7 +349,7 @@ if mode == 'test':
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.waitKey(500)
+                cv2.waitKey(1000)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:
