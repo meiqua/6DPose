@@ -1707,7 +1707,7 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
         for (int c = 0; c < total_similarity.cols; ++c){
           int raw_score = row[c];
           int valid = row_count[c];
-          if(valid > 30){ // at least half the response
+          if(valid > 33){ // at least half the response
                 float score =(raw_score * 100.f) / valid / 4;
                 int offset = lowest_T / 2 + (lowest_T % 2 - 1);
                 int x = c * lowest_T + offset;
@@ -1774,9 +1774,8 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
             for (int c = 0; c < total_similarity2.cols; ++c){
               int score = row[c];
               int valid = row_count[c];
-              if (valid > 60){ // at least half the response
-                  float weight = 0.6;
-                  float simi = weight*score*100.0/4/valid+(1-weight)*valid/1.2;
+              if (valid > 66){ // at least half the response
+                  float simi = score*100.0/4/valid;
                   if(simi>best_score){
                       best_score = simi;
                       best_count = valid;

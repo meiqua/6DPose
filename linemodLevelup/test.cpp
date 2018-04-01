@@ -93,7 +93,7 @@ int main(){
 //    vector<cv::linemod::Match> matches;
 //    ori_detector->match(sources, 70, matches, classes_ori);
     vector<linemodLevelup::Match> matches =
-    detector.match(sources, 80, classes);
+    detector.match(sources, 75, classes);
     auto match = matches[0];
 
     cout << "x: " << match.x << "\ny: " << match.y << "\ntemplate id: " << match.template_id

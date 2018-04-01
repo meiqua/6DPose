@@ -278,7 +278,7 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
 
             # only search for one obj
-            output = detector.match([rgb, depth], 75, match_ids)
+            output = detector.match([rgb, depth], 90, match_ids)
             elapsed_time = time.time() - start_time
 
             matches = output[0]
