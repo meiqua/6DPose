@@ -163,6 +163,7 @@ void Template::read(const FileNode& fn)
   width = fn["width"];
   height = fn["height"];
   pyramid_level = fn["pyramid_level"];
+  depth = fn["depth"];
 
   FileNode features_fn = fn["features"];
   features.resize(features_fn.size());
@@ -260,16 +261,23 @@ static Rect cropTemplates(std::vector<Template>& templates)
 
      // 0 1
      // 2 3
+     vector<vector<int> > idxs(4);
      for(int j=0; j < templ.features.size(); ++j){
          auto feat = templ.features[j];
          if(feat.x < width/2 && feat.y < height/2){
-             templ.feature4idx[0].push_back(j);
+             idxs[0].push_back(j);
          }else if(feat.x > width/2 && feat.y < height/2){
-             templ.feature4idx[1].push_back(j);
+             idxs[1].push_back(j);
          }else if(feat.x < width/2 && feat.y > height/2){
-             templ.feature4idx[2].push_back(j);
+             idxs[2].push_back(j);
          }else if(feat.x > width/2 && feat.y > height/2){
-             templ.feature4idx[3].push_back(j);
+             idxs[3].push_back(j);
+         }
+     }
+     for(int i=0;i<4;i++){
+         // have enough features
+         if(idxs[i].size()>templ.features.size()/10){
+             templ.feature4idx.push_back(idxs[i]);
          }
      }
   }
@@ -669,10 +677,14 @@ std::string ColorGradient::name() const
   return CG_NAME;
 }
 
-Ptr<QuantizedPyramid> ColorGradient::processImpl(const Mat& src,
+Ptr<QuantizedPyramid> ColorGradient::processImpl(const std::vector<cv::Mat> &src,
                                                      const Mat& mask) const
 {
-  return makePtr<ColorGradientPyramid>(src, mask, weak_threshold, num_features, strong_threshold);
+
+  auto pd = makePtr<ColorGradientPyramid>(src[0], mask, weak_threshold, num_features, strong_threshold);
+  auto depth = src[1];
+  pd->getDepth(depth);
+  return pd;
 }
 
 void ColorGradient::read(const FileNode& fn)
@@ -1005,11 +1017,14 @@ std::string DepthNormal::name() const
   return DN_NAME;
 }
 
-Ptr<QuantizedPyramid> DepthNormal::processImpl(const Mat& src,
+Ptr<QuantizedPyramid> DepthNormal::processImpl(const std::vector<cv::Mat> &src,
                                                    const Mat& mask) const
 {
-  return makePtr<DepthNormalPyramid>(src, mask, distance_threshold, difference_threshold,
+  auto pd = makePtr<DepthNormalPyramid>(src[1], mask, distance_threshold, difference_threshold,
                                      num_features, extract_threshold);
+  auto depth = src[1];
+  pd->getDepth(depth);
+  return pd;
 }
 
 void DepthNormal::read(const FileNode& fn)
@@ -1543,7 +1558,7 @@ std::vector<Match> Detector::match(const std::vector<Mat>& sources, float thresh
       mask = masks[i];
     }
     CV_Assert(mask.empty() || mask.size() == source.size());
-    quantizers.push_back(modalities[i]->process(source, mask));
+    quantizers.push_back(modalities[i]->process(sources, mask));
   }
   // pyramid level -> modality -> quantization
   LinearMemoryPyramid lm_pyramid(pyramid_levels,
@@ -1576,8 +1591,6 @@ std::vector<Match> Detector::match(const std::vector<Mat>& sources, float thresh
     }
 
     sizes.push_back(quantized.size());
-
-    return matches;
   }
 
   if (class_ids.empty())
@@ -1602,6 +1615,8 @@ std::vector<Match> Detector::match(const std::vector<Mat>& sources, float thresh
   std::sort(matches.begin(), matches.end());
   std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
   matches.erase(new_end, matches.end());
+
+  return matches;
 }
 
 // Used to filter out weak matches
@@ -1637,9 +1652,10 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
     int W = sizehere.width / lowest_T;
     int H = sizehere.height / lowest_T;
     Mat total_similarity = Mat::zeros(H, W, CV_32F);
+    float raw_threshold = 2 + (threshold / 100.f) * 2;
 
-    for (int i = 0; i < (int)modalities.size(); ++i)
-    {
+    for (int i = 0; i < (int)modalities.size(); ++i){
+      Mat simi_mod = Mat::zeros(H, W, CV_32F);
       const Template& templ = tp[lowest_start + i];
 
       std::vector<Mat> partSim(templ.feature4idx.size());
@@ -1656,23 +1672,29 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
           partSim[j].convertTo(partSim[j],CV_32F);
           partSim[j] /= templ.feature4idx[j].size();
       }
-
       for(int r=0; r<partSim[0].rows;++r){
           for (int c = 0; c < partSim[0].cols; ++c){
-              float maxAvgRes = 0;
+              int activePart = 0;
               for(int i=0;i<partSim.size();++i){
                   float res = partSim[i].at<float>(r,c);
-                  if(res>maxAvgRes){
-                      maxAvgRes = res;
+                  if(res>raw_threshold){
+                      simi_mod.at<float>(r,c) += res;
+                      activePart++;
                   }
               }
-              total_similarity.at<float>(r,c) += maxAvgRes;
+              //require 2 parts actived
+              if(activePart>1){
+                  simi_mod.at<float>(r,c) /= activePart;
+              }else {
+                  simi_mod.at<float>(r,c) = 0;
+              }
+
           }
       }
+      total_similarity += simi_mod;
     }
-    total_similarity /= modalities.size();
-
-    float raw_threshold = 2 + (threshold / 100.f) * 2;
+    total_similarity /= 2;
+//    cout << total_similarity << endl;
 
     // Find initial matches
     std::vector<Match> candidates;
@@ -1725,7 +1747,7 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
         for (int i = 0; i < (int)modalities.size(); ++i)
         {
           const Template& templ = tp[start + i];
-
+          Mat simi_mod = Mat::zeros(H, W, CV_32F);
           std::vector<Mat> partSim(templ.feature4idx.size());
           for(int j = 0; j<templ.feature4idx.size(); j++){
               Template tem;
@@ -1743,18 +1765,30 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
 
           for(int r=0; r<partSim[0].rows;++r){
               for (int c = 0; c < partSim[0].cols; ++c){
-                  float maxAvgRes = 0;
+                  int activePart = 0;
                   for(int i=0;i<partSim.size();++i){
                       float res = partSim[i].at<float>(r,c);
-                      if(res>maxAvgRes){
-                          maxAvgRes = res;
+//                      cout << res << endl;
+                      if(res>raw_threshold){
+                          simi_mod.at<float>(r,c) += res;
+                          activePart++;
                       }
                   }
-                  total_similarity2.at<float>(r,c) += maxAvgRes;
+                  //require 2 parts actived
+                  if(activePart>1){
+                      simi_mod.at<float>(r,c) /= activePart;
+                  }else {
+                      simi_mod.at<float>(r,c) = 0;
+                  }
               }
           }
+//          cout << simi_mod << endl;
+          total_similarity2 += simi_mod;
+
         }
-        total_similarity2 /= modalities.size();
+        total_similarity2 /= 2;
+
+//        cout << total_similarity2 << endl;
 
         // Find best local adjustment
         float best_score = 0;
@@ -1789,7 +1823,7 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
 }
 
 int Detector::addTemplate(const std::vector<Mat>& sources, const std::string& class_id,
-                          const Mat& object_mask, Rect* bounding_box)
+                          const Mat& object_mask)
 {
   int num_modalities = static_cast<int>(modalities.size());
   std::vector<TemplatePyramid>& template_pyramids = class_templates[class_id];
@@ -1802,7 +1836,7 @@ int Detector::addTemplate(const std::vector<Mat>& sources, const std::string& cl
   for (int i = 0; i < num_modalities; ++i)
   {
     // Extract a template at each pyramid level
-    Ptr<QuantizedPyramid> qp = modalities[i]->process(sources[i], object_mask);
+    Ptr<QuantizedPyramid> qp = modalities[i]->process(sources, object_mask);
     for (int l = 0; l < pyramid_levels; ++l)
     {
       /// @todo Could do mask subsampling here instead of in pyrDown()
@@ -1816,8 +1850,6 @@ int Detector::addTemplate(const std::vector<Mat>& sources, const std::string& cl
   }
 
   Rect bb = cropTemplates(tp);
-  if (bounding_box)
-    *bounding_box = bb;
 
   /// @todo Can probably avoid a copy of tp here with swap
   template_pyramids.push_back(tp);

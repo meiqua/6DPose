@@ -27,6 +27,7 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
         .def("addTemplate", &linemodLevelup::Detector::addTemplate)
         .def("writeClasses", &linemodLevelup::Detector::writeClasses)
         .def("readClasses", &linemodLevelup::Detector::readClasses)
-        .def("match", &linemodLevelup::Detector::match)
+        .def("match", &linemodLevelup::Detector::match, py::arg("sources"),
+             py::arg("threshold"), py::arg("class_ids"), py::arg("masks")=cv::Mat())
         .def("getTemplates", &linemodLevelup::Detector::getTemplates);
 }

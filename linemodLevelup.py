@@ -35,7 +35,7 @@ dataset = 'hinterstoisser'
 # set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector()
-obj_ids = []  # for each obj
+obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
@@ -46,8 +46,8 @@ mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
-template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
+template_saved_to = join(dp['base_path'], 'linemod_render_up', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info.yaml')
 if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
@@ -110,8 +110,8 @@ if mode == 'train':
             success = detector.addTemplate([rgb, depth], '{:02d}_template'.format(obj_id), mask)
             print('success {}'.format(success))
 
-            if success[0] != -1:
-                templateInfo[success[0]] = aTemplateInfo
+            if success != -1:
+                templateInfo[success] = aTemplateInfo
 
         inout.save_info(tempInfo_saved_to.format(obj_id), templateInfo)
 
@@ -135,7 +135,7 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
-        radii = [600, 700, 800, 900, 1000]
+        radii = [800,  1000]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
         min_n_views = 200
@@ -210,8 +210,8 @@ if mode == 'render_train':
                 print('success {}'.format(success))
                 del rgb, depth, mask
 
-                if success[0] != -1:
-                    templateInfo[success[0]] = aTemplateInfo
+                if success != -1:
+                    templateInfo[success] = aTemplateInfo
 
         inout.save_info(tempInfo_saved_to.format(obj_id), templateInfo)
 
@@ -270,12 +270,12 @@ if mode == 'test':
             depth = depth.astype(np.uint16)  # [mm]
             # depth *= dp['cam']['depth_scale']  # to [mm]
             im_size = (depth.shape[1], depth.shape[0])
-            start_time = time.time()
+
             match_ids = list()
             match_ids.append('{:02d}_template'.format(scene_id))
-
+            start_time = time.time()
             # only search for one obj
-            matches = detector.match([rgb, depth], 50, match_ids)
+            matches = detector.match([rgb, depth], 70.0, match_ids, masks=[])
             elapsed_time = time.time() - start_time
 
             print('match time: {}s, {} matches'.format(elapsed_time, len(matches)))
@@ -283,8 +283,6 @@ if mode == 'test':
             print('(x={}, y={}, float similarity={:.2f}, class_id={}, template_id={})'
                   .format(most_like_match.x, most_like_match.y, most_like_match.similarity,
                             most_like_match.class_id, most_like_match.template_id))
-
-            template = detector.getTemplates(most_like_match.class_id, most_like_match.template_id)
             startPos = (int(most_like_match.x), int(most_like_match.y))
 
             # for m in range(5): # test if top5 matches drop in right area
@@ -302,7 +300,6 @@ if mode == 'test':
 
             for i in range(1):
                 match = matches[i]
-                template = detector.getTemplates(match.class_id, match.template_id)
                 startPos = (int(match.x), int(match.y))
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']

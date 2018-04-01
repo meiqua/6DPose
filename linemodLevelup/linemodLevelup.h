@@ -63,7 +63,7 @@ public:
    *                 representing its classification.
    */
   virtual void quantize(CV_OUT cv::Mat& dst) const =0;
-
+  virtual void getDepth(cv::Mat& depth) =0;
   /**
    * \brief Extract most discriminant features at current pyramid level to form a new template.
    *
@@ -126,14 +126,13 @@ public:
    * \param[in] mask Optional mask. If not empty, unmasked pixels are set to zero
    *                 in quantized image and cannot be extracted as features.
    */
-  cv::Ptr<QuantizedPyramid> process(const cv::Mat& src,
+  cv::Ptr<QuantizedPyramid> process(const std::vector<cv::Mat> &src,
                     const cv::Mat& mask = cv::Mat()) const
   {
     return processImpl(src, mask);
   }
 
   virtual std::string name() const =0;
-
   virtual void read(const cv::FileNode& fn) =0;
   virtual void write(cv::FileStorage& fs) const =0;
 
@@ -148,7 +147,7 @@ public:
 
 protected:
   // Indirection is because process() has a default parameter.
-  virtual cv::Ptr<QuantizedPyramid> processImpl(const cv::Mat& src,
+  virtual cv::Ptr<QuantizedPyramid> processImpl(const std::vector<cv::Mat> &src,
                         const cv::Mat& mask) const =0;
 };
 
@@ -181,7 +180,7 @@ public:
   virtual void read(const cv::FileNode& fn);
   virtual void write(cv::FileStorage& fs) const;
 protected:
-  virtual cv::Ptr<QuantizedPyramid> processImpl(const cv::Mat& src,
+  virtual cv::Ptr<QuantizedPyramid> processImpl(const std::vector<cv::Mat> &src,
                         const cv::Mat& mask) const;
 };
 
@@ -220,7 +219,7 @@ public:
   virtual void write(cv::FileStorage& fs) const;
 
 protected:
-  virtual cv::Ptr<QuantizedPyramid> processImpl(const cv::Mat& src,
+  virtual cv::Ptr<QuantizedPyramid> processImpl(const std::vector<cv::Mat> &src,
                         const cv::Mat& mask) const;
 };
 
@@ -315,7 +314,7 @@ public:
    * \return Template ID, or -1 if failed to extract a valid template.
    */
   int addTemplate(const std::vector<cv::Mat>& sources, const std::string& class_id,
-          const cv::Mat& object_mask, CV_OUT cv::Rect* bounding_box = NULL);
+          const cv::Mat& object_mask);
 
   /**
    * \brief Get the modalities used by this detector.
