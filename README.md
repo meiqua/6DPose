@@ -50,6 +50,25 @@ average response will drop to 50%, while part-based match keeps 100%.
 After some effort, 4 parts version works fine, though a lot slower, and bring
 more mismatches.  
 Maybe just run 4 times is better?  
-Well, the scale is a more important problem.
+Well, the scale is a more important problem.  
+
+Attempt2: make low response closer to 0, high response closer to 4.
+So the final similarity will depend on high response more. Hope this 
+method will distinguish occlusion from mismatch.  
+We just need to modify lookup table this time. The result is pretty
+interesting: there are 4 levels in ori table. If we change 1,2 to 0,
+3 to 1, there are less mismatch in half object case.  
+##### image: (half of the obj is occlusion)
+![half](./linemodLevelup/test/case1/0000_rgb_half.png)
+##### ori detector: threshold 84 + nms
+![ori](./linemodLevelup/test/case1/result/rgb_half_ori.png)
+##### set low response closer to 0:
+![low to 0](./linemodLevelup/test/case1/result/rgb_half_low_to_0.png)
+##### There are two interesting points:  
+modified version have low similarity(which is expected), but it doesn't
+matter, we just set threshold lower;  
+ori obj bounding circle has an offset caused by the occlusion mask,
+while modified one is good.
+
 
 

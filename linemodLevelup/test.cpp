@@ -5,8 +5,10 @@
 #include <assert.h>
 #include <chrono>  // for high_resolution_clock
 #include <opencv2/rgbd.hpp>
+#include <opencv2/dnn.hpp>
 using namespace std;
 using namespace cv;
+
 
 static std::string prefix = "/home/meiqua/6DPose/linemodLevelup/test/case1/";
 // for test
@@ -68,11 +70,19 @@ int main(){
 //    train_test();
 
     Mat rgb = cv::imread(prefix+"0000_rgb.png");
+    Mat rgb_half = cv::imread(prefix+"0000_rgb_half.png");
     Mat depth = cv::imread(prefix+"0000_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
-    vector<Mat> sources;
-    sources.push_back(rgb);
-    sources.push_back(depth);
-//    cout << "depth: " << type2str(depth.type())  << endl;
+    Mat depth_half = cv::imread(prefix+"0000_dep_half.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    vector<Mat> sources, src_half;
+    sources.push_back(rgb); src_half.push_back(rgb_half);
+    sources.push_back(depth); src_half.push_back(depth_half);
+
+//    rectangle(rgb, Point(326,132), Point(347, 197), Scalar(255, 255, 255), -1);
+//    rectangle(depth, Point(326,132), Point(347, 197), Scalar(255, 255, 255), -1);
+//    imwrite(prefix+"0000_dep_half.png", depth);
+//    imwrite(prefix+"0000_rgb_half.png", rgb);
+//    imshow("rgb", rgb);
+//    waitKey(10000000);
 
     Mat K_ren = (Mat_<float>(3,3) << 572.4114, 0.0, 325.2611, 0.0, 573.57043, 242.04899, 0.0, 0.0, 1.0);
     Mat R_ren = (Mat_<float>(3,3) << 0.34768538, 0.93761126, 0.00000000, 0.70540612,
@@ -83,17 +93,46 @@ int main(){
     auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
-    detector.readClasses(classes, prefix + "/up/%s.yaml");
+    detector.readClasses(classes, prefix + "/%s.yaml");
 
     vector<String> classes_ori;
     classes_ori.push_back("06_template");
-    ori_detector->readClasses(classes_ori, prefix + "/up/%s.yaml");
+    ori_detector->readClasses(classes_ori, prefix + "/%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
-//    vector<cv::linemod::Match> matches;
-//    ori_detector->match(sources, 70, matches, classes_ori);
-    vector<linemodLevelup::Match> matches =
-    detector.match(sources, 75, classes);
+    vector<cv::linemod::Match> matches;
+    ori_detector->match(src_half, 84, matches, classes_ori);
+//    vector<linemodLevelup::Match> matches = detector.match(sources, 80, classes);
+//    vector<linemodLevelup::Match> matches = detector.match(src_half, 65, classes);
+
+    vector<Rect> boxes;
+    vector<float> scores;
+    vector<int> idxs;
+    for(auto match: matches){
+        Rect box;
+        box.x = match.x;
+        box.y = match.y;
+        box.width = 40;
+        box.height = 40;
+        boxes.push_back(box);
+        scores.push_back(match.similarity);
+    }
+    cv::dnn::NMSBoxes(boxes, scores, 0, 0.4, idxs);
+
+
+    for(auto idx : idxs){
+        auto match = matches[idx];
+        int r = 40;
+        cout << "x: " << match.x << "\ty: " << match.y
+             << "\tsimilarity: "<< match.similarity <<endl;
+        cv::circle(rgb_half, cv::Point(match.x+r,match.y+r), r, cv::Scalar(255, 0 ,255), 2);
+        cv::putText(rgb_half, to_string(match.similarity),
+                    Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 1.4, Scalar(0,255,255));
+
+    }
+    imshow("rgb", rgb_half);
+    imwrite(prefix+"result/rgb_half_ori.png", rgb_half);
+    waitKey(10000000);
     auto match = matches[0];
 
     cout << "x: " << match.x << "\ny: " << match.y << "\ntemplate id: " << match.template_id

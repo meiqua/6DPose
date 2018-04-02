@@ -41,7 +41,6 @@ struct Template
     std::vector<Feature> features;
 
     float depth;
-    std::vector<std::vector<int> > feature4idx;
 
     void read(const cv::FileNode& fn);
     void write(cv::FileStorage& fs) const;
@@ -376,7 +375,6 @@ protected:
                   float threshold, std::vector<Match>& matches,
                   const std::string& class_id,
                   const std::vector<TemplatePyramid>& template_pyramids) const;
-  std::vector<Template> make4template(const Template& templ) const;
 };
 
 /**

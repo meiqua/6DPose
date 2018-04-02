@@ -48,8 +48,8 @@ mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
-template_saved_to = join(dp['base_path'], 'linemod_render_up', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info.yaml')
+template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
 if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
