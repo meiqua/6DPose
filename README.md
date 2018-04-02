@@ -58,7 +58,7 @@ method will distinguish occlusion from mismatch.
 We just need to modify lookup table this time. The result is pretty
 interesting: there are 4 levels in ori table. If we change 1,2 to 0,
 3 to 1, there are less mismatch in half object case.  
-##### image: (half of the obj is occlusion)
+##### image: (half of the obj is occluded)
 ![half](./linemodLevelup/test/case1/0000_rgb_half.png)
 ##### ori detector: threshold 84 + nms
 ![ori](./linemodLevelup/test/case1/result/rgb_half_ori.png)
