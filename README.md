@@ -72,7 +72,7 @@ ori obj bounding circle has an offset caused by the occlusion mask,
 while modified one is good.
 
 #### scale experiment
-A trivial way to deal with scale problem is scaling template at each
+An obvious way to deal with scale problem is scaling template at each
 matching position. We tried and show our result below.
 Firstly we train templates by rendering img from 600mm, while obj is
 about 1000mm in scene. As is expected, our ori detector fails:  
