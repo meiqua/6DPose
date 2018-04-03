@@ -59,12 +59,12 @@ method will distinguish occlusion from mismatch.
 We just need to modify lookup table this time. The result is pretty
 interesting: there are 4 levels in ori table. If we change 1,2 to 0,
 3 to 1, there are less mismatch in half object case.  
-##### image: (half of the obj is occluded)
-![half](./linemodLevelup/test/case1/0000_rgb_half.png)
-##### ori detector: threshold 84 + nms
-![ori](./linemodLevelup/test/case1/result/rgb_half_ori.png)
-##### set low response closer to 0:
-![low to 0](./linemodLevelup/test/case1/result/rgb_half_low_to_0.png)
+##### image: (half of the obj is occluded)  
+![half](./linemodLevelup/test/case1/0000_rgb_half.png)  
+##### ori detector: threshold 84 + nms  
+![ori](./linemodLevelup/test/case1/result/rgb_half_ori.png)  
+##### set low response closer to 0:  
+![low to 0](./linemodLevelup/test/case1/result/rgb_half_low_to_0.png)  
 ##### There are two interesting things:  
 modified version have low similarity(which is expected), but it doesn't
 matter, we just set threshold lower;  
@@ -75,9 +75,9 @@ while modified one is good.
 A trivial way to deal with scale problem is scaling template at each
 matching position. We tried and show our result below.
 Firstly we train templates by rendering img from 600mm, while obj is
-about 1000mm in scene. As is expected, our ori detector fails:
+about 1000mm in scene. As is expected, our ori detector fails:  
 ![depth600_ori](./linemodLevelup/test/case1/result/depth600_ori.png)
-#####following is ori low to 0 version(simi drops off course):
+##### following is ori low to 0 version(simi drops off course):
 ![depth600_ori_low0](./linemodLevelup/test/case1/result/depth600_ori_low0.png)
 ![depth600_ori_half](./linemodLevelup/test/case1/result/depth600_ori_half.png)
 ##### scale template at each match position:
