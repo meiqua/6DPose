@@ -40,7 +40,7 @@ struct Template
     int pyramid_level;
     std::vector<Feature> features;
 
-    float depth;
+    uint16_t depth;
 
     void read(const cv::FileNode& fn);
     void write(cv::FileStorage& fs) const;
@@ -63,6 +63,7 @@ public:
    */
   virtual void quantize(CV_OUT cv::Mat& dst) const =0;
   virtual void getDepth(cv::Mat& depth) =0;
+    virtual cv::Mat readDepth() = 0;
   /**
    * \brief Extract most discriminant features at current pyramid level to form a new template.
    *
@@ -301,7 +302,9 @@ public:
   std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold,
              const std::vector<std::string>& class_ids = std::vector<std::string>(),
                            const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
-
+  std::vector<Match> match_ori(const std::vector<cv::Mat>& sources, float threshold,
+             const std::vector<std::string>& class_ids = std::vector<std::string>(),
+                           const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
   /**
    * \brief Add new object template.
    *
@@ -370,6 +373,11 @@ protected:
   // Indexed as [pyramid level][modality][quantized label]
   typedef std::vector< std::vector<LinearMemories> > LinearMemoryPyramid;
 
+  void matchClass(const LinearMemoryPyramid& lm_pyramid, const std::vector<cv::Mat>& depths,
+                  const std::vector<cv::Size>& sizes,
+                  float threshold, std::vector<Match>& matches,
+                  const std::string& class_id,
+                  const std::vector<TemplatePyramid>& template_pyramids) const;
   void matchClass(const LinearMemoryPyramid& lm_pyramid,
                   const std::vector<cv::Size>& sizes,
                   float threshold, std::vector<Match>& matches,

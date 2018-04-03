@@ -19,6 +19,7 @@ caused by tiff version problem)
 set py3 inc/exe/lib to conda env's  
 set CUDA_TOOLKITS_ROOT_DIR as /usr/local/cuda-8.0(don't know why, cuda9 can't be compiled with opencv)  
 
+install pybind11
 ## linemod
 Codes in linemod.py will train and detect objects in downloaded dataset.  
 Refer to opencv linemod and ork linemod src  
@@ -64,11 +65,41 @@ interesting: there are 4 levels in ori table. If we change 1,2 to 0,
 ![ori](./linemodLevelup/test/case1/result/rgb_half_ori.png)
 ##### set low response closer to 0:
 ![low to 0](./linemodLevelup/test/case1/result/rgb_half_low_to_0.png)
-##### There are two interesting points:  
+##### There are two interesting things:  
 modified version have low similarity(which is expected), but it doesn't
 matter, we just set threshold lower;  
 ori obj bounding circle has an offset caused by the occlusion mask,
 while modified one is good.
 
+#### scale experiment
+A trivial way to deal with scale problem is scaling template at each
+matching position. We tried and show our result below.
+Firstly we train templates by rendering img from 600mm, while obj is
+about 1000mm in scene. As is expected, our ori detector fails:
+![depth600_ori](./linemodLevelup/test/case1/result/depth600_ori.png)
+#####following is ori low to 0 version(simi drops off course):
+![depth600_ori_low0](./linemodLevelup/test/case1/result/depth600_ori_low0.png)
+![depth600_ori_half](./linemodLevelup/test/case1/result/depth600_ori_half.png)
+##### scale template at each match position:
+![depth600](./linemodLevelup/test/case1/result/depth600.png)
+![depth600_half](./linemodLevelup/test/case1/result/depth600_half.png)
+
+As we can see, scale template does help, but we meet an embarrassed problem:
+the match speed drops from 0.03 to 1, nearly 30 times slower... So why
+don't we use templates of 30 different scales?  
+Well, we may accelerate it by GPU or some magic, but I think there is 
+a better way: cut original img to some roughly same depth parts, then 
+scale template just one time to each part.  
+My insight comes from original speed-up method. So why original detector
+is 30 times faster? The magic is in linear memory. because it doesn't scale
+template, it can reorganize response map, then we can access response map
+in a continuous manner. However, if we need to scale templates at each position, 
+the value we want to access looks random now, which is unfriendly to cache.  
+However, in fact we don't need to scale templates so frequently, because
+linemod is not that sensitive to scales. If we can cut original img to
+several almost-same-depths parts, then we just need to scale templates 
+several times, and keep continuous access manner in one part.  
+  
+now coding...
 
 

@@ -6,6 +6,7 @@
 #include <chrono>  // for high_resolution_clock
 #include <opencv2/rgbd.hpp>
 #include <opencv2/dnn.hpp>
+#include <opencv2/cudaimgproc.hpp>
 using namespace std;
 using namespace cv;
 
@@ -51,7 +52,7 @@ void train_test(){
     cout << "break point line: train_test" << endl;
 }
 
-int main(){
+void detect_test(){
     // test case1
     /*
      * (x=327, y=127, float similarity=92.66, class_id=06_template, template_id=424)
@@ -66,8 +67,6 @@ int main(){
   obj_bb: [331, 130, 65, 64]
   obj_id: 6
   */
-
-//    train_test();
 
     Mat rgb = cv::imread(prefix+"0000_rgb.png");
     Mat rgb_half = cv::imread(prefix+"0000_rgb_half.png");
@@ -93,17 +92,19 @@ int main(){
     auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
-    detector.readClasses(classes, prefix + "/%s.yaml");
+    detector.readClasses(classes, prefix + "/600/%s.yaml");
 
     vector<String> classes_ori;
     classes_ori.push_back("06_template");
-    ori_detector->readClasses(classes_ori, prefix + "/%s.yaml");
+    ori_detector->readClasses(classes_ori, prefix + "/600/%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    vector<cv::linemod::Match> matches;
-    ori_detector->match(src_half, 84, matches, classes_ori);
-//    vector<linemodLevelup::Match> matches = detector.match(sources, 80, classes);
-//    vector<linemodLevelup::Match> matches = detector.match(src_half, 65, classes);
+//    vector<cv::linemod::Match> matches;
+//    ori_detector->match(sources, 80, matches, classes_ori);
+    vector<linemodLevelup::Match> matches = detector.match(sources, 60, classes);
+//    vector<linemodLevelup::Match> matches = detector.match_ori(sources, 54, classes);
+    auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
+    cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 
     vector<Rect> boxes;
     vector<float> scores;
@@ -119,19 +120,19 @@ int main(){
     }
     cv::dnn::NMSBoxes(boxes, scores, 0, 0.4, idxs);
 
-
+    Mat draw = rgb;
     for(auto idx : idxs){
         auto match = matches[idx];
         int r = 40;
         cout << "x: " << match.x << "\ty: " << match.y
              << "\tsimilarity: "<< match.similarity <<endl;
-        cv::circle(rgb_half, cv::Point(match.x+r,match.y+r), r, cv::Scalar(255, 0 ,255), 2);
-        cv::putText(rgb_half, to_string(match.similarity),
+        cv::circle(draw, cv::Point(match.x+r,match.y+r), r, cv::Scalar(255, 0 ,255), 2);
+        cv::putText(draw, to_string(int(round(match.similarity))),
                     Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 1.4, Scalar(0,255,255));
 
     }
-    imshow("rgb", rgb_half);
-    imwrite(prefix+"result/rgb_half_ori.png", rgb_half);
+    imshow("rgb", draw);
+//    imwrite(prefix+"result/depth600_ori_half.png", draw);
     waitKey(10000000);
     auto match = matches[0];
 
@@ -139,8 +140,12 @@ int main(){
          << "\nsimilarity: "<< match.similarity <<endl;
 
     auto templ = detector.getTemplates(matches[0].class_id, matches[0].template_id);
-    auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
-    cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
     cout << "break point line" << endl;
+}
+int main(){
+
+//    train_test();
+    detect_test();
+
     return 0;
 }

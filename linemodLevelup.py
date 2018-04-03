@@ -44,12 +44,12 @@ if obj_ids:
 
 # renderer = Renderer()
 
-mode = 'test'
+mode = 'render_train'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
-template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
+template_saved_to = join(dp['base_path'], 'linemod_render_up', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info.yaml')
 if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
@@ -137,7 +137,7 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
-        radii = [800,  1000]
+        radii = [600]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
         min_n_views = 200
