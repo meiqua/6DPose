@@ -496,7 +496,6 @@ public:
   virtual void pyrDown();
 
   void getDepth(Mat& depth){this->depth = depth.clone();}
-  Mat readDepth(){return depth;}
 
 protected:
   /// Recalculate angle and magnitude images
@@ -824,7 +823,6 @@ public:
   virtual void pyrDown();
 
   void getDepth(Mat& depth){this->depth = depth.clone();}
-  Mat readDepth(){return depth;}
 protected:
   Mat mask;
 
@@ -1639,83 +1637,6 @@ std::vector<Match> Detector::match(const std::vector<Mat>& sources, float thresh
   // pyramid level -> modality -> quantization
   LinearMemoryPyramid lm_pyramid(pyramid_levels,
                                  std::vector<LinearMemories>(modalities.size(), LinearMemories(8)));
-  std::vector<cv::Mat> depths(pyramid_levels);
-  // For each pyramid level, precompute linear memories for each modality
-  std::vector<Size> sizes;
-  for (int l = 0; l < pyramid_levels; ++l)
-  {
-    int T = T_at_level[l];
-    std::vector<LinearMemories>& lm_level = lm_pyramid[l];
-
-    if (l > 0)
-    {
-      for (int i = 0; i < (int)quantizers.size(); ++i)
-        quantizers[i]->pyrDown();
-    }
-
-    Mat quantized, spread_quantized;
-    std::vector<Mat> response_maps;
-    for (int i = 0; i < (int)quantizers.size(); ++i)
-    {
-      quantizers[i]->quantize(quantized);
-      spread(quantized, spread_quantized, T);
-      computeResponseMaps(spread_quantized, response_maps);
-
-      lm_level[i] = response_maps;
-    }
-
-    sizes.push_back(quantized.size());
-    depths[l] = quantizers[0]->readDepth(); // depth is same for different modality
-    cv::blur(depths[l], depths[l], Size(7,7));
-  }
-
-  if (class_ids.empty())
-  {
-    // Match all templates
-    TemplatesMap::const_iterator it = class_templates.begin(), itend = class_templates.end();
-    for ( ; it != itend; ++it)
-      matchClass(lm_pyramid, depths, sizes, threshold, matches, it->first, it->second);
-  }
-  else
-  {
-    // Match only templates for the requested class IDs
-    for (int i = 0; i < (int)class_ids.size(); ++i)
-    {
-      TemplatesMap::const_iterator it = class_templates.find(class_ids[i]);
-      if (it != class_templates.end())
-        matchClass(lm_pyramid, depths, sizes, threshold, matches, it->first, it->second);
-    }
-  }
-
-  // Sort matches by similarity, and prune any duplicates introduced by pyramid refinement
-  std::sort(matches.begin(), matches.end());
-  std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
-  matches.erase(new_end, matches.end());
-
-  return matches;
-}
-
-std::vector<Match> Detector::match_ori(const std::vector<Mat>& sources, float threshold,
-                      const std::vector<std::string>& class_ids, const std::vector<Mat>& masks) const
-{
-    std::vector<Match> matches;
-
-  CV_Assert(sources.size() == modalities.size());
-  // Initialize each modality with our sources
-  std::vector< Ptr<QuantizedPyramid> > quantizers;
-  for (int i = 0; i < (int)modalities.size(); ++i){
-    Mat mask, source;
-    source = sources[i];
-    if(!masks.empty()){
-      CV_Assert(masks.size() == modalities.size());
-      mask = masks[i];
-    }
-    CV_Assert(mask.empty() || mask.size() == source.size());
-    quantizers.push_back(modalities[i]->process(sources, mask));
-  }
-  // pyramid level -> modality -> quantization
-  LinearMemoryPyramid lm_pyramid(pyramid_levels,
-                                 std::vector<LinearMemories>(modalities.size(), LinearMemories(8)));
 
   // For each pyramid level, precompute linear memories for each modality
   std::vector<Size> sizes;
@@ -1744,6 +1665,7 @@ std::vector<Match> Detector::match_ori(const std::vector<Mat>& sources, float th
     }
 
     sizes.push_back(quantized.size());
+    // depth is same for different modality
   }
 
   if (class_ids.empty())
@@ -1780,171 +1702,6 @@ struct MatchPredicate
   bool operator() (const Match& m) { return m.similarity < threshold; }
   float threshold;
 };
-
-void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
-                          const std::vector<cv::Mat>& depths,
-                          const std::vector<Size>& sizes,
-                          float threshold, std::vector<Match>& matches,
-                          const std::string& class_id,
-                          const std::vector<TemplatePyramid>& template_pyramids) const
-{
-    // For each template...
-    for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id)
-    {
-      const TemplatePyramid& tp = template_pyramids[template_id];
-
-      // First match over the whole image at the lowest pyramid level
-      /// @todo Factor this out into separate function
-      const std::vector<LinearMemories>& lowest_lm = lm_pyramid.back();
-
-      // Compute similarity maps for each modality at lowest pyramid level
-      std::vector<Mat> similarities(modalities.size());
-      int lowest_start = static_cast<int>(tp.size() - modalities.size());
-      int lowest_T = T_at_level.back();
-      int num_features = 0;
-      auto depth = depths.back();
-      for (int i = 0; i < (int)modalities.size(); ++i){
-        const Template& templ = tp[lowest_start + i];
-        auto& response = lowest_lm[i];
-        auto& size = sizes.back();
-        int T = lowest_T;
-
-        int W = size.width / T;
-        int H = size.height / T;
-        similarities[i] = Mat::zeros(H, W, CV_8U);
-        int span_x = (size.width - templ.width - 1) / T;
-        int span_y = (size.height - templ.height  - 1) / T;
-        for(int r=0;r<span_y;r++){
-            for(int c=0;c<span_x;c++){
-                // guess 20,20 is obj center
-                uint16_t sceneDepth = depth.at<uint16_t>(r*T+20, c*T+20);
-                if(sceneDepth>0){
-                    uint16_t tempDepth = templ.depth;
-                    for(auto& feature : templ.features){
-                        int x = feature.x*tempDepth/sceneDepth;
-                        int y = feature.y*tempDepth/sceneDepth;
-                        Mat res = response[feature.label];
-                        if((x<size.width-1-r*T)&&(y<size.height-1-c*T))
-                        similarities[i].at<uchar>(r,c) += res.at<uchar>(r*T+x, c*T+y);
-                    }
-                }
-            }
-        }
-        num_features += static_cast<int>(templ.features.size());
-//        similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
-      }
-
-      // Combine into overall similarity
-      /// @todo Support weighting the modalities
-      Mat total_similarity;
-      addSimilarities(similarities, total_similarity);
-
-      // Convert user-friendly percentage to raw similarity threshold. The percentage
-      // threshold scales from half the max response (what you would expect from applying
-      // the template to a completely random image) to the max response.
-      // NOTE: This assumes max per-feature response is 4, so we scale between [2*nf, 4*nf].
-      int raw_threshold = static_cast<int>(2*num_features + (threshold / 100.f) * (2*num_features) + 0.5f);
-
-      // Find initial matches
-      std::vector<Match> candidates;
-      for (int r = 0; r < total_similarity.rows; ++r)
-      {
-        ushort* row = total_similarity.ptr<ushort>(r);
-        for (int c = 0; c < total_similarity.cols; ++c)
-        {
-          int raw_score = row[c];
-          if (raw_score > raw_threshold)
-          {
-            int offset = lowest_T / 2 + (lowest_T % 2 - 1);
-            int x = c * lowest_T + offset;
-            int y = r * lowest_T + offset;
-            float score =(raw_score * 100.f) / (4 * num_features) + 0.5f;
-            candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
-          }
-        }
-      }
-
-      // Locally refine each match by marching up the pyramid
-      for (int l = pyramid_levels - 2; l >= 0; --l)
-      {
-        const std::vector<LinearMemories>& lms = lm_pyramid[l];
-        int T = T_at_level[l];
-        int start = static_cast<int>(l * modalities.size());
-        Size size = sizes[l];
-        int border = 8 * T;
-        int offset = T / 2 + (T % 2 - 1);
-        int max_x = size.width - tp[start].width - border;
-        int max_y = size.height - tp[start].height - border;
-
-        vector<LinearMemories> lms2(modalities.size(), LinearMemories(8));
-        for(int i=0;i<modalities.size();i++){
-            for (int j = 0; j < 8; ++j)
-              linearize(lms[i].at(j), lms2[i].at(j), T);
-        }
-
-
-        std::vector<Mat> similarities2(modalities.size());
-        Mat total_similarity2;
-        for (int m = 0; m < (int)candidates.size(); ++m)
-        {
-          Match& match2 = candidates[m];
-          int x = match2.x * 2 + 1; /// @todo Support other pyramid distance
-          int y = match2.y * 2 + 1;
-
-          // Require 8 (reduced) row/cols to the up/left
-          x = std::max(x, border);
-          y = std::max(y, border);
-
-          // Require 8 (reduced) row/cols to the down/left, plus the template size
-          x = std::min(x, max_x);
-          y = std::min(y, max_y);
-
-          // Compute local similarity maps for each modality
-          int numFeatures = 0;
-          for (int i = 0; i < (int)modalities.size(); ++i)
-          {
-            const Template& templ = tp[start + i];
-            uint16_t sceneDepth = depths[l].at<uint16_t>(y, x);
-            numFeatures += static_cast<int>(templ.features.size());
-            if(sceneDepth>0)
-            similarityLocal(lms2[i], templ, similarities2[i], size, T, Point(x, y), sceneDepth);
-          }
-          addSimilarities(similarities2, total_similarity2);
-
-          // Find best local adjustment
-          int best_score = 0;
-          int best_r = -1, best_c = -1;
-          for (int r = 0; r < total_similarity2.rows; ++r)
-          {
-            ushort* row = total_similarity2.ptr<ushort>(r);
-            for (int c = 0; c < total_similarity2.cols; ++c)
-            {
-              int score = row[c];
-              if (score > best_score)
-              {
-                best_score = score;
-                best_r = r;
-                best_c = c;
-              }
-            }
-          }
-          // Update current match
-          match2.x = (x / T - 8 + best_c) * T + offset;
-          match2.y = (y / T - 8 + best_r) * T + offset;
-          match2.similarity = (best_score * 100.f) / (4 * numFeatures);
-        }
-
-        // Filter out any matches that drop below the similarity threshold
-        std::vector<Match>::iterator new_end = std::remove_if(candidates.begin(), candidates.end(),
-                                                              MatchPredicate(threshold));
-        candidates.erase(new_end, candidates.end());
-      }
-
-      matches.insert(matches.end(), candidates.begin(), candidates.end());
-//      cout << "finish template:" << template_id << endl;
-    }
-
-}
 
 void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
                           const std::vector<Size>& sizes,

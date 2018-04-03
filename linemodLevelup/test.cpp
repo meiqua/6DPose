@@ -92,17 +92,16 @@ void detect_test(){
     auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
-    detector.readClasses(classes, prefix + "/600/%s.yaml");
+    detector.readClasses(classes, prefix + "/%s.yaml");
 
     vector<String> classes_ori;
     classes_ori.push_back("06_template");
-    ori_detector->readClasses(classes_ori, prefix + "/600/%s.yaml");
+    ori_detector->readClasses(classes_ori, prefix + "/%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
 //    vector<cv::linemod::Match> matches;
-//    ori_detector->match(sources, 80, matches, classes_ori);
-    vector<linemodLevelup::Match> matches = detector.match(sources, 60, classes);
-//    vector<linemodLevelup::Match> matches = detector.match_ori(sources, 54, classes);
+//    ori_detector->match(sources, 90, matches, classes_ori);
+    vector<linemodLevelup::Match> matches = detector.match(sources, 65, classes);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
     cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 

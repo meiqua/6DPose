@@ -61,15 +61,13 @@ public:
    * \param[out] dst The destination 8-bit image. For each pixel at most one bit is set,
    *                 representing its classification.
    */
-  virtual void quantize(CV_OUT cv::Mat& dst) const =0;
-  virtual void getDepth(cv::Mat& depth) =0;
-    virtual cv::Mat readDepth() = 0;
+  virtual void quantize(cv::Mat& dst) const =0;
   /**
    * \brief Extract most discriminant features at current pyramid level to form a new template.
    *
    * \param[out] templ The new template.
    */
-  virtual bool extractTemplate(CV_OUT Template& templ) const =0;
+  virtual bool extractTemplate(Template& templ) const =0;
 
   /**
    * \brief Go to the next pyramid level.
@@ -302,9 +300,6 @@ public:
   std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold,
              const std::vector<std::string>& class_ids = std::vector<std::string>(),
                            const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
-  std::vector<Match> match_ori(const std::vector<cv::Mat>& sources, float threshold,
-             const std::vector<std::string>& class_ids = std::vector<std::string>(),
-                           const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
   /**
    * \brief Add new object template.
    *
@@ -373,11 +368,6 @@ protected:
   // Indexed as [pyramid level][modality][quantized label]
   typedef std::vector< std::vector<LinearMemories> > LinearMemoryPyramid;
 
-  void matchClass(const LinearMemoryPyramid& lm_pyramid, const std::vector<cv::Mat>& depths,
-                  const std::vector<cv::Size>& sizes,
-                  float threshold, std::vector<Match>& matches,
-                  const std::string& class_id,
-                  const std::vector<TemplatePyramid>& template_pyramids) const;
   void matchClass(const LinearMemoryPyramid& lm_pyramid,
                   const std::vector<cv::Size>& sizes,
                   float threshold, std::vector<Match>& matches,
