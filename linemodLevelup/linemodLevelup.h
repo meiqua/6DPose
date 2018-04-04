@@ -369,10 +369,12 @@ protected:
   typedef std::vector< std::vector<LinearMemories> > LinearMemoryPyramid;
 
   void matchClass(const LinearMemoryPyramid& lm_pyramid,
+                  std::vector<uint16_t> scales,
                   const std::vector<cv::Size>& sizes,
                   float threshold, std::vector<Match>& matches,
                   const std::string& class_id,
                   const std::vector<TemplatePyramid>& template_pyramids) const;
+  std::vector<uint16_t> getScales(const cv::Mat& depth) const;
 };
 
 /**

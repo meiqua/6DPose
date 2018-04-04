@@ -100,6 +100,12 @@ linemod is not that sensitive to scales. If we can cut original img to
 several almost-same-depths parts, then we just need to scale templates 
 several times, and keep continuous access manner in one part.  
   
-now coding...
+Amazing! We use a simple histogram to find possible depth, then scale
+template at all the depths(typically 5 or so), the result is quite convincing,
+ while keep matching time low:  
+![depth600_hist](./linemodLevelup/test/case1/result/depth600_hist.png)  
+As we can see, the template is trained from 600mm. We use histogram + 1D nms to 
+find possible depth in scene, in this case we find 5 possible depths, and 
+successfully, 1000mm is one of them. Matching time is about 60ms now.
 
 

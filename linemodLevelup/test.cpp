@@ -52,6 +52,27 @@ void train_test(){
     cout << "break point line: train_test" << endl;
 }
 
+Mat getHistImg(const Mat& hist)
+{
+    double maxVal=0;
+    double minVal=0;
+
+    minMaxLoc(hist,&minVal,&maxVal,0,0);
+    int histSize=hist.rows;
+    Mat histImg(histSize,histSize,CV_8U,Scalar(255));
+
+    int hpt=static_cast<int>(0.9*histSize);
+
+    for(int h=0;h<histSize;h++)
+    {
+        float binVal=hist.at<float>(h);
+        int intensity=static_cast<int>(binVal*hpt/maxVal);
+        line(histImg,Point(h,histSize),Point(h,histSize-intensity),Scalar::all(0));
+    }
+
+    return histImg;
+}
+
 void detect_test(){
     // test case1
     /*
@@ -76,6 +97,7 @@ void detect_test(){
     sources.push_back(rgb); src_half.push_back(rgb_half);
     sources.push_back(depth); src_half.push_back(depth_half);
 
+
 //    rectangle(rgb, Point(326,132), Point(347, 197), Scalar(255, 255, 255), -1);
 //    rectangle(depth, Point(326,132), Point(347, 197), Scalar(255, 255, 255), -1);
 //    imwrite(prefix+"0000_dep_half.png", depth);
@@ -92,11 +114,11 @@ void detect_test(){
     auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
-    detector.readClasses(classes, prefix + "/%s.yaml");
+    detector.readClasses(classes, prefix + "/600/%s.yaml");
 
     vector<String> classes_ori;
     classes_ori.push_back("06_template");
-    ori_detector->readClasses(classes_ori, prefix + "/%s.yaml");
+    ori_detector->readClasses(classes_ori, prefix + "/600/%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
 //    vector<cv::linemod::Match> matches;
@@ -131,7 +153,7 @@ void detect_test(){
 
     }
     imshow("rgb", draw);
-//    imwrite(prefix+"result/depth600_ori_half.png", draw);
+    imwrite(prefix+"result/depth600_hist.png", draw);
     waitKey(10000000);
     auto match = matches[0];
 
