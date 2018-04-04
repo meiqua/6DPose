@@ -153,7 +153,7 @@ void detect_test(){
 
     }
     imshow("rgb", draw);
-    imwrite(prefix+"result/depth600_hist.png", draw);
+//    imwrite(prefix+"result/depth600_hist.png", draw);
     waitKey(10000000);
     auto match = matches[0];
 
