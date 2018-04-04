@@ -1719,8 +1719,11 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
           TemplatePyramid tp;
           for(auto templ: tp_ori){
               for(auto& feature: templ.features){
-                  feature.x = feature.x*templ.depth/scale;
-                  feature.y = feature.y*templ.depth/scale;
+                  auto factor = templ.depth/scale;
+                  feature.x *= factor;
+                  feature.y *= factor;
+                  templ.width *= factor;
+                  templ.height *= factor;
               }
               tp.push_back(templ);
           }
@@ -1766,7 +1769,7 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
                 int x = c * lowest_T + offset;
                 int y = r * lowest_T + offset;
                 float score =(raw_score * 100.f) / (4 * num_features) + 0.5f;
-                candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
+                candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id), scale));
               }
             }
           }

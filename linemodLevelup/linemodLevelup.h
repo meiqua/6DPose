@@ -230,7 +230,7 @@ struct Match
   {
   }
 
-  Match(int x, int y, float similarity, const std::string& class_id, int template_id);
+  Match(int x, int y, float similarity, const std::string& class_id, int template_id, uint16_t scale);
 
   /// Sort matches with high similarity to the front
   bool operator<(const Match& rhs) const
@@ -252,11 +252,12 @@ struct Match
   float similarity;
   std::string class_id;
   int template_id;
+  uint16_t scale;
 };
 
 inline
-Match::Match(int _x, int _y, float _similarity, const std::string& _class_id, int _template_id)
-    : x(_x), y(_y), similarity(_similarity), class_id(_class_id), template_id(_template_id)
+Match::Match(int _x, int _y, float _similarity, const std::string& _class_id, int _template_id, uint16_t _scale)
+    : x(_x), y(_y), similarity(_similarity), class_id(_class_id), template_id(_template_id), scale(_scale)
 {}
 
 /**

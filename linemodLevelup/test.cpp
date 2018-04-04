@@ -123,7 +123,7 @@ void detect_test(){
     auto start_time = std::chrono::high_resolution_clock::now();
 //    vector<cv::linemod::Match> matches;
 //    ori_detector->match(sources, 90, matches, classes_ori);
-    vector<linemodLevelup::Match> matches = detector.match(sources, 65, classes);
+    vector<linemodLevelup::Match> matches = detector.match(sources, 75, classes);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
     cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 
@@ -163,10 +163,67 @@ void detect_test(){
     auto templ = detector.getTemplates(matches[0].class_id, matches[0].template_id);
     cout << "break point line" << endl;
 }
+
+void dataset_test(){
+    string pre = "/home/meiqua/6DPose/public/datasets/hinterstoisser/test/06/";
+    for(int i=0;i<1000;i++){
+        auto i_str = to_string(i);
+        for(int pad=4-i_str.size();pad>0;pad--){
+            i_str = '0'+i_str;
+        }
+        Mat rgb = cv::imread(pre+"rgb/"+i_str+".png");
+        Mat depth = cv::imread(pre+"depth/"+i_str+".png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+        vector<Mat> sources;
+        sources.push_back(rgb);
+        sources.push_back(depth);
+        auto detector = linemodLevelup::Detector();
+
+        vector<string> classes;
+        classes.push_back("06_template");
+        detector.readClasses(classes, prefix + "/800_1000/%s.yaml");
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+        vector<linemodLevelup::Match> matches = detector.match(sources, 75, classes);
+        auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
+        cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
+
+        vector<Rect> boxes;
+        vector<float> scores;
+        vector<int> idxs;
+        for(auto match: matches){
+            Rect box;
+            box.x = match.x;
+            box.y = match.y;
+            box.width = 40;
+            box.height = 40;
+            boxes.push_back(box);
+            scores.push_back(match.similarity);
+        }
+        cv::dnn::NMSBoxes(boxes, scores, 0, 0.4, idxs);
+
+        Mat draw = rgb;
+        for(auto idx : idxs){
+            auto match = matches[idx];
+            int r = 40;
+            cout << "x: " << match.x << "\ty: " << match.y
+                 << "\tsimilarity: "<< match.similarity <<endl;
+            cv::circle(draw, cv::Point(match.x+r,match.y+r), r, cv::Scalar(255, 0 ,255), 2);
+            cv::putText(draw, to_string(int(round(match.similarity))),
+                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 1.4, Scalar(0,255,255));
+
+        }
+        imshow("rgb", draw);
+    //    imwrite(prefix+"result/depth600_hist.png", draw);
+        waitKey(0);
+
+    }
+    cout << "dataset_test end line" << endl;
+}
+
 int main(){
 
 //    train_test();
-    detect_test();
-
+//    detect_test();
+dataset_test();
     return 0;
 }
