@@ -44,12 +44,12 @@ if obj_ids:
 
 # renderer = Renderer()
 
-mode = 'test'
+mode = 'render_train'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
-template_saved_to = join(dp['base_path'], 'linemod_render_up', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info.yaml')
+template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
 if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
@@ -137,7 +137,7 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
-        radii = [600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800]
+        radii = [800, 1000]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
         min_n_views = 200
@@ -179,6 +179,8 @@ if mode == 'render_train':
                 depth /= dp['cam']['depth_scale']
                 depth = depth.astype(np.uint16)
 
+
+
                 # Render RGB image
                 rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
                                       clip_near, clip_far, texture=model_texture,
@@ -191,10 +193,21 @@ if mode == 'render_train':
                 t = view['t']
                 # have read rgb, depth, pose, obj_bb, obj_id here
 
+                rows = np.any(depth, axis=1)
+                cols = np.any(depth, axis=0)
+                ymin, ymax = np.where(rows)[0][[0, -1]]
+                xmin, xmax = np.where(cols)[0][[0, -1]]
+
+                # cv2.rectangle(rgb, (xmin, ymin), (xmax, ymax),(0,255,0),3)
+                # cv2.imshow('mask', rgb)
+                # cv2.waitKey(0)
+
                 aTemplateInfo = dict()
                 aTemplateInfo['cam_K'] = K
                 aTemplateInfo['cam_R_w2c'] = R
                 aTemplateInfo['cam_t_w2c'] = t
+                aTemplateInfo['width'] = int(xmax-xmin)
+                aTemplateInfo['height'] = int(ymax-ymin)
 
                 mask = (depth > 0).astype(np.uint8) * 255
 

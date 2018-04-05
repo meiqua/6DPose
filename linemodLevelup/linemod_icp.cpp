@@ -69,7 +69,8 @@ void transformPoints(const std::vector<cv::Vec3f> &src, std::vector<cv::Vec3f>& 
 }
 
 /** Computes the L2 distance between two vectors of 3D points of the same size */
-float getL2distClouds(const std::vector<cv::Vec3f> &model, const std::vector<cv::Vec3f> &ref, float &dist_mean, const float mode)
+float getL2distClouds(const std::vector<cv::Vec3f> &model, const std::vector<cv::Vec3f> &ref,
+                      float &dist_mean, const float mode)
 {
   int nbr_inliers = 0;
   int counter = 0;
