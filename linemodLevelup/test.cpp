@@ -180,10 +180,10 @@ void dataset_test(){
 
         vector<string> classes;
         classes.push_back("06_template");
-        detector.readClasses(classes, prefix + "/800_1000/%s.yaml");
+        detector.readClasses(classes, prefix + "/600/%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        vector<linemodLevelup::Match> matches = detector.match(sources, 75, classes);
+        vector<linemodLevelup::Match> matches = detector.match(sources, 65, classes);
         auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
         cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 
@@ -213,9 +213,9 @@ void dataset_test(){
 
         }
         imshow("rgb", draw);
-    //    imwrite(prefix+"result/depth600_hist.png", draw);
-        waitKey(0);
 
+        waitKey(2000);
+        imwrite(prefix+"scaleTest/" +i_str+ ".png", draw);
     }
     cout << "dataset_test end line" << endl;
 }

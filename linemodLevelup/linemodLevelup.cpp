@@ -1718,12 +1718,11 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
       for(auto scale: scales){
           TemplatePyramid tp;
           for(auto templ: tp_ori){
+              templ.width = int(1.0*templ.width*templ.depth/scale);
+              templ.height = int(1.0*templ.height*templ.depth/scale);
               for(auto& feature: templ.features){
-                  auto factor = templ.depth/scale;
-                  feature.x *= factor;
-                  feature.y *= factor;
-                  templ.width *= factor;
-                  templ.height *= factor;
+                  feature.x = int(1.0*feature.x*templ.depth/scale);
+                  feature.y = int(1.0*feature.y*templ.depth/scale);
               }
               tp.push_back(templ);
           }

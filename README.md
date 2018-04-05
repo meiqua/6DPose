@@ -108,6 +108,12 @@ As we can see, the template is trained from 600mm. We use histogram + 1D nms to
 find possible depth in scene, in this case we find 5 possible depths, and 
 successfully, 1000mm is one of them. Matching time is about 60ms now.  
 
-emmm, Further test show that result is not so good...
+Heavily test shows that though detection is fine, but not so accurate as
+before, which makes ICP result not so good. I think it's caused by scaling feature 
+directly rather than training from img pyramid, it will bring small offset due to pixel 
+grid.  
+
+I'll try training from multiple scales, and adopt proper scales when matching.
+
 
 

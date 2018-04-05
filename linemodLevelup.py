@@ -277,7 +277,7 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
             # only search for one obj
-            matches = detector.match([rgb, depth], 75.0, match_ids, masks=[])
+            matches = detector.match([rgb, depth], 65.0, match_ids, masks=[])
             # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
             elapsed_time = time.time() - start_time
 
@@ -288,47 +288,47 @@ if mode == 'test':
                             most_like_match.class_id, most_like_match.template_id))
             startPos = (int(most_like_match.x), int(most_like_match.y))
 
-            for m in range(1): # test if top5 matches drop in right area
-                startPos = (int(matches[m].x), int(matches[m].y))
-                template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
-                tempR = 2
-                centerPos = (int(startPos[0]+tempR), int(startPos[1]+tempR))
-
-                cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
+            # for m in range(1): # test if top5 matches drop in right area
+            #     startPos = (int(matches[m].x), int(matches[m].y))
+            #     template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
+            #     tempR = 2
+            #     centerPos = (int(startPos[0]+tempR), int(startPos[1]+tempR))
+            #
+            #     cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
 
             render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
             render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
             render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
 
-            # for i in range(1):
-            #     match = matches[i]
-            #     templ = detector.getTemplates(match_ids[0], match.template_id)
-            #     factor = match.scale/templ[0].depth
-            #
-            #
-            #     startPos = (int(match.x), int(match.y))
-            #     K_match = aTemplateInfo[match.template_id]['cam_K']
-            #     R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
-            #     t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
-            #     t_match[2] *= factor
-            #     depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
-            #
-            #     start_time = time.time()
-            #     poseRefine = linemodLevelup_pybind.poseRefine()
-            #     # make sure data type is consistent
-            #     poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
-            #                        K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
-            #                        , match.x, match.y)
-            #     refinedR = poseRefine.getR()
-            #     refinedT = poseRefine.getT()
-            #
-            #     render_R = refinedR
-            #     render_t = refinedT
-            #
-            #     # print('residual: {}'.format(poseRefine.getResidual()))
-            #
-            #     elapsed_time = time.time() - start_time
-            #     # print("pose refine time: {}s".format(elapsed_time))
+            for i in range(1):
+                match = matches[i]
+                templ = detector.getTemplates(match_ids[0], match.template_id)
+                factor = 1.0*match.scale/templ[0].depth
+
+
+                startPos = (int(match.x), int(match.y))
+                K_match = aTemplateInfo[match.template_id]['cam_K']
+                R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
+                t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
+                t_match[2] *= factor
+                depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
+
+                start_time = time.time()
+                poseRefine = linemodLevelup_pybind.poseRefine()
+                # make sure data type is consistent
+                poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
+                                   K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
+                                   , match.x, match.y)
+                refinedR = poseRefine.getR()
+                refinedT = poseRefine.getT()
+
+                render_R = refinedR
+                render_t = refinedT
+
+                # print('residual: {}'.format(poseRefine.getResidual()))
+
+                elapsed_time = time.time() - start_time
+                # print("pose refine time: {}s".format(elapsed_time))
 
             render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
             visible_mask = render_depth < depth
@@ -338,7 +338,7 @@ if mode == 'test':
             render_rgb = render_rgb*rgb_mask
             render_rgb = rgb*(1-rgb_mask) + render_rgb
 
-            # draw_axis(rgb, render_R, render_t, render_K)
+            draw_axis(rgb, render_R, render_t, render_K)
             # draw_axis(render_rgb, render_R, render_t, render_K)
 
             visual = True
