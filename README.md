@@ -113,7 +113,18 @@ before, which makes ICP result not so good. I think it's caused by scaling featu
 directly rather than training from img pyramid, it will bring small offset due to pixel 
 grid.  
 
-I'll try training from multiple scales, and adopt proper scales when matching.
+I'll try training from multiple scales, and adopt proper scales when matching.  
+
+Well, if we match from many scales(from 600 to 1800), small scales will disturb us, 
+because small obj tends to match random things. So at last I decide to adopt two 
+minor modification to linemod:  
+modify lookup table, so low response is closer to 0, we expect it can deal with 
+occlusion;  
+regard different scales(or some prior views?) objs as different objs, 
+so when we want to match, we may use some info to determine at which scales we want 
+to match.  
+
+Next goal is to improve post-process, like nms, icp ect.
 
 
 

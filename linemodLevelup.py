@@ -37,7 +37,7 @@ dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector()
 ori_detector = cv2.linemod.getDefaultLINEMOD()
 
-obj_ids = []  # for each obj
+obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
@@ -137,7 +137,7 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
-        radii = [600]
+        radii = [600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
         min_n_views = 200
@@ -300,17 +300,13 @@ if mode == 'test':
             render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
             render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
 
+            render_rgb = rgb
             for i in range(1):
-                match = matches[i]
-                templ = detector.getTemplates(match_ids[0], match.template_id)
-                factor = 1.0*match.scale/templ[0].depth
-
-
+                match = matches[0]
                 startPos = (int(match.x), int(match.y))
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
-                t_match[2] *= factor
                 depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
                 start_time = time.time()
@@ -329,16 +325,17 @@ if mode == 'test':
 
                 elapsed_time = time.time() - start_time
                 # print("pose refine time: {}s".format(elapsed_time))
+                render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
+                visible_mask = render_depth < depth
+                mask = render_depth > 0
+                mask = mask.astype(np.uint8)
+                rgb_mask = np.dstack([mask] * 3)
+                render_rgb = render_rgb * rgb_mask
+                render_rgb = rgb * (1 - rgb_mask) + render_rgb
 
-            render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
-            visible_mask = render_depth < depth
-            mask = render_depth > 0
-            mask = mask.astype(np.uint8)
-            rgb_mask = np.dstack([mask]*3)
-            render_rgb = render_rgb*rgb_mask
-            render_rgb = rgb*(1-rgb_mask) + render_rgb
+                draw_axis(rgb, render_R, render_t, render_K)
 
-            draw_axis(rgb, render_R, render_t, render_K)
+
             # draw_axis(render_rgb, render_R, render_t, render_K)
 
             visual = True

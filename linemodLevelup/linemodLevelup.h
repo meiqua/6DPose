@@ -40,8 +40,6 @@ struct Template
     int pyramid_level;
     std::vector<Feature> features;
 
-    uint16_t depth;
-
     void read(const cv::FileNode& fn);
     void write(cv::FileStorage& fs) const;
 };
@@ -230,7 +228,7 @@ struct Match
   {
   }
 
-  Match(int x, int y, float similarity, const std::string& class_id, int template_id, uint16_t scale);
+  Match(int x, int y, float similarity, const std::string& class_id, int template_id);
 
   /// Sort matches with high similarity to the front
   bool operator<(const Match& rhs) const
@@ -252,12 +250,11 @@ struct Match
   float similarity;
   std::string class_id;
   int template_id;
-  uint16_t scale;
 };
 
 inline
-Match::Match(int _x, int _y, float _similarity, const std::string& _class_id, int _template_id, uint16_t _scale)
-    : x(_x), y(_y), similarity(_similarity), class_id(_class_id), template_id(_template_id), scale(_scale)
+Match::Match(int _x, int _y, float _similarity, const std::string& _class_id, int _template_id)
+    : x(_x), y(_y), similarity(_similarity), class_id(_class_id), template_id(_template_id)
 {}
 
 /**
@@ -355,7 +352,6 @@ public:
   void readClasses(const std::vector<std::string>& class_ids,
                            const std::string& format = "templates_%s.yml.gz");
   void writeClasses(const std::string& format = "templates_%s.yml.gz") const;
-
 protected:
   std::vector< cv::Ptr<Modality> > modalities;
   int pyramid_levels;
@@ -370,12 +366,11 @@ protected:
   typedef std::vector< std::vector<LinearMemories> > LinearMemoryPyramid;
 
   void matchClass(const LinearMemoryPyramid& lm_pyramid,
-                  std::vector<uint16_t> scales,
                   const std::vector<cv::Size>& sizes,
                   float threshold, std::vector<Match>& matches,
                   const std::string& class_id,
                   const std::vector<TemplatePyramid>& template_pyramids) const;
-  std::vector<uint16_t> getScales(const cv::Mat& depth) const;
+
 };
 
 /**

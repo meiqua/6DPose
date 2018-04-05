@@ -19,12 +19,7 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
             .def_readwrite("y",&linemodLevelup::Match::y)
             .def_readwrite("similarity",&linemodLevelup::Match::similarity)
             .def_readwrite("class_id",&linemodLevelup::Match::class_id)
-            .def_readwrite("scale",&linemodLevelup::Match::scale)
             .def_readwrite("template_id",&linemodLevelup::Match::template_id);
-
-    py::class_<linemodLevelup::Template>(m,"Template")
-            .def(py::init<>())
-            .def_readwrite("depth",&linemodLevelup::Template::depth);
 
 
     py::class_<linemodLevelup::Detector>(m, "Detector")
