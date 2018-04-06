@@ -124,7 +124,7 @@ regard different scales(or some prior views?) objs as different objs,
 so when we want to match, we may use some info to determine at which scales we want 
 to match.  
 
-Next goal is to improve post-process, like nms, icp ect.
+OK, linemod has came to end, implementing LCHF now...
 
 
 
