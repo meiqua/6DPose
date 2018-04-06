@@ -1,34 +1,42 @@
 #!/usr/bin/env python
 import rospy
+from  sensor_msgs.msg import CameraInfo, Image
+from cv_bridge import CvBridge, CvBridgeError
 
 import os
 import sys
 import time
 import numpy as np
-import matplotlib.pyplot as plt
-import cv2
-import math
-from pysixd import view_sampler, inout, misc
+from pysixd import inout
 from  pysixd.renderer import render
-from os.path import join
 import linemodLevelup_pybind
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+objIds = []
+
+rgb = None
+depth = None
+rgb_flag = False
+depth_flag = False
+lock = False
+bridge = CvBridge()
+
 readTemplFrom = './yaml/%s_templ.yaml'
 readInfoFrom = './yaml/{}_info.yaml'
-readModelFrom = './models/{}.fly'
-objIds = []
-K_cam = []
+readModelFrom = './models/{0}/{0}.fly'
+K_cam = None
 
 detector = linemodLevelup_pybind.Detector()
 poseRefine = linemodLevelup_pybind.poseRefine()
-detector.readClasses(objIds, readFrom)
-templateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
+detector.readClasses(objIds, readTemplFrom)
 
+infos = {}
 models = {}
 for id in objIds:
     model = inout.load_ply(readModelFrom.format(id))
     models[id] = model
+    templateInfo = inout.load_info(readInfoFrom.format(id))
+    infos[id] = templateInfo
 
 def nms_norms(ts, scores, thresh):
     order = scores.argsort()[::-1]
@@ -70,43 +78,102 @@ def nms(dets, thresh):
 
     return keep
 
-def listenRGBD():
-    pass
+def listenRGB(rgb_):
+    global rgb_flag, rgb, lock
+    if not rgb_flag and not lock:
+        rgb = bridge.imgmsg_to_cv2(rgb_.data, "rgb8")
+        rgb_flag = True
 
-def receiveRGBD(RGBD):
+def listenD(depth_):
+    global depth_flag, depth, lock
+    if not depth_flag and not lock:
+        depth = bridge.imgmsg_to_cv2(depth_.data, "mono16")
+        depth_flag = True
+
+def receiveRGBD():
     # get rgb, depth here
-    matches = detector.match([rgb, depth], 65.0, objIds, masks=[])
+    global rgb_flag, rgb, depth_flag, depth, lock
+    if rgb_flag and depth_flag:  # regard rgb and depth arrive at same time
 
-    dets = np.zeros(shape=(len(matches),5))
-    for i in range(len(matches)):
-        match = matches[i]
-        info = templateInfo[match.template_id]
-        dets[i,0]=match.x
-        dets[i,1]=match.y
-        dets[i,2]=match.x+info['width']
-        dets[i,3]=match.y+info['height']
-        dets[i,4]=match.similarity
-    idx = nms(dets,0.5)
+        matches = detector.match([rgb, depth], 65.0, objIds, masks=[])
 
-    dets = np.zeros(shape=(len(idx),5))
-    for i in idx:
-        match = matches[i]
-        info = templateInfo[match.template_id]
-        model = models[match.class_id]
-        depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
-        K_match = info['cam_K']
-        R_match = info['cam_R_w2c']
-        t_match = info['cam_t_w2c']
-        poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K_cam.astype(np.float32),
-                           K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
-                           , match.x, match.y)        
-        
+        dets = np.zeros(shape=(len(matches), 5))
+        for i in range(len(matches)):
+            match = matches[i]
+            templateInfo = infos[match.class_id]
+            info = templateInfo[match.template_id]
+            dets[i, 0] = match.x
+            dets[i, 1] = match.y
+            dets[i, 2] = match.x + info['width']
+            dets[i, 3] = match.y + info['height']
+            dets[i, 4] = match.similarity
+        idx = nms(dets, 0.5)
 
-def publishResults():
-    pass
+        ts = []
+        ts_scores = np.zeros(shape=(len(idx), 1))
+        Rs = []
+        ids = []
+        confidences = []
+        for i in idx:
+            match = matches[i]
+            templateInfo = infos[match.class_id]
+            info = templateInfo[match.template_id]
+            model = models[match.class_id]
 
-def getK(msg, subscriber):
+            K_match = info['cam_K']
+            R_match = info['cam_R_w2c']
+            t_match = info['cam_t_w2c']
+            depth_ren = render(model, depth.shape, K_match, R_match, t_match, mode='depth')
+            poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K_cam.astype(np.float32),
+                               K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
+                               , match.x, match.y)
+            ts.append(poseRefine.getT())
+            Rs.append(poseRefine.getR())
+            ids.append(match.class_id)
+            confidences.append(match.similarity)
+            ts_scores[i] = -poseRefine.getResidual()
+        idx = nms_norms(ts, ts_scores, 40.0)
+
+        results = []
+        for i in idx:
+            result = {}
+            result['id'] = ids[i]
+            result['R'] = Rs[i]
+            result['t'] = ts[i]
+            result['s'] = confidences[i]
+            results.append(result)
+        publishResults(results)
+
+        lock = True  # prevent threads interrupt
+        rgb_flag = False
+        depth_flag = False
+        lock = False
+
+def publishResults(results):
+    print(results)
+    print('line for debug')
+
+def getK(info, subscriber):
     #do processing here to get K_cam
+    global K_cam
+    K_cam = np.zeros(shape=(3,3))
+    for i in range(9):
+        K_cam[i % 3, i - (i % 3) * 3] = info.K[i]
+
     subscriber.unregister()
 
 if __name__ == '__main__':
+    rospy.init_node('linemod_detection')
+    # get K from cam_info topic
+    sub_once = None
+    sub_once = rospy.Subscriber('color/camera_info', CameraInfo, getK, sub_once)
+    while not K_cam:
+        pass
+
+    rospy.Subscriber('color/image_raw', Image, listenRGB)
+    rospy.Subscriber('depth/image_raw', Image, listenD)
+
+    while True:
+        receiveRGBD()
+
+    rospy.spin()
