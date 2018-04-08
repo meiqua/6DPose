@@ -2,6 +2,7 @@
 import rospy
 from  sensor_msgs.msg import CameraInfo, Image
 from cv_bridge import CvBridge, CvBridgeError
+import message_filters
 
 import os
 import sys
@@ -16,8 +17,6 @@ objIds = []
 
 rgb = None
 depth = None
-rgb_flag = False
-depth_flag = False
 lock = False
 bridge = CvBridge()
 
@@ -38,16 +37,18 @@ for id in objIds:
     templateInfo = inout.load_info(readInfoFrom.format(id))
     infos[id] = templateInfo
 
+
 def nms_norms(ts, scores, thresh):
     order = scores.argsort()[::-1]
     keep = []
-    while order.size > 0:
+    while order.size > 0:  # magic: order[[]] = []
         i = order[0]
         keep.append(i)
         norms = np.linalg.norm(ts[i]-ts[order[1:]], axis=1)
         inds = np.where(norms > thresh)[0]
         order = order[inds + 1]
     return keep
+
 
 def nms(dets, thresh):
     x1 = dets[:, 0]
@@ -78,23 +79,18 @@ def nms(dets, thresh):
 
     return keep
 
-def listenRGB(rgb_):
-    global rgb_flag, rgb, lock
-    if not rgb_flag and not lock:
+
+def receiveRGBD(rgb_, depth_):
+    global lock, rgb, depth
+    if not lock:
+        lock = True
         rgb = bridge.imgmsg_to_cv2(rgb_.data, "rgb8")
-        rgb_flag = True
-
-def listenD(depth_):
-    global depth_flag, depth, lock
-    if not depth_flag and not lock:
         depth = bridge.imgmsg_to_cv2(depth_.data, "mono16")
-        depth_flag = True
 
-def receiveRGBD():
-    # get rgb, depth here
-    global rgb_flag, rgb, depth_flag, depth, lock
-    if rgb_flag and depth_flag:  # regard rgb and depth arrive at same time
 
+def match():
+    global lock, rgb, depth
+    if lock:
         matches = detector.match([rgb, depth], 65.0, objIds, masks=[])
 
         dets = np.zeros(shape=(len(matches), 5))
@@ -144,14 +140,13 @@ def receiveRGBD():
             results.append(result)
         publishResults(results)
 
-        lock = True  # prevent threads interrupt
-        rgb_flag = False
-        depth_flag = False
         lock = False
+
 
 def publishResults(results):
     print(results)
     print('line for debug')
+
 
 def getK(info, subscriber):
     #do processing here to get K_cam
@@ -170,10 +165,14 @@ if __name__ == '__main__':
     while not K_cam:
         pass
 
-    rospy.Subscriber('color/image_raw', Image, listenRGB)
-    rospy.Subscriber('depth/image_raw', Image, listenD)
+    rgb_sub = message_filters.Subscriber('/camera/color/image_raw', Image, queue_size=2)
+    depth_sub = message_filters.Subscriber('/camera/depth/image_raw', Image, queue_size=2)
+    queue_size = 1
+    slop_seconds = 0.025
+    ts = message_filters.ApproximateTimeSynchronizer([rgb_sub, depth_sub], queue_size, slop_seconds)
+    ts.registerCallback(receiveRGBD)
 
-    while True:
-        receiveRGBD()
+    while not rospy.is_shutdown():
+        match()
 
     rospy.spin()

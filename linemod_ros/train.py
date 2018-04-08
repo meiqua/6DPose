@@ -113,7 +113,7 @@ for obj_id in obj_ids:
                 cv2.imshow('mask', mask)
                 cv2.waitKey(1000)
 
-            success = detector.addTemplate([rgb, depth], '{:02d}_template'.format(obj_id), mask)
+            success = detector.addTemplate([rgb, depth], '{}_templ'.format(obj_id), mask)
             print('success {}'.format(success))
             del rgb, depth, mask
 
