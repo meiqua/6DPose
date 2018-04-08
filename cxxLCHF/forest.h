@@ -11,7 +11,7 @@ public:
     int depth;
     int cnodes[2];
     bool isleafnode;
-    double thresh;
+    float thresh;
     Feature<ActualFeature> split_feat;
     std::vector<int> ind_feats;
 

@@ -62,7 +62,6 @@ void Tree<ActualFeature>::train(const std::vector<Feature<ActualFeature> > &feat
                     num_nodes +=2;
                 }
             }
-
         }
         if (num_split == 0){
             stop = 1;
