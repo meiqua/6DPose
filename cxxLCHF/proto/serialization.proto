@@ -14,7 +14,11 @@ message Row_i {
 }
 
 message Mat_i {
-    repeated Row_i value =1;
+    repeated Row_i row =1;
+}
+
+message Mat_i_3 {
+    repeated Mat_i channel =1;
 }
 
 message Info {
@@ -29,16 +33,20 @@ message Linemod_embedding_ele {
     required int32 label = 3;
 }
 
+message Linemod_embedding_ele_vector {
+    repeated Linemod_embedding_ele element = 1;
+}
+
 message Linemod_embedding {
-    repeated Linemod_embedding_ele rgb_embedding = 1;
-    repeated Linemod_embedding_ele depth_embedding = 2;
+    required Linemod_embedding_ele_vector rgb_embedding = 1;
+    required Linemod_embedding_ele_vector depth_embedding = 2;
     optional Mat_i angle = 3;
     optional Mat_i normal = 4;
     required int32 center_dep = 5;
 }
 
 message Linemod_feature {
-    optional Mat_i rgb = 1;
+    optional Mat_i_3 rgb = 1;
     optional Mat_i depth = 2;
     optional Mat_i mask = 3;
     optional Linemod_embedding embedding = 4;

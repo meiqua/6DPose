@@ -53,6 +53,9 @@ public:
     cv::Mat angle, normal;
     int center_dep;
     int z_check;
+
+    lchf::Linemod_embedding write();
+    void read(lchf::Linemod_embedding& embedding_);
 };
 inline Linemod_embedding::Candidate::Candidate(int x, int y, int label, float _score) : f(x, y, label), score(_score) {}
 
@@ -67,6 +70,31 @@ public:
     bool constructEmbedding();
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
     float similarity(Linemod_feature& other);
+
+    lchf::Linemod_feature write();
+    void read(lchf::Linemod_feature &feature_);
+};
+
+template<class matrix_type, class serial_type>
+void saveMat(cv::Mat& matrix_i, serial_type* mat_i){
+    for(int row=0;row<matrix_i.rows;row++){
+        matrix_type* row_p = matrix_i.ptr<matrix_type>(row);
+        auto r_p = mat_i->add_row();
+        for(int col=0; col<matrix_i.cols; col++){
+            r_p->add_value(row_p[col]);
+        }
+    }
+};
+
+template<class mat_type, class serial_type>
+void loadMat(cv::Mat& matrix_f, serial_type& mat_f){
+    for(int row=0; row<mat_f.row_size();row++){
+        float* row_p = matrix_f.ptr<float>(row);
+        auto r_p = mat_f.row(row);
+        for(int col=0; col<mat_f.row(0).value_size();col++){
+            row_p[col] = r_p.value(col);
+        }
+    }
 };
 
 #endif

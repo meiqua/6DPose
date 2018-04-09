@@ -524,6 +524,32 @@ float Linemod_feature::similarity(Linemod_feature &other){
     return score/count/4*100;
 }
 
+lchf::Linemod_feature Linemod_feature::write()
+{
+    lchf::Linemod_feature featrue_;
+    if(!rgb.empty()){
+        lchf::Mat_i_3* mat_i_3;
+        Mat bgr[3];
+        split(rgb,bgr);
+        for(int i=0;i<3;i++){
+            auto c = mat_i_3->add_channel();
+            saveMat<uchar>(bgr[i], c);
+        }
+        featrue_.set_allocated_rgb(mat_i_3);
+    }
+    if(!depth.empty()){
+        lchf::Mat_i* mat_i;
+        saveMat<uint16_t>(depth, mat_i);
+        featrue_.set_allocated_depth(mat_i);
+    }
+    if(!mask.empty()){
+        lchf::Mat_i* mat_i;
+        saveMat<uchar>(mask, mat_i);
+        featrue_.set_allocated_mask(mat_i);
+    }
+    auto embedding_write = embedding.write();
+    featrue_.set_allocated_embedding(&embedding_write);
+}
 
 lchf::Info Info::write()
 {
@@ -532,56 +558,83 @@ lchf::Info Info::write()
         info_.set_id(id);
     }
     if(!t.empty()){
-        auto& matrix_f = t;
         lchf::Mat_f* mat_f;
-        for(int row=0; row<matrix_f.rows;row++){
-            float* row_p = matrix_f.ptr<float>(row);
-            auto r_p = mat_f->add_row();
-            for(int col=0; col<matrix_f.cols;col++){
-                r_p->add_value(row_p[col]);
-            }
-        }
+        saveMat<float>(t, mat_f);
         info_.set_allocated_t(mat_f);
     }
     if(!R.empty()){
-        auto& matrix_f = R;
         lchf::Mat_f* mat_f;
-        for(int row=0; row<matrix_f.rows;row++){
-            float* row_p = matrix_f.ptr<float>(row);
-            auto r_p = mat_f->add_row();
-            for(int col=0; col<matrix_f.cols;col++){
-                r_p->add_value(row_p[col]);
-            }
-        }
-        info_.set_allocated_t(mat_f);
+        saveMat<float>(R, mat_f);
+        info_.set_allocated_r(mat_f);
     }
 }
 
 void Info::read(lchf::Info &info_)
 {
     id = info_.id();
-    {
-        auto& mat_f = info_.t();
-        t = Mat(3, 1, CV_32FC1);
-        auto& matrix_f = t;
-        for(int row=0; row<matrix_f.rows;row++){
-            float* row_p = matrix_f.ptr<float>(row);
-            auto r_p = mat_f.row(row);
-            for(int col=0; col<matrix_f.cols;col++){
-                row_p[col] = r_p.value(col);
-            }
-        }
+    loadMat<float>(t, info_.t());
+    loadMat<float>(R, info_.r());
+}
+
+lchf::Linemod_embedding Linemod_embedding::write()
+{
+    lchf::Linemod_embedding embedding_;
+    if(!angle.empty()){
+        lchf::Mat_i* mat_i;
+        saveMat<uchar>(angle, mat_i);
+        embedding_.set_allocated_angle(mat_i);
     }
-    {
-        auto& mat_f = info_.r();
-        R = Mat(3, 3, CV_32FC1);
-        auto& matrix_f = R;
-        for(int row=0; row<matrix_f.rows;row++){
-            float* row_p = matrix_f.ptr<float>(row);
-            auto r_p = mat_f.row(row);
-            for(int col=0; col<matrix_f.cols;col++){
-                row_p[col] = r_p.value(col);
-            }
-        }
+    if(!normal.empty()){
+        lchf::Mat_i* mat_i;
+        saveMat<uchar>(normal, mat_i);
+        embedding_.set_allocated_normal(mat_i);
+    }
+    embedding_.set_center_dep(center_dep);
+
+    lchf::Linemod_embedding_ele_vector* lchf_ele_vec;
+    for(int i=0;i<rgb_embedding.size();i++){
+        auto& ele = rgb_embedding[i];
+        auto lchf_ele = lchf_ele_vec->add_element();
+        lchf_ele->set_x(ele.x);
+        lchf_ele->set_y(ele.y);
+        lchf_ele->set_label(ele.label);
+    }
+    embedding_.set_allocated_rgb_embedding(lchf_ele_vec);
+
+    lchf::Linemod_embedding_ele_vector* lchf_ele_vec2;
+    for(int i=0;i<depth_embedding.size();i++){
+        auto& ele = depth_embedding[i];
+        auto lchf_ele = lchf_ele_vec2->add_element();
+        lchf_ele->set_x(ele.x);
+        lchf_ele->set_y(ele.y);
+        lchf_ele->set_label(ele.label);
+    }
+    embedding_.set_allocated_depth_embedding(lchf_ele_vec2);
+}
+
+void Linemod_embedding::read(lchf::Linemod_embedding &embedding_)
+{
+    center_dep = embedding_.center_dep();
+    loadMat<uchar>(angle, embedding_.angle());
+    loadMat<uchar>(normal, embedding_.normal());
+
+    int rgb_ele_size = embedding_.rgb_embedding().element_size();
+    rgb_embedding.resize(rgb_ele_size);
+    for(int i=0; i<rgb_ele_size; i++){
+        auto lchf_ele = embedding_.rgb_embedding().element(i);
+        auto& ele = rgb_embedding[i];
+        ele.x = lchf_ele.x();
+        ele.y = lchf_ele.y();
+        ele.label = lchf_ele.label();
+    }
+
+    int dep_ele_size = embedding_.depth_embedding().element_size();
+    depth_embedding.resize(dep_ele_size);
+    for(int i=0;i<dep_ele_size;i++){
+        auto lchf_ele = embedding_.depth_embedding().element(i);
+        auto& ele = depth_embedding[i];
+        ele.x = lchf_ele.x();
+        ele.y = lchf_ele.y();
+        ele.label = lchf_ele.label();
     }
 }

@@ -4,8 +4,8 @@ project(cxxLCHF_pybind)
 
 SET(CMAKE_BUILD_TYPE "Debug")
 #SET(CMAKE_BUILD_TYPE "Release")
-SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
-SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -fPIC")
+SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC")
 
 set(CMAKE_PREFIX_PATH /home/meiqua/anaconda3/envs/furnace)
 # we install cuda9 but build opencv with cuda8, have to set mannually
@@ -20,7 +20,9 @@ find_package(pybind11 REQUIRED)
 
 include(Cmake/FindNumPy.cmake)
 
-include_directories(${OpenCV_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS} ${PYTHON_NUMPY_INCLUDE_DIR})
+include_directories(${OpenCV_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS}
+    ${PYTHON_NUMPY_INCLUDE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR})
 
 set(SOURCE_PYBIND
     pybind11.cpp
@@ -31,8 +33,8 @@ set(SOURCE
     forest.cpp)
 ADD_SUBDIRECTORY(proto)
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} proto)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} proto ${PROTOBUF_LIBRARY})
 
 add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
-target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} proto)
+target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} proto ${PROTOBUF_LIBRARY})
 
