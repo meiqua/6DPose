@@ -29,10 +29,10 @@ set(SOURCE_PYBIND
 set(SOURCE
     lchf.cpp
     forest.cpp)
-
+ADD_SUBDIRECTORY(proto)
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} proto)
 
-add_executable(${PROJECT_NAME}_executable ${SOURCE})
-target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS})
+add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
+target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} proto)
 

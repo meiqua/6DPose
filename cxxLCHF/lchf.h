@@ -5,23 +5,15 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
+#include "proto/serialization.pb.h"
 class Info {
 public:
     cv::Mat R;
     cv::Mat t;
     std::string id;
-};
 
-template <class ActualFeature>
-class Feature {
-public:
-    Feature(){}
-    Feature(cv::Mat& rgb_, cv::Mat depth_, cv::Mat mask_=cv::Mat()):
-    rgb(rgb_), depth(depth_), mask(mask_){}
-    cv::Mat rgb, depth, mask;
-    Info info;
-    virtual float similarity(ActualFeature& other) = 0;
-    virtual ~Feature(){}
+    lchf::Info write();
+    void read(lchf::Info &info_);
 };
 
 class Linemod_embedding {
@@ -64,15 +56,17 @@ public:
 };
 inline Linemod_embedding::Candidate::Candidate(int x, int y, int label, float _score) : f(x, y, label), score(_score) {}
 
-class Linemod_feature: public Feature<Linemod_feature> {
+class Linemod_feature {
 public:
     Linemod_feature(){}
     Linemod_feature(cv::Mat& rgb_, cv::Mat depth_, cv::Mat mask_=cv::Mat()):
-        Feature(rgb_, depth_, mask_){}
+        rgb(rgb_), depth(depth_), mask(mask_){}
+    cv::Mat rgb, depth, mask;
+    Info info;
     Linemod_embedding embedding;
     bool constructEmbedding();
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
-    float similarity(Linemod_feature& other) override;
+    float similarity(Linemod_feature& other);
 };
 
 #endif
