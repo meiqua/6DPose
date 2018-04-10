@@ -76,9 +76,12 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
         }
     }
     id_leafnodes_.clear();
+    id_non_leafnodes_.clear();
     for (int i=0;i < num_nodes_;i++){
         if (nodes_[i].isleafnode == 1){
             id_leafnodes_.push_back(i);
+        }else {
+            id_non_leafnodes_.push_back(i);
         }
     }
 }

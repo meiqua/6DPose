@@ -73,6 +73,7 @@ message Tree {
     required int32 size_thresh_ = 7;
     required int32 split_attempts_ = 8;
     required float simi_thresh_ = 9;
+    repeated int32 id_non_leafnodes_ = 10;
 }
 
 message Forest {

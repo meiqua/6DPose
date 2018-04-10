@@ -12,8 +12,8 @@ public:
     cv::Mat t;
     std::string id;
 
-    lchf::Info write();
-    void read(lchf::Info &info_);
+    void write(lchf::Info* info);
+    void read(const lchf::Info &info_);
 };
 
 class Linemod_embedding {
@@ -54,8 +54,8 @@ public:
     int center_dep;
     int z_check;
 
-    lchf::Linemod_embedding write();
-    void read(lchf::Linemod_embedding& embedding_);
+    void write(lchf::Linemod_embedding*);
+    void read(const lchf::Linemod_embedding& embedding_);
 };
 inline Linemod_embedding::Candidate::Candidate(int x, int y, int label, float _score) : f(x, y, label), score(_score) {}
 
@@ -71,8 +71,8 @@ public:
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
     float similarity(Linemod_feature& other);
 
-    lchf::Linemod_feature write();
-    void read(lchf::Linemod_feature &feature_);
+    void write(lchf::Linemod_feature*);
+    void read(const lchf::Linemod_feature &feature_);
 };
 
 template<class matrix_type, class serial_type>
