@@ -1,6 +1,6 @@
 #ifndef FOREST_H
 #define FOREST_H
-
+#include "meanshift/MeanShift.h"
 #include "lchf.h"
 
 class Node {
@@ -12,8 +12,9 @@ public:
     bool isleafnode;
     int split_feat_idx;
     std::vector<int> ind_feats;
-
+    std::vector<int> ind_infos;
     Node(){
+        ind_infos.clear();
         ind_feats.clear();
         issplit = 0;
         pnode = 0;
@@ -33,6 +34,9 @@ public:
         for(auto idx: ind_feats){
             node->add_ind_feats(idx);
         }
+        for(auto idx: ind_infos){
+            node->add_ind_infos(idx);
+        }
     }
     void read(const lchf::Node& node){
         issplit = node.issplit();
@@ -47,11 +51,17 @@ public:
         for(int i=0;i<ind_num;i++){
             ind_feats[i] = node.ind_feats(i);
         }
+        int ind_info_num = node.ind_infos_size();
+        ind_infos.resize(ind_info_num);
+        for(int i=0;i<ind_info_num;i++){
+            ind_infos[i] = node.ind_infos(i);
+        }
     }
 };
 
 template <class Feature>
 class Tree {
+public:
     int max_depth_;
     int max_numnodes_;
     int num_leafnodes_;
@@ -125,6 +135,7 @@ class Tree {
 
 template <class Feature>
 class Forest {
+public:
   std::vector<Tree<Feature> > trees;
   int max_numtrees_;
   double train_ratio_;
@@ -134,6 +145,7 @@ class Forest {
       train_ratio_ = train_ratio;
   }
   void Train(const std::vector<Feature>& feats);
+  std::vector<int> Predict(Feature &f);
 
   void write(lchf::Forest* forest){
       forest->set_max_numtrees(max_numtrees_);
@@ -152,5 +164,75 @@ class Forest {
           trees[i].read(forest.trees(i));
       }
   }
+};
+
+class Info_cluster {
+public:
+    void cluster(std::vector<Info>& input, std::vector<Info>& ouput);
+private:
+    bool isRotationMatrix(cv::Mat &R){
+        cv::Mat Rt;
+        transpose(R, Rt);
+        cv::Mat shouldBeIdentity = Rt * R;
+        cv::Mat I = cv::Mat::eye(3,3, shouldBeIdentity.type());
+        return  norm(I, shouldBeIdentity) < 1e-6;
+    }
+    template<class type>
+    cv::Vec3f rotationMatrixToEulerAngles(cv::Mat &R){
+        assert(isRotationMatrix(R));
+        float sy = sqrt(R.at<type>(0,0) * R.at<type>(0,0) +  R.at<type>(1,0) * R.at<type>(1,0) );
+
+        bool singular = sy < 1e-6; // If
+
+        float x, y, z;
+        if (!singular)
+        {
+            x = atan2(R.at<type>(2,1) , R.at<type>(2,2));
+            y = atan2(-R.at<type>(2,0), sy);
+            z = atan2(R.at<type>(1,0), R.at<type>(0,0));
+        }
+        else
+        {
+            x = atan2(-R.at<type>(1,2), R.at<type>(1,1));
+            y = atan2(-R.at<type>(2,0), sy);
+            z = 0;
+        }
+        return cv::Vec3f(x, y, z);
+    }
+    template<class type>
+    cv::Mat eulerAnglesToRotationMatrix(cv::Vec3f &theta)
+    {
+        // Calculate rotation about x axis
+        cv::Mat R_x = (cv::Mat_<type>(3,3) <<
+                   1,       0,              0,
+                   0,       cos(theta[0]),   -sin(theta[0]),
+                   0,       sin(theta[0]),   cos(theta[0])
+                   );
+        // Calculate rotation about y axis
+        cv::Mat R_y = (cv::Mat_<type>(3,3) <<
+                   cos(theta[1]),    0,      sin(theta[1]),
+                   0,               1,      0,
+                   -sin(theta[1]),   0,      cos(theta[1])
+                   );
+        // Calculate rotation about z axis
+        cv::Mat R_z = (cv::Mat_<type>(3,3) <<
+                   cos(theta[2]),    -sin(theta[2]),      0,
+                   sin(theta[2]),    cos(theta[2]),       0,
+                   0,               0,                  1);
+        // Combined rotation matrix
+        cv::Mat R = R_z * R_y * R_x;
+        return R;
+    }
+};
+
+class lchf_model {
+public:
+    Params params;
+    std::string path;
+    Forest<Linemod_feature> loadForest();
+    std::vector<Linemod_feature> loadFeatures();
+    std::vector<Info> loadCluster_infos();
+    void saveModel(Forest<Linemod_feature>& forest, std::vector<Linemod_feature>& features,
+                    std::vector<Info>& cluster_infos);
 };
 #endif

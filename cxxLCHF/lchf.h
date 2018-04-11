@@ -6,6 +6,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include "proto/serialization.pb.h"
+#include "global_params.h"
 class Info {
 public:
     cv::Mat R;
@@ -67,11 +68,13 @@ public:
     cv::Mat rgb, depth, mask;
     Info info;
     Linemod_embedding embedding;
+
     bool constructEmbedding();
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
     float similarity(Linemod_feature& other);
 
-    void write(lchf::Linemod_feature*);
+    void write(lchf::Linemod_feature* f, bool save_src = 0
+            , bool save_embedding = 0, bool save_info = 0);
     void read(const lchf::Linemod_feature &feature_);
 };
 

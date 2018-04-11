@@ -524,36 +524,45 @@ float Linemod_feature::similarity(Linemod_feature &other){
     return score/count/4*100;
 }
 
-void Linemod_feature::write(lchf::Linemod_feature* feature_)
+void Linemod_feature::write(lchf::Linemod_feature* feature_, bool save_src
+        , bool save_embedding , bool save_info)
 {
-    if(!rgb.empty()){
-        lchf::Mat_i_3* mat_i_3 = new lchf::Mat_i_3();
-        Mat bgr[3];
-        split(rgb,bgr);
-        for(int i=0;i<3;i++){
-            auto c = mat_i_3->add_channel();
-            saveMat<uchar>(bgr[i], c);
+    if(save_src){
+        if(!rgb.empty()){
+            lchf::Mat_i_3* mat_i_3 = new lchf::Mat_i_3();
+            Mat bgr[3];
+            split(rgb,bgr);
+            for(int i=0;i<3;i++){
+                auto c = mat_i_3->add_channel();
+                saveMat<uchar>(bgr[i], c);
+            }
+            feature_->set_allocated_rgb(mat_i_3);
         }
-        feature_->set_allocated_rgb(mat_i_3);
+        if(!depth.empty()){
+            lchf::Mat_i* mat_i = new lchf::Mat_i();
+            saveMat<uint16_t>(depth, mat_i);
+            feature_->set_allocated_depth(mat_i);
+        }
+        if(!mask.empty()){
+            lchf::Mat_i* mat_i = new lchf::Mat_i();
+            saveMat<uchar>(mask, mat_i);
+            feature_->set_allocated_mask(mat_i);
+        }
     }
-    if(!depth.empty()){
-        lchf::Mat_i* mat_i = new lchf::Mat_i();
-        saveMat<uint16_t>(depth, mat_i);
-        feature_->set_allocated_depth(mat_i);
-    }
-    if(!mask.empty()){
-        lchf::Mat_i* mat_i = new lchf::Mat_i();
-        saveMat<uchar>(mask, mat_i);
-        feature_->set_allocated_mask(mat_i);
-    }
-    // where there is a set_allocated, there is a new
-    auto embedding_write = new lchf::Linemod_embedding();
-    embedding.write(embedding_write);
-    feature_->set_allocated_embedding(embedding_write);
 
-    auto info_write = new lchf::Info();
-    info.write(info_write);
-    feature_->set_allocated_info(info_write);
+    if(save_embedding){
+        // where there is a set_allocated, there is a new
+        auto embedding_write = new lchf::Linemod_embedding();
+        embedding.write(embedding_write);
+        feature_->set_allocated_embedding(embedding_write);
+    }
+
+    if(save_info){
+        auto info_write = new lchf::Info();
+        info.write(info_write);
+        feature_->set_allocated_info(info_write);
+    }
+
 }
 
 void Linemod_feature::read(const lchf::Linemod_feature &feature_)

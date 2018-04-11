@@ -27,6 +27,10 @@ message Info {
     required string id = 3;
 }
 
+message Infos {
+    repeated Info info = 1;
+}
+
 message Linemod_embedding_ele {
     required int32 x = 1;
     required int32 y = 2;
@@ -50,7 +54,11 @@ message Linemod_feature {
     optional Mat_i depth = 2;
     optional Mat_i mask = 3;
     optional Linemod_embedding embedding = 4;
-    required Info info = 5;
+    optional Info info = 5;
+}
+
+message Linemod_features {
+    repeated Linemod_feature features = 1;
 }
 
 message Node {
@@ -61,6 +69,7 @@ message Node {
     repeated int32 ind_feats = 5;
     required int32 split_feat_idx = 6;
     required bool isleafnode = 7;
+    repeated int32 ind_infos = 8;
 }
 
 message Tree {
