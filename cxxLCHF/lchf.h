@@ -63,18 +63,17 @@ inline Linemod_embedding::Candidate::Candidate(int x, int y, int label, float _s
 class Linemod_feature {
 public:
     Linemod_feature(){}
-    Linemod_feature(cv::Mat& rgb_, cv::Mat depth_, cv::Mat mask_=cv::Mat()):
+    Linemod_feature(cv::Mat rgb_, cv::Mat depth_, cv::Mat mask_=cv::Mat()):
         rgb(rgb_), depth(depth_), mask(mask_){}
     cv::Mat rgb, depth, mask;
-    Info info;
     Linemod_embedding embedding;
 
     bool constructEmbedding();
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
-    float similarity(Linemod_feature& other);
+    float similarity(const Linemod_feature& other) const;
 
     void write(lchf::Linemod_feature* f, bool save_src = 0
-            , bool save_embedding = 0, bool save_info = 0);
+            , bool save_embedding = 0);
     void read(const lchf::Linemod_feature &feature_);
 };
 
@@ -92,7 +91,7 @@ void saveMat(cv::Mat& matrix_i, serial_type* mat_i){
 template<class mat_type, class serial_type>
 void loadMat(cv::Mat& matrix_f, serial_type& mat_f){
     for(int row=0; row<mat_f.row_size();row++){
-        float* row_p = matrix_f.ptr<float>(row);
+        mat_type* row_p = matrix_f.ptr<mat_type>(row);
         auto r_p = mat_f.row(row);
         for(int col=0; col<mat_f.row(0).value_size();col++){
             row_p[col] = r_p.value(col);

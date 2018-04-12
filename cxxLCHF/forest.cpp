@@ -14,6 +14,7 @@ template<class Feature>
 void Tree<Feature>::train(const std::vector<Feature> &feats,
                                 const std::vector<int>& index){
     //root
+    nodes_.resize(1);
     nodes_[0].issplit = false;
     nodes_[0].pnode = 0;
     nodes_[0].depth = 1;
@@ -21,7 +22,6 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
     nodes_[0].cnodes[1] = 0;
     nodes_[0].isleafnode = 1;
     nodes_[0].ind_feats = index;
-
 
     num_nodes_ = 1;
     num_leafnodes_ = 1;
@@ -34,6 +34,7 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
     int num_split;
     while(!stop){ // restart when we finish spliting old nodes
         num_nodes_iter = num_nodes_;
+        nodes_.resize(num_nodes_*2+1);
         num_split = 0;
         for (int n = 0; n < num_nodes_iter; n++ ){
             if (!nodes_[n].issplit){
@@ -84,15 +85,18 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
     for (int i=0;i < num_nodes_;i++){
         if (nodes_[i].isleafnode == 1){
             id_leafnodes_.push_back(i);
+//            if(nodes_[i].ind_feats.size()>size_thresh_)
+//            cout << "leaf node "<< i<< " idx size: " << nodes_[i].ind_feats.size() << endl;
         }else {
             id_non_leafnodes_.push_back(i);
         }
     }
+    nodes_.resize(num_nodes_);
 }
 
 template<class Feature>
 void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<int>& ind_feats,
-                           int f_idx, std::vector<int> &lcind, std::vector<int> &rcind)
+                           int& f_idx, std::vector<int> &lcind, std::vector<int> &rcind)
 {
     if(ind_feats.size()==0){
         f_idx = 0;
@@ -106,7 +110,7 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
     std::vector<int> distribution(ind_feats.size(),1);
 
     int attempts = std::min(split_attempts_, int(ind_feats.size()));
-    float max_info_gain = 0; int best_feat = 0;
+    float max_info_gain = -10000000; int best_feat = 0;
     std::vector<int> lcind_best, rcind_best;
     for(int attempt=0; attempt < attempts; attempt++){
         std::discrete_distribution<> dist(distribution.begin(), distribution.end());
@@ -119,18 +123,21 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
             if(select == idx){
                 continue;
             }else{
-                float simi = feats[ind_feats[select]].similarity(feats[ind_feats[idx]]);
+                auto& sel = feats[ind_feats[select]];
+                auto& com = feats[ind_feats[idx]];
+                float simi = sel.similarity(com);
+//                cout << simi << endl;
                 if(simi <= simi_thresh_){
                     left++;
-                    lcind_local.push_back(idx);
+                    lcind_local.push_back(ind_feats[idx]);
                 }else if(simi > simi_thresh_){
                     right++;
-                    rcind_local.push_back(idx);
+                    rcind_local.push_back(ind_feats[idx]);
                 }
             }
         }
-
-        float pro = float(left)/(left+right);
+        float sigma = 0.00001;  // avoid 0 or 1 for log
+        float pro = float(left+sigma)/(left+right+sigma);
         float info_gain = pro*std::log2f(pro)+(1-pro)*std::log2f((1-pro));
         if(info_gain>max_info_gain){
             max_info_gain = info_gain;
@@ -151,12 +158,12 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
 }
 
 template<class Feature>
-int Tree<Feature>::predict(Feature &f)
+int Tree<Feature>::predict(const std::vector<Feature> &feats, Feature &f)
 {
     auto& current = nodes_[0];
     int current_idx = 0;
     while(!current.isleafnode){
-        if(f.similarity(nodes_[current.split_feat_idx]) <= simi_thresh_){
+        if(f.similarity(feats[current.split_feat_idx]) <= simi_thresh_){
             current_idx = current.cnodes[0];
             current = nodes_[current_idx];
         }else{
@@ -176,8 +183,10 @@ void Forest<Feature>::Train(const std::vector<Feature> &feats)
     std::vector<int> distribution(feats.size(),1);
 
     size_t train_size = size_t(feats.size()*train_ratio_);
-
+    int count=0;
     for(auto& tree: trees){
+        count++;
+        cout << trees.size() << " trees, training tree: " << count << endl;
         vector<int> ind_feats(train_size);
         for(size_t i=0; i<train_size; i++){
             std::discrete_distribution<> dist(distribution.begin(), distribution.end());
@@ -191,11 +200,11 @@ void Forest<Feature>::Train(const std::vector<Feature> &feats)
 }
 
 template<class Feature>
-std::vector<int> Forest<Feature>::Predict(Feature &f)
+std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Feature &f)
 {
     vector<int> results;
     for(auto& tree: trees){
-        auto result = tree.predict(f);
+        auto result = tree.predict(feats, f);
         results.push_back(result);
     }
     return results;
@@ -232,6 +241,16 @@ void Info_cluster::cluster(std::vector<Info> &input, std::vector<Info> &output){
     }
 }
 
+void lchf_model::train(const std::vector<Linemod_feature> &feats)
+{
+    forest.Train(feats);
+}
+
+std::vector<int> lchf_model::predict(const std::vector<Linemod_feature> &feats, Linemod_feature &f)
+{
+    return forest.Predict(feats, f);
+}
+
 Forest<Linemod_feature> lchf_model::loadForest()
 {
     fs::path file("forests");
@@ -263,6 +282,7 @@ std::vector<Linemod_feature> lchf_model::loadFeatures()
     int feats_size = features.features_size();
     std::vector<Linemod_feature> feats(feats_size);
     for(int i=0;i<feats_size;i++){
+//        cout << feats_size<< " features, " << "reading feature " << i << endl;
         feats[i].read(features.features(i));
     }
     return feats;
@@ -287,22 +307,8 @@ std::vector<Info> lchf_model::loadCluster_infos()
     return infos_;
 }
 
-void lchf_model::saveModel(Forest<Linemod_feature> &forest, std::vector<Linemod_feature> &features,
-                           std::vector<Info> &cluster_infos){
+void lchf_model::saveModel(Forest<Linemod_feature> &forest, std::vector<Linemod_feature> &features){
     fs::path dir(path);
-    if(params.save_leaf_distribution&&(!cluster_infos.empty())){
-        fs::path file("cluster_infos");
-        auto full_path = dir / file;
-        fstream output(full_path.c_str(), ios::out | ios::trunc | ios::binary);
-        lchf::Infos infos;
-        for(auto& info: cluster_infos){
-            auto info_ = infos.add_info();
-            info.write(info_);
-        }
-        if(!infos.SerializeToOstream(&output)){
-            cerr << "Fail to write cluster infos" << endl;
-        }
-    }
     if(!features.empty()){
         fs::path file("features");
         auto full_path = dir / file;
@@ -311,14 +317,14 @@ void lchf_model::saveModel(Forest<Linemod_feature> &forest, std::vector<Linemod_
         if(params.save_src){
             for(auto& feature: features){
                 auto fs_ = fs.add_features();
-                feature.write(fs_, 1, 1, 1);
+                feature.write(fs_, 1, 1);
             }
-        }else if(params.save_all_embedding&&params.save_all_info){
+        }else if(params.save_all_embedding){
             for(auto& feature: features){
                 auto fs_ = fs.add_features();
-                feature.write(fs_, 0, 1, 1);
+                feature.write(fs_, 0, 1);
             }
-        }else if(params.save_split_embedding&&params.save_leaf_info){
+        }else if(params.save_split_embedding){
             vector<int> check_array(features.size(), 0);
             for(auto& tree: forest.trees){
                 for(auto& idx: tree.id_non_leafnodes_){
@@ -328,22 +334,7 @@ void lchf_model::saveModel(Forest<Linemod_feature> &forest, std::vector<Linemod_
             for(int i=0;i<check_array.size();i++){
                 auto fs_ = fs.add_features();
                 if(check_array[i]){
-                    features[i].write(fs_, 0, 1, 1);
-                }else{
-                    features[i].write(fs_, 0, 0, 1);
-                }
-            }
-        }else if(params.save_split_embedding&&params.save_leaf_distribution){
-            vector<int> check_array(features.size(), 0);
-            for(auto& tree: forest.trees){
-                for(auto& idx: tree.id_non_leafnodes_){
-                    check_array[idx] = 1;
-                }
-            }
-            for(int i=0;i<check_array.size();i++){
-                auto fs_ = fs.add_features();
-                if(check_array[i]){
-                    features[i].write(fs_, 0, 1, 1);
+                    features[i].write(fs_, 0, 1);
                 }
             }
         }
@@ -359,6 +350,24 @@ void lchf_model::saveModel(Forest<Linemod_feature> &forest, std::vector<Linemod_
         forest.write(&forest_);
         if(!forest_.SerializeToOstream(&output)){
             cerr << "Fail to write forests" << endl;
+        }
+    }
+}
+
+void lchf_model::saveInfos(std::vector<Info> &cluster_infos)
+{
+    fs::path dir(path);
+    {
+        fs::path file("cluster_infos");
+        auto full_path = dir / file;
+        fstream output(full_path.c_str(), ios::out | ios::trunc | ios::binary);
+        lchf::Infos infos;
+        for(auto& info: cluster_infos){
+            auto info_ = infos.add_info();
+            info.write(info_);
+        }
+        if(!infos.SerializeToOstream(&output)){
+            cerr << "Fail to write cluster infos" << endl;
         }
     }
 }

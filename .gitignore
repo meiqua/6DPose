@@ -9,5 +9,6 @@ cxxlinemod/CMakeLists.txt.user
 
 cxxLCHF/build/
 cxxLCHF/CMakeLists.txt.user
-
+cxxLCHF/test/features
+cxxLCHF/test/forests
 __pycache__

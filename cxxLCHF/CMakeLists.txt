@@ -32,10 +32,16 @@ set(SOURCE
     lchf.cpp
     forest.cpp
     meanshift/MeanShift.cpp)
+set(LIBS
+    ${OpenCV_LIBS}
+    proto
+    ${PROTOBUF_LIBRARY}
+    stdc++fs)
+
 ADD_SUBDIRECTORY(proto)
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} proto ${PROTOBUF_LIBRARY} stdc++fs)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 
 add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
-target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} proto ${PROTOBUF_LIBRARY} stdc++fs)
+target_link_libraries(${PROJECT_NAME}_executable ${LIBS})
 

@@ -5,24 +5,15 @@
 
 class Node {
 public:
-    bool issplit;
-    int pnode;
-    int depth;
-    int cnodes[2];
-    bool isleafnode;
-    int split_feat_idx;
+    bool issplit=0;
+    int pnode=0;
+    int depth=0;
+    int cnodes[2]={0};
+    bool isleafnode=0;
+    int split_feat_idx=0;
     std::vector<int> ind_feats;
     std::vector<int> ind_infos;
-    Node(){
-        ind_infos.clear();
-        ind_feats.clear();
-        issplit = 0;
-        pnode = 0;
-        depth = 0;
-        cnodes[0] = 0;
-        cnodes[1] = 0;
-        isleafnode = 0;
-    }
+
    void write(lchf::Node* node){
         node->set_issplit(issplit);
         node->set_pnode(pnode);
@@ -63,7 +54,6 @@ template <class Feature>
 class Tree {
 public:
     int max_depth_;
-    int max_numnodes_;
     int num_leafnodes_;
     int num_nodes_;
     int size_thresh_;
@@ -76,7 +66,6 @@ public:
 
     void write(lchf::Tree* tree){
         tree->set_max_depth_(max_depth_);
-        tree->set_max_numnodes_(max_numnodes_);
         tree->set_num_leafnodes_(num_leafnodes_);
         tree->set_num_nodes_(num_nodes_);
         tree->set_size_thresh_(size_thresh_);
@@ -95,7 +84,6 @@ public:
     }
     void read(const lchf::Tree& tree){
         max_depth_ = tree.max_depth_();
-        max_numnodes_ = tree.max_numnodes_();
         num_leafnodes_ = tree.num_leafnodes_();
         num_nodes_ = tree.num_nodes_();
         size_thresh_ = tree.size_thresh_();
@@ -118,19 +106,17 @@ public:
         }
     }
 
-    Tree(float simi_thresh=50, int max_depth=20, int size_thresh=5, int split_attempts=100){
+    Tree(float simi_thresh=35, int max_depth=16, int size_thresh=10, int split_attempts=100){
         size_thresh_ = size_thresh;
         max_depth_ = max_depth;
-        max_numnodes_ = pow(2, max_depth_)-1;
-        nodes_.resize(max_numnodes_);
         split_attempts_=split_attempts;
         simi_thresh_ = simi_thresh;
     }
 
     void train(const std::vector<Feature>& feats, const std::vector<int>& index);
     void Split(const std::vector<Feature>& feats, const std::vector<int>& ind_feats,
-               int f_idx, std::vector<int>& lcind, std::vector<int>& rcind);
-    int predict(Feature& f);
+               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind);
+    int predict(const std::vector<Feature> &feats, Feature& f);
 };
 
 template <class Feature>
@@ -145,7 +131,7 @@ public:
       train_ratio_ = train_ratio;
   }
   void Train(const std::vector<Feature>& feats);
-  std::vector<int> Predict(Feature &f);
+  std::vector<int> Predict(const std::vector<Feature> &feats, Feature &f);
 
   void write(lchf::Forest* forest){
       forest->set_max_numtrees(max_numtrees_);
@@ -229,10 +215,13 @@ class lchf_model {
 public:
     Params params;
     std::string path;
+    Forest<Linemod_feature> forest;
+    void train(const std::vector<Linemod_feature>& feats);
+    std::vector<int> predict(const std::vector<Linemod_feature> &feats, Linemod_feature &f);
     Forest<Linemod_feature> loadForest();
     std::vector<Linemod_feature> loadFeatures();
     std::vector<Info> loadCluster_infos();
-    void saveModel(Forest<Linemod_feature>& forest, std::vector<Linemod_feature>& features,
-                    std::vector<Info>& cluster_infos);
+    void saveModel(Forest<Linemod_feature>& forest, std::vector<Linemod_feature>& features);
+    void saveInfos(std::vector<Info>& infos);
 };
 #endif

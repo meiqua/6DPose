@@ -76,7 +76,6 @@ message Tree {
     repeated Node nodes_ = 1;
     repeated int32 id_leafnodes_ = 2;
     required int32 max_depth_ = 3;
-    required int32 max_numnodes_ = 4;
     required int32 num_leafnodes_ = 5;
     required int32 num_nodes_ = 6;
     required int32 size_thresh_ = 7;

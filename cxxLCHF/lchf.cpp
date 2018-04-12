@@ -347,7 +347,6 @@ static void quantizedNormals(const Mat& src, Mat& dst, int distance_threshold,
 
 bool Linemod_feature::constructEmbedding(){
     {   // rgb embedding extract
-        // Want features on the border to distinguish from background
         embedding.center_dep = depth.at<uint16_t>(depth.rows/2, depth.cols/2);
         Mat local_mask;
         if (!mask.empty())
@@ -472,7 +471,7 @@ static T clamp(const T& n, const T& lower, const T& upper) {
   return std::max(lower, std::min(n, upper));
 }
 static uchar lutable[] = {4, 2, 1, 0, 0};
-float Linemod_feature::similarity(Linemod_feature &other){
+float Linemod_feature::similarity(const Linemod_feature &other) const{
     int count = 0;
     float score = 0;
     auto& rgb_res = other.embedding.angle;
@@ -489,6 +488,9 @@ float Linemod_feature::similarity(Linemod_feature &other){
                 normalize_x = clamp(normalize_x, 0, width-1);
                 normalize_y = clamp(normalize_y, 0, height-1);
                 int ori = rgb_res.at<uchar>(normalize_y, normalize_x);
+                if(ori==0){
+                    continue;
+                }
                 ori = getLabel(ori);
                 int diff = element.label - ori;
                 diff = std::min(diff, 8-diff);
@@ -512,6 +514,9 @@ float Linemod_feature::similarity(Linemod_feature &other){
                 normalize_x = clamp(normalize_x, 0, width-1);
                 normalize_y = clamp(normalize_y, 0, height-1);
                 int ori = dep_res.at<uchar>(normalize_y, normalize_x);
+                if(ori==0){
+                    continue;
+                }
                 ori = getLabel(ori);
                 int diff = element.label - ori;
                 diff = std::min(diff, 8-diff);
@@ -520,12 +525,15 @@ float Linemod_feature::similarity(Linemod_feature &other){
             }
         }
     }
+    if(count==0){
+        return 0;
+    }
 
     return score/count/4*100;
 }
 
 void Linemod_feature::write(lchf::Linemod_feature* feature_, bool save_src
-        , bool save_embedding , bool save_info)
+        , bool save_embedding)
 {
     if(save_src){
         if(!rgb.empty()){
@@ -556,27 +564,29 @@ void Linemod_feature::write(lchf::Linemod_feature* feature_, bool save_src
         embedding.write(embedding_write);
         feature_->set_allocated_embedding(embedding_write);
     }
-
-    if(save_info){
-        auto info_write = new lchf::Info();
-        info.write(info_write);
-        feature_->set_allocated_info(info_write);
-    }
-
 }
 
 void Linemod_feature::read(const lchf::Linemod_feature &feature_)
 {
-    auto mat_i_3 = feature_.rgb();
-    Mat bgr[3];
-    for(int i=0; i<3; i++){
-        loadMat<uchar>(bgr[i], mat_i_3.channel(i));
-    }
-    cv::merge(bgr, 3, rgb);
-    loadMat<uint16_t>(depth, feature_.depth());
-    loadMat<uchar>(mask, feature_.mask());
+    if(feature_.has_rgb()){
+        auto mat_i_3 = feature_.rgb();
 
-    info.read(feature_.info());
+        int rows = mat_i_3.channel(0).row_size();
+        int cols = mat_i_3.channel(0).row(0).value_size();
+
+        depth = Mat(rows, cols, CV_16UC1, Scalar(0));
+        mask = Mat(rows, cols, CV_8UC1, Scalar(0));
+        vector<Mat> bgr(3, Mat(rows, cols, CV_8UC1, Scalar(0)));
+        for(int ii=0; ii<3; ii++){
+            loadMat<uchar>(bgr[ii], mat_i_3.channel(ii));
+        }
+
+        cv::merge(&bgr[0], 3, rgb);
+        loadMat<uint16_t>(depth, feature_.depth());
+        loadMat<uchar>(mask, feature_.mask());
+    }
+
+    if(feature_.has_embedding())
     embedding.read(feature_.embedding());
 }
 
@@ -642,26 +652,44 @@ void Linemod_embedding::write(lchf::Linemod_embedding* embedding_)
 void Linemod_embedding::read(const lchf::Linemod_embedding &embedding_)
 {
     center_dep = embedding_.center_dep();
-    loadMat<uchar>(angle, embedding_.angle());
-    loadMat<uchar>(normal, embedding_.normal());
+    int rows = embedding_.angle().row_size();
+    if(rows>0){
+        int cols = embedding_.angle().row(0).value_size();
+        angle = Mat(rows, cols, CV_8UC1);
+        loadMat<uchar>(angle, embedding_.angle());
+    }else{
+        cout << "no angle" << endl;
+    }
+    rows = embedding_.normal().row_size();
+    if(rows>0){
+        int cols = embedding_.normal().row(0).value_size();
+        normal = Mat(rows, cols, CV_8UC1);
+        loadMat<uchar>(normal, embedding_.normal());
+    }else{
+//        cout << "no normal" << endl;
+    }
 
     int rgb_ele_size = embedding_.rgb_embedding().element_size();
-    rgb_embedding.resize(rgb_ele_size);
-    for(int i=0; i<rgb_ele_size; i++){
-        auto lchf_ele = embedding_.rgb_embedding().element(i);
-        auto& ele = rgb_embedding[i];
-        ele.x = lchf_ele.x();
-        ele.y = lchf_ele.y();
-        ele.label = lchf_ele.label();
+    if(rgb_ele_size>0){
+        rgb_embedding.resize(rgb_ele_size);
+        for(int i=0; i<rgb_ele_size; i++){
+            auto lchf_ele = embedding_.rgb_embedding().element(i);
+            auto& ele = rgb_embedding[i];
+            ele.x = lchf_ele.x();
+            ele.y = lchf_ele.y();
+            ele.label = lchf_ele.label();
+        }
     }
 
     int dep_ele_size = embedding_.depth_embedding().element_size();
-    depth_embedding.resize(dep_ele_size);
-    for(int i=0;i<dep_ele_size;i++){
-        auto lchf_ele = embedding_.depth_embedding().element(i);
-        auto& ele = depth_embedding[i];
-        ele.x = lchf_ele.x();
-        ele.y = lchf_ele.y();
-        ele.label = lchf_ele.label();
+    if(dep_ele_size>0){
+        depth_embedding.resize(dep_ele_size);
+        for(int i=0;i<dep_ele_size;i++){
+            auto lchf_ele = embedding_.depth_embedding().element(i);
+            auto& ele = depth_embedding[i];
+            ele.x = lchf_ele.x();
+            ele.y = lchf_ele.y();
+            ele.label = lchf_ele.label();
+        }
     }
 }
