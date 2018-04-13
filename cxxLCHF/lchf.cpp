@@ -393,7 +393,7 @@ bool Linemod_feature::constructEmbedding(){
     {// depth embedding extract
         Mat normal;
         quantizedNormals(depth, normal, embedding.distance_threshold, embedding.difference_threshold);
-        embedding.normal = normal;
+
 //        cout << depth << endl;
         Mat local_mask;
         if (!mask.empty())
@@ -444,25 +444,26 @@ bool Linemod_feature::constructEmbedding(){
             }
           }
         }
-        // We require a certain number of features
-        if (candidates.size() < embedding.num_features)
-          return false;
+        // We require a certain number of features,
+        // but if not enough, just pass
+        if (candidates.size() >= embedding.num_features){
+            // Prefer large distances, but also want to collect features over all 8 labels.
+            // So penalize labels with lots of candidates.
+            for (size_t i = 0; i < candidates.size(); ++i)
+            {
+              auto& c = candidates[i];
+              c.score /= (float)label_counts[c.f.label];
+            }
+            std::stable_sort(candidates.begin(), candidates.end());
 
-        // Prefer large distances, but also want to collect features over all 8 labels.
-        // So penalize labels with lots of candidates.
-        for (size_t i = 0; i < candidates.size(); ++i)
-        {
-          auto& c = candidates[i];
-          c.score /= (float)label_counts[c.f.label];
+
+            // Use heuristic based on object area for initial distance threshold
+            float area = no_mask ? (float)normal.total() : (float)countNonZero(local_mask);
+            float distance = sqrtf(area) / sqrtf((float)embedding.num_features) + 1.5f;
+            selectScatteredFeatures(candidates, embedding.depth_embedding, embedding.num_features, distance);
+            embedding.normal = normal;
+            //        cropTemplates(embedding.depth_embedding);
         }
-        std::stable_sort(candidates.begin(), candidates.end());
-
-
-        // Use heuristic based on object area for initial distance threshold
-        float area = no_mask ? (float)normal.total() : (float)countNonZero(local_mask);
-        float distance = sqrtf(area) / sqrtf((float)embedding.num_features) + 1.5f;
-        selectScatteredFeatures(candidates, embedding.depth_embedding, embedding.num_features, distance);
-//        cropTemplates(embedding.depth_embedding);
     }
     return true;
 }

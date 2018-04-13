@@ -22,7 +22,7 @@ public:
     Linemod_embedding():
         weak_threshold(10.0f),
         strong_threshold(55.0f),
-        num_features(63),
+        num_features(31),
         distance_threshold(2000),
         difference_threshold(50),
         extract_threshold(2),

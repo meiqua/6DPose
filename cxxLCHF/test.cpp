@@ -90,8 +90,10 @@ void dataset_test(){
         bbox_5half[4].y = bbox_5half[0].y + bbox_5half[0].height/2;
 
         for(auto& aBox: bbox_5half){
-            features.emplace_back(rgb(aBox), depth(aBox));
-            features.back().constructEmbedding();
+            Linemod_feature f(rgb(aBox), depth(aBox));
+            if(f.constructEmbedding()){
+                features.push_back(move(f));
+            }
         }
 //        cout << "features " << i << " OK" << endl;
 //        cout << endl;
@@ -110,7 +112,7 @@ void dataset_test(){
 
 int main(){
 
-//    dataset_test();
+    dataset_test();
     lchf_model model;
     model.path = prefix;
     model.forest = model.loadForest();
