@@ -110,13 +110,59 @@ void dataset_test(){
     cout << "dataset_test end line" << endl;
 }
 
+void fake_feature_test() {
+    struct fake_feature{
+      float x;
+      float y;
+      float similarity(const fake_feature& other) const {
+          float dis = (x-other.x)*(x-other.x) + (y-other.y)*(y-other.y);
+          return (100/(dis+1));
+      }
+    };
+    vector<float> seed_center;
+    for(int i=0;i<100;i++){
+        seed_center.push_back(i*10);
+    }
+    vector<fake_feature> fs;
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution(0,1);
+    for(auto center: seed_center){
+        for(int i=0;i<10;i++){
+            auto number = distribution(generator);
+            number = 0;
+            fake_feature f;
+            f.x = center + number;
+            f.y = center + number;
+            fs.push_back(f);
+        }
+    }
+
+    Forest<fake_feature> forest;
+    forest.Train(fs);
+
+    auto tree = forest.trees[0];
+    for(int i=0;i<tree.id_leafnodes_.size();i++){
+        auto leaf = tree.nodes_[tree.id_leafnodes_[i]];
+        cout << i << " th leaf node: " << endl;
+        for(auto idx: leaf.ind_feats){
+             cout << idx << endl;
+        }
+        cout << endl;
+    }
+
+    cout << "fake feature test end" << endl;
+}
+
 int main(){
 //    dataset_test();
-    lchf_model model;
-    model.path = prefix;
-    model.forest = model.loadForest();
-    auto features = model.loadFeatures();
-    google::protobuf::ShutdownProtobufLibrary();
+
+    fake_feature_test();
+
+//    lchf_model model;
+//    model.path = prefix;
+//    model.forest = model.loadForest();
+//    auto features = model.loadFeatures();
+//    google::protobuf::ShutdownProtobufLibrary();
     cout << "end" << endl;
     return 0;
 }
