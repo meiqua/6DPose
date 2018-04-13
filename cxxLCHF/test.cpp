@@ -129,7 +129,7 @@ void fake_feature_test() {
     for(auto center: seed_center){
         for(int i=0;i<10;i++){
             auto number = distribution(generator);
-            number = 0;
+            number = 0;  //inner dis = 0; outer class dis > 100
             fake_feature f;
             f.x = center + number;
             f.y = center + number;
