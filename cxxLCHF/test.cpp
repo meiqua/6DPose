@@ -111,8 +111,7 @@ void dataset_test(){
 }
 
 int main(){
-
-    dataset_test();
+//    dataset_test();
     lchf_model model;
     model.path = prefix;
     model.forest = model.loadForest();

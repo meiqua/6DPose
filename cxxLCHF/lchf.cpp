@@ -574,17 +574,19 @@ void Linemod_feature::read(const lchf::Linemod_feature &feature_)
 
         int rows = mat_i_3.channel(0).row_size();
         int cols = mat_i_3.channel(0).row(0).value_size();
-
-        depth = Mat(rows, cols, CV_16UC1, Scalar(0));
-        mask = Mat(rows, cols, CV_8UC1, Scalar(0));
         vector<Mat> bgr(3, Mat(rows, cols, CV_8UC1, Scalar(0)));
         for(int ii=0; ii<3; ii++){
             loadMat<uchar>(bgr[ii], mat_i_3.channel(ii));
         }
-
         cv::merge(&bgr[0], 3, rgb);
-        loadMat<uint16_t>(depth, feature_.depth());
-        loadMat<uchar>(mask, feature_.mask());
+        if(feature_.has_depth()){
+            depth = Mat(rows, cols, CV_16UC1, Scalar(0));
+            loadMat<uint16_t>(depth, feature_.depth());
+        }
+        if(feature_.has_mask()){
+            mask = Mat(rows, cols, CV_8UC1, Scalar(0));
+            loadMat<uchar>(mask, feature_.mask());
+        }
     }
 
     if(feature_.has_embedding())
