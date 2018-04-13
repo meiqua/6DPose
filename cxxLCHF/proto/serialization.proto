@@ -70,6 +70,7 @@ message Node {
     required int32 split_feat_idx = 6;
     required bool isleafnode = 7;
     repeated int32 ind_infos = 8;
+    optional float simi_thresh = 9;
 }
 
 message Tree {

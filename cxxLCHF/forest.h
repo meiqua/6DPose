@@ -11,10 +11,12 @@ public:
     int cnodes[2]={0};
     bool isleafnode=0;
     int split_feat_idx=0;
+    float simi_thresh=50;
     std::vector<int> ind_feats;
     std::vector<int> ind_infos;
 
    void write(lchf::Node* node){
+       node->set_simi_thresh(simi_thresh);
         node->set_issplit(issplit);
         node->set_pnode(pnode);
         node->add_cnodes(cnodes[0]);
@@ -30,6 +32,7 @@ public:
         }
     }
     void read(const lchf::Node& node){
+        simi_thresh = node.simi_thresh();
         issplit = node.issplit();
         pnode = node.pnode();
         cnodes[0] = node.cnodes(0);
@@ -106,7 +109,7 @@ public:
         }
     }
 
-    Tree(float simi_thresh=32, int max_depth=32, int size_thresh=16, int split_attempts=128){
+    Tree(float simi_thresh=50, int max_depth=32, int size_thresh=16, int split_attempts=128){
         size_thresh_ = size_thresh;
         max_depth_ = max_depth;
         split_attempts_=split_attempts;
@@ -115,7 +118,7 @@ public:
 
     void train(const std::vector<Feature>& feats, const std::vector<int>& index);
     void Split(const std::vector<Feature>& feats, const std::vector<int>& ind_feats,
-               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind);
+               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh);
     int predict(const std::vector<Feature> &feats, Feature& f);
 };
 
@@ -184,7 +187,8 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
                         nodes_[n].ind_feats.size()<size_thresh_){
                     nodes_[n].issplit = true;
                 }else{
-                    Split(feats, nodes_[n].ind_feats, nodes_[n].split_feat_idx, lcind, rcind);
+                    Split(feats, nodes_[n].ind_feats, nodes_[n].split_feat_idx, lcind, rcind,
+                          nodes_[n].simi_thresh);
 
                     nodes_[n].issplit = true;
                     nodes_[n].isleafnode = false;
@@ -228,7 +232,7 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
         if (nodes_[i].isleafnode == 1){
             id_leafnodes_.push_back(i);
 //            if(nodes_[i].ind_feats.size()>size_thresh_)
-//            std::cout << "leaf node "<< i<< " idx size: " << nodes_[i].ind_feats.size() << std::endl;
+            std::cout << "leaf node "<< i<< " idx size: " << nodes_[i].ind_feats.size() << std::endl;
         }else {
             id_non_leafnodes_.push_back(i);
         }
@@ -238,7 +242,8 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
 
 template<class Feature>
 void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<int>& ind_feats,
-                           int& f_idx, std::vector<int> &lcind, std::vector<int> &rcind)
+                           int& f_idx, std::vector<int> &lcind, std::vector<int> &rcind,
+                           float& simi_thresh)
 {
     if(ind_feats.size()==0){
         f_idx = 0;
@@ -251,13 +256,18 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
     std::mt19937 engine(seed);
     std::vector<int> distribution(ind_feats.size(),1);
 
+    std::default_random_engine generator;
+    std::uniform_real_distribution<float> simi_dist(10.0,50.0);
+
     int attempts = std::min(split_attempts_, int(ind_feats.size()));
-    float max_info_gain = -10000000; int best_feat = 0;
+    float max_info_gain = -10000000; int best_feat = 0; float best_simi = 0;
     std::vector<int> lcind_best, rcind_best;
     for(int attempt=0; attempt < attempts; attempt++){
         std::discrete_distribution<> dist(distribution.begin(), distribution.end());
         auto rng = std::bind(dist, std::ref(engine));
         int select = rng();
+        float rand_simi_thresh = simi_dist(generator);
+        rand_simi_thresh = simi_thresh_;
 
         std::vector<int> lcind_local, rcind_local;
         int left = 0; int right = 0;
@@ -268,11 +278,12 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
                 auto& sel = feats[ind_feats[select]];
                 auto& com = feats[ind_feats[idx]];
                 float simi = sel.similarity(com);
-//                std::cout << simi << std::endl;
-                if(simi <= simi_thresh_){
+                // use global thresh here,
+                // we can also try simi_thresh attempts
+                if(simi <= rand_simi_thresh){
                     left++;
                     lcind_local.push_back(ind_feats[idx]);
-                }else if(simi > simi_thresh_){
+                }else if(simi > rand_simi_thresh){
                     right++;
                     rcind_local.push_back(ind_feats[idx]);
                 }
@@ -286,6 +297,7 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
             best_feat = select;
             lcind_best = lcind_local;
             rcind_best = rcind_local;
+            best_simi = rand_simi_thresh;
         }
         // we don't want any more~~
         distribution[select] = 0;
@@ -295,7 +307,7 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
     rcind.clear();
     lcind = lcind_best;
     rcind = rcind_best;
-
+    simi_thresh = best_simi;
     f_idx = ind_feats[best_feat];
 }
 
@@ -305,7 +317,7 @@ int Tree<Feature>::predict(const std::vector<Feature> &feats, Feature &f)
     auto& current = nodes_[0];
     int current_idx = 0;
     while(!current.isleafnode){
-        if(f.similarity(feats[current.split_feat_idx]) <= simi_thresh_){
+        if(f.similarity(feats[current.split_feat_idx]) <= current.simi_thresh){
             current_idx = current.cnodes[0];
             current = nodes_[current_idx];
         }else{

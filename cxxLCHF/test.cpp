@@ -143,7 +143,7 @@ void fake_feature_test() {
     auto tree = forest.trees[0];
     for(int i=0;i<tree.id_leafnodes_.size();i++){
         auto leaf = tree.nodes_[tree.id_leafnodes_[i]];
-        cout << i << " th leaf node: " << endl;
+        cout << i << "th leaf node: " << endl;
         for(auto idx: leaf.ind_feats){
              cout << idx << endl;
         }
@@ -154,9 +154,9 @@ void fake_feature_test() {
 }
 
 int main(){
-//    dataset_test();
+    dataset_test();
 
-    fake_feature_test();
+//    fake_feature_test();
 
 //    lchf_model model;
 //    model.path = prefix;
