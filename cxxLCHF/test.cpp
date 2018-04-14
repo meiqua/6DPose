@@ -1,7 +1,6 @@
 #include "lchf.h"
 #include "forest.h"
 #include <memory>
-#include <chrono>
 #include <assert.h>
 #include <opencv2/dnn.hpp>
 
@@ -31,29 +30,10 @@ string type2str(int type) {
   return r;
 }
 
-class Timer
-{
-public:
-    Timer() : beg_(clock_::now()) {}
-    void reset() { beg_ = clock_::now(); }
-    double elapsed() const {
-        return std::chrono::duration_cast<second_>
-            (clock_::now() - beg_).count(); }
-    void out(string message = ""){
-        double t = elapsed();
-        std::cout << message << "\telasped time:" << t << "s" << std::endl;
-        reset();
-    }
-private:
-    typedef std::chrono::high_resolution_clock clock_;
-    typedef std::chrono::duration<double, std::ratio<1> > second_;
-    std::chrono::time_point<clock_> beg_;
-};
-
 static std::string prefix = "/home/meiqua/6DPose/cxxLCHF/test";
 
 void dataset_test(){
-    Timer time;
+    lchf_helper::Timer_lchf time;
     string pre = "/home/meiqua/6DPose/public/datasets/hinterstoisser/train/09/";
 
     int train_size = 1000;
@@ -101,7 +81,8 @@ void dataset_test(){
     time.out("construct features");
 
     lchf_model model;
-    model.train(features);
+    vector<Info> infos;
+    model.train(features, infos);
     time.out("train time:");
 
     model.path = prefix;
@@ -129,7 +110,7 @@ void fake_feature_test() {
     for(auto center: seed_center){
         for(int i=0;i<10;i++){
             auto number = distribution(generator);
-            number = 0;  //inner dis = 0; outer class dis > 100
+//            number = 0;  //inner dis = 0; outer class dis > 100
             fake_feature f;
             f.x = center + number;
             f.y = center + number;
@@ -138,12 +119,17 @@ void fake_feature_test() {
     }
 
     Forest<fake_feature> forest;
-    forest.Train(fs);
+    vector<Info> infos;
+    forest.Train(fs, infos);
 
     auto tree = forest.trees[0];
     for(int i=0;i<tree.id_leafnodes_.size();i++){
         auto leaf = tree.nodes_[tree.id_leafnodes_[i]];
-        cout << i << "th leaf node: " << endl;
+        cout << i << "th leaf node "<<tree.id_leafnodes_[i]<<": " << endl;
+        cout << "leaf node depth: " << leaf.depth << endl;
+        cout << "parent node "<< leaf.pnode << endl;
+        cout << "simi thresh: " <<
+                tree.nodes_[leaf.pnode].simi_thresh <<endl;
         for(auto idx: leaf.ind_feats){
              cout << idx << endl;
         }
@@ -154,9 +140,9 @@ void fake_feature_test() {
 }
 
 int main(){
-    dataset_test();
+//    dataset_test();
 
-//    fake_feature_test();
+    fake_feature_test();
 
 //    lchf_model model;
 //    model.path = prefix;

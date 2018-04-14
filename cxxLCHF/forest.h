@@ -2,6 +2,39 @@
 #define FOREST_H
 #include "meanshift/MeanShift.h"
 #include "lchf.h"
+#include <numeric>
+#include <chrono>
+#include <cmath>
+namespace lchf_helper {
+float getMean(std::vector<float>& v);
+float getDev(std::vector<float>& v);
+bool isRotationMatrix(cv::Mat &R);
+template <typename T>
+std::vector<size_t> sort_indexes(const std::vector<T> &v);
+template<class type>
+cv::Vec3f rotationMatrixToEulerAngles(cv::Mat &R);
+template<class type>
+cv::Mat eulerAnglesToRotationMatrix(cv::Vec3f &theta);
+void cluster(std::vector<Info> &input, std::vector<Info> &output);
+class Timer_lchf
+{
+public:
+    Timer_lchf() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const {
+        return std::chrono::duration_cast<second_>
+            (clock_::now() - beg_).count(); }
+    void out(std::string message = ""){
+        double t = elapsed();
+        std::cout << message << "  elasped time:" << t << "s" << std::endl;
+        reset();
+    }
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    std::chrono::time_point<clock_> beg_;
+};
+}
 
 class Node {
 public:
@@ -109,16 +142,21 @@ public:
         }
     }
 
-    Tree(float simi_thresh=50, int max_depth=32, int size_thresh=16, int split_attempts=128){
+    Tree(float simi_thresh=50, int max_depth=32, int size_thresh=10, int split_attempts=128){
         size_thresh_ = size_thresh;
         max_depth_ = max_depth;
         split_attempts_=split_attempts;
         simi_thresh_ = simi_thresh;
     }
 
-    void train(const std::vector<Feature>& feats, const std::vector<int>& index);
-    void Split(const std::vector<Feature>& feats, const std::vector<int>& ind_feats,
+    void train(const std::vector<Feature>& feats, const std::vector<Info>& infos
+               ,const std::vector<int>& index);
+    bool Split(const std::vector<Feature>& feats, const std::vector<Info>& infos
+               , const std::vector<int>& ind_feats,
                int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh);
+    float info_gain(const std::vector<Info>& infos, const std::vector<int>& ind_feats,
+                    const std::vector<int>& left,
+                    const std::vector<int>& right, const std::vector<float>& simis);
     int predict(const std::vector<Feature> &feats, Feature& f);
 };
 
@@ -128,12 +166,12 @@ public:
   std::vector<Tree<Feature> > trees;
   int max_numtrees_;
   double train_ratio_;
-  Forest(int max_numtrees=10, double train_ratio = 0.8){
+  Forest(int max_numtrees=2, double train_ratio = 0.8){
       max_numtrees_ = max_numtrees;
       trees.resize(max_numtrees_);
       train_ratio_ = train_ratio;
   }
-  void Train(const std::vector<Feature>& feats);
+  void Train(const std::vector<Feature>& feats, const std::vector<Info>& infos);
   std::vector<int> Predict(const std::vector<Feature> &feats, Feature &f);
 
   void write(lchf::Forest* forest){
@@ -156,7 +194,7 @@ public:
 };
 
 template<class Feature>
-void Tree<Feature>::train(const std::vector<Feature> &feats,
+void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<Info>& infos,
                                 const std::vector<int>& index){
     //root
     nodes_.resize(1);
@@ -184,37 +222,44 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
         for (int n = 0; n < num_nodes_iter; n++ ){
             if (!nodes_[n].issplit){
                 if (nodes_[n].depth == max_depth_ ||
-                        nodes_[n].ind_feats.size()<size_thresh_){
+                        nodes_[n].ind_feats.size()<=size_thresh_){
                     nodes_[n].issplit = true;
+                    nodes_[n].isleafnode = true;
                 }else{
-                    Split(feats, nodes_[n].ind_feats, nodes_[n].split_feat_idx, lcind, rcind,
-                          nodes_[n].simi_thresh);
+                    bool success = Split(feats, infos, nodes_[n].ind_feats,
+                                         nodes_[n].split_feat_idx, lcind, rcind,
+                                            nodes_[n].simi_thresh);
 
-                    nodes_[n].issplit = true;
-                    nodes_[n].isleafnode = false;
-                    nodes_[n].cnodes[0] = num_nodes ;
-                    nodes_[n].cnodes[1] = num_nodes +1;
+                    if(success){
+                        nodes_[n].issplit = true;
+                        nodes_[n].isleafnode = false;
+                        nodes_[n].cnodes[0] = num_nodes ;
+                        nodes_[n].cnodes[1] = num_nodes +1;
 
-                    //add left and right child nodes into the random tree
-                    nodes_[num_nodes].ind_feats = lcind;
-                    nodes_[num_nodes].issplit = false;
-                    nodes_[num_nodes].pnode = n;
-                    nodes_[num_nodes].depth = nodes_[n].depth + 1;
-                    nodes_[num_nodes].cnodes[0] = 0;
-                    nodes_[num_nodes].cnodes[1] = 0;
-                    nodes_[num_nodes].isleafnode = true;
+                        //add left and right child nodes into the random tree
+                        nodes_[num_nodes].ind_feats = lcind;
+                        nodes_[num_nodes].issplit = false;
+                        nodes_[num_nodes].pnode = n;
+                        nodes_[num_nodes].depth = nodes_[n].depth + 1;
+                        nodes_[num_nodes].cnodes[0] = 0;
+                        nodes_[num_nodes].cnodes[1] = 0;
+                        nodes_[num_nodes].isleafnode = true;
 
-                    nodes_[num_nodes +1].ind_feats = rcind;
-                    nodes_[num_nodes +1].issplit = false;
-                    nodes_[num_nodes +1].pnode = n;
-                    nodes_[num_nodes +1].depth = nodes_[n].depth + 1;
-                    nodes_[num_nodes +1].cnodes[0] = 0;
-                    nodes_[num_nodes +1].cnodes[1] = 0;
-                    nodes_[num_nodes +1].isleafnode = true;
+                        nodes_[num_nodes +1].ind_feats = rcind;
+                        nodes_[num_nodes +1].issplit = false;
+                        nodes_[num_nodes +1].pnode = n;
+                        nodes_[num_nodes +1].depth = nodes_[n].depth + 1;
+                        nodes_[num_nodes +1].cnodes[0] = 0;
+                        nodes_[num_nodes +1].cnodes[1] = 0;
+                        nodes_[num_nodes +1].isleafnode = true;
 
-                    num_split++;
-                    num_leafnodes++;
-                    num_nodes +=2;
+                        num_split++;
+                        num_leafnodes++;
+                        num_nodes +=2;
+                    }else{
+                        nodes_[n].issplit = true;
+                        nodes_[n].isleafnode = true;
+                    }
                 }
             }
         }
@@ -232,7 +277,7 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
         if (nodes_[i].isleafnode == 1){
             id_leafnodes_.push_back(i);
 //            if(nodes_[i].ind_feats.size()>size_thresh_)
-            std::cout << "leaf node "<< i<< " idx size: " << nodes_[i].ind_feats.size() << std::endl;
+//            std::cout << "leaf node "<< i<< " idx size: " << nodes_[i].ind_feats.size() << std::endl;
         }else {
             id_non_leafnodes_.push_back(i);
         }
@@ -241,7 +286,8 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,
 }
 
 template<class Feature>
-void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<int>& ind_feats,
+bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<Info>& infos,
+                          const std::vector<int>& ind_feats,
                            int& f_idx, std::vector<int> &lcind, std::vector<int> &rcind,
                            float& simi_thresh)
 {
@@ -249,66 +295,131 @@ void Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<i
         f_idx = 0;
         lcind.clear();
         rcind.clear();
-        return;
+        return false;
     }
     std::random_device rd;
     unsigned long seed = rd();
     std::mt19937 engine(seed);
     std::vector<int> distribution(ind_feats.size(),1);
 
-    std::default_random_engine generator;
-    std::uniform_real_distribution<float> simi_dist(10.0,50.0);
-
     int attempts = std::min(split_attempts_, int(ind_feats.size()));
-    float max_info_gain = -10000000; int best_feat = 0; float best_simi = 0;
-    std::vector<int> lcind_best, rcind_best;
+
+    float best_gain_all_feature = std::numeric_limits<float>::epsilon();
+    float best_simis_all_feature = 0;
+    int best_feature = 0;
+    std::vector<int> left_best_all_feature, right_best_all_feature;
     for(int attempt=0; attempt < attempts; attempt++){
         std::discrete_distribution<> dist(distribution.begin(), distribution.end());
         auto rng = std::bind(dist, std::ref(engine));
         int select = rng();
-        float rand_simi_thresh = simi_dist(generator);
-        rand_simi_thresh = simi_thresh_;
 
-        std::vector<int> lcind_local, rcind_local;
-        int left = 0; int right = 0;
+        // calculate simis using select with others
+        std::vector<float> simis(ind_feats.size(),0);
         for(int idx=0; idx<ind_feats.size(); idx++){
             if(select == idx){
-                continue;
+                simis[idx] = -1;
             }else{
                 auto& sel = feats[ind_feats[select]];
                 auto& com = feats[ind_feats[idx]];
                 float simi = sel.similarity(com);
-                // use global thresh here,
-                // we can also try simi_thresh attempts
-                if(simi <= rand_simi_thresh){
-                    left++;
-                    lcind_local.push_back(ind_feats[idx]);
-                }else if(simi > rand_simi_thresh){
-                    right++;
-                    rcind_local.push_back(ind_feats[idx]);
-                }
+                simis[idx] = simi;
             }
         }
-        float sigma = 0.00001;  // avoid 0 or 1 for log
-        float pro = float(left+sigma)/(left+right+sigma);
-        float info_gain = pro*std::log2f(pro)+(1-pro)*std::log2f((1-pro));
-        if(info_gain>max_info_gain){
-            max_info_gain = info_gain;
-            best_feat = select;
-            lcind_best = lcind_local;
-            rcind_best = rcind_local;
-            best_simi = rand_simi_thresh;
+
+        std::vector<int> dist_simis(simis.size(),0);
+        //  sort idx by comparing simis
+        auto sidxs = lchf_helper::sort_indexes(simis);
+        int sample_count = 0;
+        // we only want simi closer to sims center
+        for(int i=simis.size()/4;i<simis.size()*3/4;i++){
+            dist_simis[sidxs[i]] = 1;
+            sample_count++;
         }
-        // we don't want any more~~
+        int attempts2 = std::min(attempts, sample_count);
+
+        std::vector<int> left_best, right_best;
+        float best_gain = std::numeric_limits<float>::epsilon();// we want to have a positive gain
+        float best_simi = 0;
+        for(int i=0;i<attempts2;i++){
+            std::vector<int> left, right;
+            std::discrete_distribution<> dist_s(dist_simis.begin(), dist_simis.end());
+            auto rng_simi = std::bind(dist_s, std::ref(engine));
+            int sel_simi = rng_simi();
+
+            // split to two sets using random sel simi
+            for(int j=0;j<simis.size();j++){
+                if(simis[j]>0){  // not self compare
+                    if(simis[j]<=simis[sel_simi]){
+                        left.push_back(j);
+                    }else{
+                        right.push_back(j);
+                    }
+                }
+            }
+
+            float gain = info_gain(infos, ind_feats, left, right, simis);
+            if(gain > best_gain){
+                best_gain = gain;
+                best_simi = simis[sel_simi];
+                left_best = std::move(left);
+                right_best = std::move(right);
+            }
+            dist_simis[sel_simi] = 0;
+        }
+        if(best_gain>best_gain_all_feature){
+            best_gain_all_feature = best_gain;
+            best_simis_all_feature = best_simi;
+            best_feature = select;
+            left_best_all_feature = std::move(left_best);
+            right_best_all_feature = std::move(right_best);
+        }
         distribution[select] = 0;
     }
 
-    lcind.clear();
-    rcind.clear();
-    lcind = lcind_best;
-    rcind = rcind_best;
-    simi_thresh = best_simi;
-    f_idx = ind_feats[best_feat];
+    if(best_gain_all_feature>std::numeric_limits<float>::epsilon()*10){
+        lcind.clear();
+        lcind.reserve(left_best_all_feature.size());
+        rcind.clear();
+        rcind.reserve(right_best_all_feature.size());
+        for(auto idx: left_best_all_feature){
+            lcind.push_back(ind_feats[idx]);
+        }
+        for(auto idx: right_best_all_feature){
+            rcind.push_back(ind_feats[idx]);
+        }
+        simi_thresh = best_simis_all_feature;
+        f_idx = ind_feats[best_feature];
+        return true;
+    }else{
+        return false;
+    }
+}
+
+template<class Feature>
+float Tree<Feature>::info_gain(const std::vector<Info>& infos,
+                               const std::vector<int>& ind_feats,
+                               const std::vector<int> &left,
+                               const std::vector<int> &right, const std::vector<float> &simis)
+{
+    std::string type = "simis";
+    if(type=="simis"){
+        std::vector<float> left_simis, right_simis, all_simis;
+        for(auto idx: left){
+            left_simis.push_back(simis[idx]);
+            all_simis.push_back(simis[idx]);
+        }
+        for(auto idx: right){
+            right_simis.push_back(simis[idx]);
+            all_simis.push_back(simis[idx]);
+        }
+        float left_w = float(left_simis.size())/(left_simis.size()+right_simis.size());
+        float u1 = lchf_helper::getMean(left_simis);
+        float u2 = lchf_helper::getMean(right_simis);
+        // otsu method
+        float var_reduce = left_w*(1-left_w)*(u1-u2)*(u1-u2);
+        return var_reduce;
+    }
+
 }
 
 template<class Feature>
@@ -329,19 +440,19 @@ int Tree<Feature>::predict(const std::vector<Feature> &feats, Feature &f)
 }
 
 template<class Feature>
-void Forest<Feature>::Train(const std::vector<Feature> &feats)
+void Forest<Feature>::Train(const std::vector<Feature> &feats, const std::vector<Info>& infos)
 {
-    std::random_device rd;
-    unsigned long seed = rd();
-    std::mt19937 engine(seed);
-    std::vector<int> distribution(feats.size(),1);
-
     size_t train_size = size_t(feats.size()*train_ratio_);
     int count=0;
+    lchf_helper::Timer_lchf time;
     for(auto& tree: trees){
         count++;
         std::cout << trees.size() << " trees, training tree: " << count << std::endl;
         std::vector<int> ind_feats(train_size);
+        std::random_device rd;
+        unsigned long seed = rd();
+        std::mt19937 engine(seed);
+        std::vector<int> distribution(feats.size(),1);
         for(size_t i=0; i<train_size; i++){
             std::discrete_distribution<> dist(distribution.begin(), distribution.end());
             auto rng = std::bind(dist, std::ref(engine));
@@ -349,7 +460,8 @@ void Forest<Feature>::Train(const std::vector<Feature> &feats)
             ind_feats[i] = select;
             distribution[select] = 0;
         }
-        tree.train(feats, ind_feats);
+        tree.train(feats, infos, ind_feats);
+        time.out("training OK");
     }
 }
 
@@ -364,72 +476,12 @@ std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Fea
     return results;
 }
 
-
-class Info_cluster {
-public:
-    void cluster(std::vector<Info>& input, std::vector<Info>& ouput);
-private:
-    bool isRotationMatrix(cv::Mat &R){
-        cv::Mat Rt;
-        transpose(R, Rt);
-        cv::Mat shouldBeIdentity = Rt * R;
-        cv::Mat I = cv::Mat::eye(3,3, shouldBeIdentity.type());
-        return  norm(I, shouldBeIdentity) < 1e-6;
-    }
-    template<class type>
-    cv::Vec3f rotationMatrixToEulerAngles(cv::Mat &R){
-        assert(isRotationMatrix(R));
-        float sy = sqrt(R.at<type>(0,0) * R.at<type>(0,0) +  R.at<type>(1,0) * R.at<type>(1,0) );
-
-        bool singular = sy < 1e-6; // If
-
-        float x, y, z;
-        if (!singular)
-        {
-            x = atan2(R.at<type>(2,1) , R.at<type>(2,2));
-            y = atan2(-R.at<type>(2,0), sy);
-            z = atan2(R.at<type>(1,0), R.at<type>(0,0));
-        }
-        else
-        {
-            x = atan2(-R.at<type>(1,2), R.at<type>(1,1));
-            y = atan2(-R.at<type>(2,0), sy);
-            z = 0;
-        }
-        return cv::Vec3f(x, y, z);
-    }
-    template<class type>
-    cv::Mat eulerAnglesToRotationMatrix(cv::Vec3f &theta)
-    {
-        // Calculate rotation about x axis
-        cv::Mat R_x = (cv::Mat_<type>(3,3) <<
-                   1,       0,              0,
-                   0,       cos(theta[0]),   -sin(theta[0]),
-                   0,       sin(theta[0]),   cos(theta[0])
-                   );
-        // Calculate rotation about y axis
-        cv::Mat R_y = (cv::Mat_<type>(3,3) <<
-                   cos(theta[1]),    0,      sin(theta[1]),
-                   0,               1,      0,
-                   -sin(theta[1]),   0,      cos(theta[1])
-                   );
-        // Calculate rotation about z axis
-        cv::Mat R_z = (cv::Mat_<type>(3,3) <<
-                   cos(theta[2]),    -sin(theta[2]),      0,
-                   sin(theta[2]),    cos(theta[2]),       0,
-                   0,               0,                  1);
-        // Combined rotation matrix
-        cv::Mat R = R_z * R_y * R_x;
-        return R;
-    }
-};
-
 class lchf_model {
 public:
     Params params;
     std::string path;
     Forest<Linemod_feature> forest;
-    void train(const std::vector<Linemod_feature>& feats);
+    void train(const std::vector<Linemod_feature>& feats, const std::vector<Info>& infos);
     std::vector<int> predict(const std::vector<Linemod_feature> &feats, Linemod_feature &f);
     Forest<Linemod_feature> loadForest();
     std::vector<Linemod_feature> loadFeatures();

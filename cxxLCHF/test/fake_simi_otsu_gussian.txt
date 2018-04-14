@@ -1,0 +1,1265 @@
+0th leaf node 22: 
+leaf node depth: 5
+parent node 10
+simi thresh: 0.760702
+45
+39
+48
+42
+47
+41
+46
+54
+40
+49
+
+1th leaf node 26: 
+leaf node depth: 5
+parent node 12
+simi thresh: 0.602016
+852
+851
+869
+849
+854
+853
+858
+856
+850
+857
+
+2th leaf node 28: 
+leaf node depth: 5
+parent node 13
+simi thresh: 0.53184
+942
+941
+953
+944
+959
+951
+950
+940
+955
+947
+
+3th leaf node 29: 
+leaf node depth: 5
+parent node 14
+simi thresh: 28.8041
+954
+972
+964
+958
+963
+977
+976
+965
+
+4th leaf node 30: 
+leaf node depth: 5
+parent node 14
+simi thresh: 28.8041
+961
+967
+962
+966
+
+5th leaf node 38: 
+leaf node depth: 6
+parent node 18
+simi thresh: 0.767771
+539
+531
+538
+532
+530
+536
+534
+
+6th leaf node 42: 
+leaf node depth: 6
+parent node 20
+simi thresh: 0.594114
+8
+4
+15
+1
+6
+3
+0
+
+7th leaf node 44: 
+leaf node depth: 6
+parent node 21
+simi thresh: 0.583852
+58
+51
+57
+56
+69
+52
+53
+
+8th leaf node 48: 
+leaf node depth: 6
+parent node 24
+simi thresh: 6.84461
+826
+820
+829
+822
+825
+827
+821
+
+9th leaf node 50: 
+leaf node depth: 6
+parent node 25
+simi thresh: 0.583796
+865
+866
+860
+861
+864
+862
+868
+
+10th leaf node 52: 
+leaf node depth: 6
+parent node 27
+simi thresh: 0.631533
+923
+920
+928
+929
+936
+922
+927
+
+11th leaf node 60: 
+leaf node depth: 7
+parent node 34
+simi thresh: 15.4142
+271
+270
+275
+274
+273
+276
+
+12th leaf node 64: 
+leaf node depth: 7
+parent node 36
+simi thresh: 0.551909
+613
+611
+612
+614
+617
+606
+
+13th leaf node 66: 
+leaf node depth: 7
+parent node 37
+simi thresh: 16.3205
+547
+541
+544
+542
+546
+
+14th leaf node 70: 
+leaf node depth: 7
+parent node 40
+simi thresh: 12.0126
+162
+160
+164
+169
+163
+166
+
+15th leaf node 72: 
+leaf node depth: 7
+parent node 41
+simi thresh: 14.9423
+12
+18
+17
+16
+11
+
+16th leaf node 74: 
+leaf node depth: 7
+parent node 43
+simi thresh: 0.990642
+62
+60
+63
+65
+68
+
+17th leaf node 78: 
+leaf node depth: 7
+parent node 46
+simi thresh: 25.1129
+777
+770
+771
+775
+776
+779
+
+18th leaf node 80: 
+leaf node depth: 7
+parent node 47
+simi thresh: 28.082
+811
+813
+819
+816
+817
+
+19th leaf node 82: 
+leaf node depth: 7
+parent node 49
+simi thresh: 14.5532
+871
+870
+878
+877
+873
+
+20th leaf node 84: 
+leaf node depth: 7
+parent node 51
+simi thresh: 0.568981
+979
+971
+983
+975
+973
+
+21th leaf node 92: 
+leaf node depth: 8
+parent node 56
+simi thresh: 15.1026
+419
+415
+412
+410
+
+22th leaf node 96: 
+leaf node depth: 8
+parent node 58
+simi thresh: 15.6858
+209
+201
+205
+206
+
+23th leaf node 97: 
+leaf node depth: 8
+parent node 59
+simi thresh: 16.0957
+279
+288
+261
+272
+280
+296
+287
+299
+298
+
+24th leaf node 98: 
+leaf node depth: 8
+parent node 59
+simi thresh: 16.0957
+285
+289
+286
+284
+
+25th leaf node 102: 
+leaf node depth: 8
+parent node 62
+simi thresh: 21.6641
+506
+500
+503
+504
+
+26th leaf node 103: 
+leaf node depth: 8
+parent node 63
+simi thresh: 32.2805
+594
+592
+599
+595
+597
+603
+598
+591
+593
+
+27th leaf node 104: 
+leaf node depth: 8
+parent node 63
+simi thresh: 32.2805
+601
+600
+602
+608
+
+28th leaf node 105: 
+leaf node depth: 8
+parent node 65
+simi thresh: 24.5481
+561
+522
+569
+527
+557
+543
+553
+558
+549
+
+29th leaf node 106: 
+leaf node depth: 8
+parent node 65
+simi thresh: 24.5481
+552
+554
+550
+559
+
+30th leaf node 109: 
+leaf node depth: 8
+parent node 68
+simi thresh: 0.574312
+159
+142
+145
+144
+140
+149
+154
+148
+146
+141
+
+31th leaf node 110: 
+leaf node depth: 8
+parent node 68
+simi thresh: 0.574312
+134
+138
+143
+136
+
+32th leaf node 111: 
+leaf node depth: 8
+parent node 69
+simi thresh: 0.796523
+177
+167
+178
+176
+174
+175
+179
+171
+165
+
+33th leaf node 112: 
+leaf node depth: 8
+parent node 69
+simi thresh: 0.796523
+155
+157
+153
+158
+
+34th leaf node 113: 
+leaf node depth: 8
+parent node 71
+simi thresh: 34.4123
+14
+83
+79
+74
+37
+26
+28
+23
+22
+
+35th leaf node 114: 
+leaf node depth: 8
+parent node 71
+simi thresh: 34.4123
+24
+20
+29
+27
+
+36th leaf node 115: 
+leaf node depth: 8
+parent node 73
+simi thresh: 0.0353495
+72
+70
+77
+73
+78
+71
+76
+75
+
+37th leaf node 116: 
+leaf node depth: 8
+parent node 73
+simi thresh: 0.0353495
+35
+32
+34
+38
+
+38th leaf node 120: 
+leaf node depth: 8
+parent node 76
+simi thresh: 29.8268
+790
+799
+796
+797
+
+39th leaf node 121: 
+leaf node depth: 8
+parent node 77
+simi thresh: 27.2154
+767
+753
+765
+761
+768
+778
+759
+750
+773
+
+40th leaf node 122: 
+leaf node depth: 8
+parent node 77
+simi thresh: 27.2154
+760
+762
+769
+763
+
+41th leaf node 123: 
+leaf node depth: 8
+parent node 79
+simi thresh: 22.111
+804
+818
+834
+803
+832
+823
+802
+814
+815
+
+42th leaf node 124: 
+leaf node depth: 8
+parent node 79
+simi thresh: 22.111
+801
+800
+807
+809
+
+43th leaf node 125: 
+leaf node depth: 8
+parent node 81
+simi thresh: 0.0625536
+886
+888
+881
+876
+879
+874
+885
+882
+
+44th leaf node 126: 
+leaf node depth: 8
+parent node 81
+simi thresh: 0.0625536
+848
+844
+847
+841
+
+45th leaf node 127: 
+leaf node depth: 8
+parent node 83
+simi thresh: 0.885408
+934
+938
+937
+933
+932
+931
+980
+935
+
+46th leaf node 128: 
+leaf node depth: 8
+parent node 83
+simi thresh: 0.885408
+948
+945
+946
+
+47th leaf node 132: 
+leaf node depth: 9
+parent node 86
+simi thresh: 0.635873
+466
+451
+465
+462
+463
+468
+469
+461
+473
+
+48th leaf node 134: 
+leaf node depth: 9
+parent node 87
+simi thresh: 0.60604
+749
+748
+740
+732
+742
+743
+745
+744
+736
+
+49th leaf node 135: 
+leaf node depth: 9
+parent node 88
+simi thresh: 0.922683
+700
+714
+710
+715
+718
+716
+717
+719
+
+50th leaf node 136: 
+leaf node depth: 9
+parent node 88
+simi thresh: 0.922683
+720
+722
+723
+
+51th leaf node 138: 
+leaf node depth: 9
+parent node 89
+simi thresh: 0.818928
+381
+386
+383
+382
+385
+389
+394
+387
+
+52th leaf node 139: 
+leaf node depth: 9
+parent node 90
+simi thresh: 30.3424
+442
+431
+447
+441
+443
+444
+440
+446
+
+53th leaf node 140: 
+leaf node depth: 9
+parent node 90
+simi thresh: 30.3424
+433
+439
+434
+
+54th leaf node 141: 
+leaf node depth: 9
+parent node 91
+simi thresh: 38.626
+438
+428
+437
+416
+427
+429
+422
+
+55th leaf node 142: 
+leaf node depth: 9
+parent node 91
+simi thresh: 38.626
+425
+426
+420
+
+56th leaf node 144: 
+leaf node depth: 9
+parent node 93
+simi thresh: 0.649607
+232
+233
+239
+235
+245
+234
+238
+244
+
+57th leaf node 145: 
+leaf node depth: 9
+parent node 94
+simi thresh: 21.9808
+266
+267
+262
+264
+252
+259
+250
+
+58th leaf node 146: 
+leaf node depth: 9
+parent node 94
+simi thresh: 21.9808
+268
+260
+265
+
+59th leaf node 147: 
+leaf node depth: 9
+parent node 95
+simi thresh: 42.13
+216
+202
+219
+225
+223
+229
+228
+
+60th leaf node 148: 
+leaf node depth: 9
+parent node 95
+simi thresh: 42.13
+214
+215
+217
+
+61th leaf node 150: 
+leaf node depth: 9
+parent node 99
+simi thresh: 0.505834
+628
+629
+615
+621
+624
+623
+620
+622
+
+62th leaf node 151: 
+leaf node depth: 9
+parent node 100
+simi thresh: 20.9121
+576
+571
+577
+575
+572
+579
+568
+
+63th leaf node 152: 
+leaf node depth: 9
+parent node 100
+simi thresh: 20.9121
+560
+562
+563
+
+64th leaf node 153: 
+leaf node depth: 9
+parent node 101
+simi thresh: 0.625619
+510
+495
+519
+499
+498
+517
+511
+
+65th leaf node 154: 
+leaf node depth: 9
+parent node 101
+simi thresh: 0.625619
+502
+509
+501
+
+66th leaf node 156: 
+leaf node depth: 9
+parent node 107
+simi thresh: 0.0143975
+188
+184
+185
+189
+180
+186
+170
+126
+
+67th leaf node 157: 
+leaf node depth: 9
+parent node 108
+simi thresh: 33.3781
+93
+98
+103
+86
+89
+102
+85
+
+68th leaf node 158: 
+leaf node depth: 9
+parent node 108
+simi thresh: 33.3781
+97
+90
+95
+
+69th leaf node 160: 
+leaf node depth: 9
+parent node 117
+simi thresh: 0.809154
+900
+906
+903
+905
+901
+908
+907
+904
+
+70th leaf node 161: 
+leaf node depth: 9
+parent node 118
+simi thresh: 0.818367
+993
+990
+995
+992
+996
+999
+994
+
+71th leaf node 162: 
+leaf node depth: 9
+parent node 118
+simi thresh: 0.818367
+985
+989
+982
+
+72th leaf node 163: 
+leaf node depth: 9
+parent node 119
+simi thresh: 35.9701
+783
+791
+780
+793
+792
+772
+
+73th leaf node 164: 
+leaf node depth: 9
+parent node 119
+simi thresh: 35.9701
+785
+789
+781
+787
+
+74th leaf node 168: 
+leaf node depth: 10
+parent node 130
+simi thresh: 6.16645
+359
+353
+357
+352
+355
+350
+356
+
+75th leaf node 170: 
+leaf node depth: 10
+parent node 131
+simi thresh: 0.626963
+478
+488
+477
+472
+479
+470
+476
+
+76th leaf node 172: 
+leaf node depth: 10
+parent node 133
+simi thresh: 0.835627
+705
+702
+709
+704
+708
+706
+
+77th leaf node 174: 
+leaf node depth: 10
+parent node 137
+simi thresh: 0.0222129
+418
+459
+457
+404
+456
+414
+
+78th leaf node 176: 
+leaf node depth: 10
+parent node 143
+simi thresh: 0.659371
+249
+247
+241
+248
+253
+243
+
+79th leaf node 178: 
+leaf node depth: 10
+parent node 149
+simi thresh: 0.794623
+581
+587
+583
+582
+584
+580
+
+80th leaf node 180: 
+leaf node depth: 10
+parent node 155
+simi thresh: 0.745901
+116
+119
+113
+110
+118
+115
+
+81th leaf node 182: 
+leaf node depth: 10
+parent node 159
+simi thresh: 0.141757
+913
+912
+919
+915
+926
+916
+
+82th leaf node 186: 
+leaf node depth: 11
+parent node 166
+simi thresh: 3.57964
+682
+687
+685
+680
+689
+
+83th leaf node 188: 
+leaf node depth: 11
+parent node 167
+simi thresh: 8.17759
+344
+347
+346
+340
+345
+
+84th leaf node 190: 
+leaf node depth: 11
+parent node 169
+simi thresh: 0.059312
+450
+454
+458
+483
+452
+
+85th leaf node 192: 
+leaf node depth: 11
+parent node 171
+simi thresh: 0.0602112
+695
+698
+697
+699
+696
+
+86th leaf node 194: 
+leaf node depth: 11
+parent node 173
+simi thresh: 9.97246
+398
+399
+396
+393
+
+87th leaf node 196: 
+leaf node depth: 11
+parent node 175
+simi thresh: 11.7993
+193
+199
+195
+190
+
+88th leaf node 198: 
+leaf node depth: 11
+parent node 177
+simi thresh: 9.0436
+521
+528
+520
+523
+
+89th leaf node 200: 
+leaf node depth: 11
+parent node 179
+simi thresh: 18.847
+100
+105
+109
+106
+
+90th leaf node 202: 
+leaf node depth: 11
+parent node 181
+simi thresh: 0.677164
+891
+894
+898
+897
+
+91th leaf node 204: 
+leaf node depth: 12
+parent node 183
+simi thresh: 0.542439
+655
+646
+645
+659
+643
+649
+644
+657
+654
+648
+
+92th leaf node 205: 
+leaf node depth: 12
+parent node 184
+simi thresh: 10.893
+320
+329
+321
+328
+323
+322
+303
+308
+319
+
+93th leaf node 206: 
+leaf node depth: 12
+parent node 184
+simi thresh: 10.893
+317
+315
+310
+313
+
+94th leaf node 207: 
+leaf node depth: 12
+parent node 185
+simi thresh: 0.703617
+678
+684
+673
+676
+670
+675
+677
+671
+
+95th leaf node 208: 
+leaf node depth: 12
+parent node 185
+simi thresh: 0.703617
+667
+662
+660
+663
+
+96th leaf node 209: 
+leaf node depth: 12
+parent node 187
+simi thresh: 30.5347
+365
+360
+348
+334
+351
+366
+376
+369
+
+97th leaf node 210: 
+leaf node depth: 12
+parent node 187
+simi thresh: 30.5347
+361
+368
+367
+
+98th leaf node 211: 
+leaf node depth: 12
+parent node 189
+simi thresh: 0.770235
+375
+487
+481
+484
+480
+379
+489
+
+99th leaf node 212: 
+leaf node depth: 12
+parent node 189
+simi thresh: 0.770235
+494
+491
+493
+
+100th leaf node 213: 
+leaf node depth: 12
+parent node 191
+simi thresh: 6.53371
+729
+733
+724
+752
+725
+757
+755
+
+101th leaf node 214: 
+leaf node depth: 12
+parent node 191
+simi thresh: 6.53371
+738
+735
+731
+
+102th leaf node 215: 
+leaf node depth: 12
+parent node 193
+simi thresh: 9.31815
+377
+406
+392
+405
+409
+401
+395
+
+103th leaf node 216: 
+leaf node depth: 12
+parent node 193
+simi thresh: 9.31815
+378
+370
+373
+
+104th leaf node 217: 
+leaf node depth: 12
+parent node 195
+simi thresh: 0.0187011
+182
+181
+197
+191
+196
+203
+183
+
+105th leaf node 218: 
+leaf node depth: 12
+parent node 195
+simi thresh: 0.0187011
+255
+258
+220
+
+106th leaf node 219: 
+leaf node depth: 12
+parent node 197
+simi thresh: 0.0288466
+578
+529
+526
+570
+512
+573
+590
+
+107th leaf node 220: 
+leaf node depth: 12
+parent node 197
+simi thresh: 0.0288466
+634
+632
+630
+
+108th leaf node 221: 
+leaf node depth: 12
+parent node 199
+simi thresh: 0.138874
+122
+104
+128
+129
+120
+127
+
+109th leaf node 222: 
+leaf node depth: 12
+parent node 199
+simi thresh: 0.138874
+87
+80
+81
+82
+
+110th leaf node 223: 
+leaf node depth: 12
+parent node 201
+simi thresh: 5.33385
+889
+836
+887
+880
+991
+842
+997
+
+111th leaf node 224: 
+leaf node depth: 12
+parent node 201
+simi thresh: 5.33385
+838
+833
+830
+
+112th leaf node 226: 
+leaf node depth: 13
+parent node 203
+simi thresh: 0.657581
+331
+339
+332
+335
+333
+337
+336
+
+113th leaf node 228: 
+leaf node depth: 14
+parent node 225
+simi thresh: 0.609821
+295
+309
+290
+305
+300
+
+114th leaf node 229: 
+leaf node depth: 15
+parent node 227
+simi thresh: 0.00502445
+293
+9
+651
+635
+2
+326
+294
+656
+636
+
+115th leaf node 230: 
+leaf node depth: 15
+parent node 227
+simi thresh: 0.00502445
+669
+756
+658
+758
+

@@ -467,10 +467,12 @@ bool Linemod_feature::constructEmbedding(){
     }
     return true;
 }
+
 template <typename T>
 static T clamp(const T& n, const T& lower, const T& upper) {
   return std::max(lower, std::min(n, upper));
 }
+
 static uchar lutable[] = {4, 2, 1, 0, 0};
 float Linemod_feature::similarity(const Linemod_feature &other) const{
     int count = 0;
@@ -603,18 +605,32 @@ void Info::write(lchf::Info* info_)
         saveMat<float>(t, mat_f);
         info_->set_allocated_t(mat_f);
     }
-    if(!R.empty()){
+    if(!rpy.empty()){
         lchf::Mat_f* mat_f = new lchf::Mat_f();
-        saveMat<float>(R, mat_f);
-        info_->set_allocated_r(mat_f);
+        saveMat<float>(rpy, mat_f);
+        info_->set_allocated_rpy(mat_f);
     }
 }
 
 void Info::read(const lchf::Info &info_)
 {
     id = info_.id();
-    loadMat<float>(t, info_.t());
-    loadMat<float>(R, info_.r());
+    if(info_.has_t()){
+        int rows = info_.t().row_size();
+        if(rows>0){
+            int cols = info_.t().row(0).value_size();
+            t = cv::Mat(rows, cols, CV_32FC1, Scalar(0));
+            loadMat<float>(t, info_.t());
+        }
+    }
+    if(info_.has_rpy()){
+        int rows = info_.rpy().row_size();
+        if(rows>0){
+            int cols = info_.rpy().row(0).value_size();
+            rpy = cv::Mat(rows, cols, CV_32FC1, Scalar(0));
+            loadMat<float>(rpy, info_.rpy());
+        }
+    }
 }
 
 void Linemod_embedding::write(lchf::Linemod_embedding* embedding_)

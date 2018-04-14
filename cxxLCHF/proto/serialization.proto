@@ -22,7 +22,7 @@ message Mat_i_3 {
 }
 
 message Info {
-    required Mat_f R = 1;
+    required Mat_f rpy = 1;
     required Mat_f t = 2;
     required string id = 3;
 }

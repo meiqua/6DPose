@@ -9,7 +9,7 @@
 #include "global_params.h"
 class Info {
 public:
-    cv::Mat R;
+    cv::Mat rpy;
     cv::Mat t;
     std::string id;
 
