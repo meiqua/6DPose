@@ -270,8 +270,8 @@ static void quantizedNormals(const Mat& src, Mat& dst, int distance_threshold,
   int padding = 3;
   padded.create(src.rows + 2*padding, src.cols + 2*padding, src.type());
   padded.setTo(cv::Scalar::all(0));
-
   src.copyTo(padded(Rect(padding, padding, src.cols, src.rows)));
+
   dst = Mat::zeros(padded.size(), CV_8U);
 
   const unsigned short * lp_depth   = padded.ptr<ushort>();
