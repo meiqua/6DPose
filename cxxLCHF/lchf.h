@@ -51,7 +51,9 @@ public:
 
     std::vector<element> rgb_embedding;
     std::vector<element> depth_embedding;
-    cv::Mat angle, normal;
+
+    std::vector<cv::Mat> rgb_response, dep_response;
+
     int center_dep;
     int z_check;
 
@@ -69,6 +71,7 @@ public:
     Linemod_embedding embedding;
 
     bool constructEmbedding();
+    bool constructResponse();
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
     float similarity(const Linemod_feature& other) const;
 

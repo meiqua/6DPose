@@ -325,6 +325,10 @@ bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<I
                 simis[idx] = simi;
             }
         }
+//        for(auto simi: simis){
+//            std::cout << int(simi) << "  ";
+//        }
+//        std::cout << std::endl;
 
         std::vector<int> dist_simis(simis.size(),0);
         //  sort idx by comparing simis

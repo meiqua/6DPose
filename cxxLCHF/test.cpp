@@ -35,7 +35,7 @@ static std::string prefix = "/home/meiqua/6DPose/cxxLCHF/test";
 void dataset_test(){
     lchf_helper::Timer_lchf time;
     string pre = "/home/meiqua/6DPose/public/datasets/hinterstoisser/train/09/";
-
+int count = 0;
     int train_size = 1000;
     vector<Linemod_feature> features;
     features.reserve(train_size*5);
@@ -69,9 +69,13 @@ void dataset_test(){
         bbox_5half[4].x = bbox_5half[0].x + bbox_5half[0].width/2;
         bbox_5half[4].y = bbox_5half[0].y + bbox_5half[0].height/2;
 
+
         for(auto& aBox: bbox_5half){
             Linemod_feature f(rgb(aBox), depth(aBox));
+
+//            Linemod_feature f(rgb, depth);
             if(f.constructEmbedding()){
+                f.constructResponse();
                 features.push_back(move(f));
             }
         }
@@ -140,9 +144,9 @@ void fake_feature_test() {
 }
 
 int main(){
-//    dataset_test();
+    dataset_test();
 
-    fake_feature_test();
+//    fake_feature_test();
 
 //    lchf_model model;
 //    model.path = prefix;

@@ -44,8 +44,8 @@ message Linemod_embedding_ele_vector {
 message Linemod_embedding {
     required Linemod_embedding_ele_vector rgb_embedding = 1;
     required Linemod_embedding_ele_vector depth_embedding = 2;
-    optional Mat_i angle = 3;
-    optional Mat_i normal = 4;
+    repeated Mat_i rgb_response = 3;
+    repeated Mat_i dep_response = 4;
     required int32 center_dep = 5;
 }
 

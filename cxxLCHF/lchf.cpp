@@ -5,6 +5,11 @@
 using namespace std;
 using namespace cv;
 
+template <typename T>
+static T clamp(const T& n, const T& lower, const T& upper) {
+  return std::max(lower, std::min(n, upper));
+}
+
 static inline int getLabel(int quantized)
 {
   switch (quantized)
@@ -214,6 +219,10 @@ static void selectScatteredFeatures(const std::vector<Linemod_embedding::Candida
   int i = 0;
   while (features.size() < num_features)
   {
+      if(distance<3){  // we don't want too close features
+          features.clear();
+          break;
+      }
     auto c = candidates[i];
 
     // Add if sufficient distance away from any previously chosen feature
@@ -256,13 +265,20 @@ static void accumBilateral(long delta, long i, long j, long * A, long * b, int t
 static void quantizedNormals(const Mat& src, Mat& dst, int distance_threshold,
                       int difference_threshold)
 {
-  dst = Mat::zeros(src.size(), CV_8U);
 
-  const unsigned short * lp_depth   = src.ptr<ushort>();
+  cv::Mat padded;
+  int padding = 3;
+  padded.create(src.rows + 2*padding, src.cols + 2*padding, src.type());
+  padded.setTo(cv::Scalar::all(0));
+
+  src.copyTo(padded(Rect(padding, padding, src.cols, src.rows)));
+  dst = Mat::zeros(padded.size(), CV_8U);
+
+  const unsigned short * lp_depth   = padded.ptr<ushort>();
   unsigned char  * lp_normals = dst.ptr<uchar>();
 
-  const int l_W = src.cols;
-  const int l_H = src.rows;
+  const int l_W = padded.cols;
+  const int l_H = padded.rows;
 
   const int l_r = 5; // used to be 7
   const int l_offset0 = -l_r - l_r * l_W;
@@ -342,12 +358,178 @@ static void quantizedNormals(const Mat& src, Mat& dst, int distance_threshold,
       ++lp_norm;
     }
   }
+
+  dst = dst(Rect(padding, padding, src.cols, src.rows));
+
   medianBlur(dst, dst, 5);
+
+}
+
+/****************************************************************************************\
+*                                 Response maps                                          *
+\****************************************************************************************/
+
+static void orUnaligned8u(const uchar * src, const int src_stride,
+                   uchar * dst, const int dst_stride,
+                   const int width, const int height)
+{
+#if CV_SSE2
+  volatile bool haveSSE2 = checkHardwareSupport(CPU_SSE2);
+#if CV_SSE3
+  volatile bool haveSSE3 = checkHardwareSupport(CPU_SSE3);
+#endif
+  bool src_aligned = reinterpret_cast<unsigned long long>(src) % 16 == 0;
+#endif
+
+  for (int r = 0; r < height; ++r)
+  {
+    int c = 0;
+
+#if CV_SSE2
+    // Use aligned loads if possible
+    if (haveSSE2 && src_aligned)
+    {
+      for ( ; c < width - 15; c += 16)
+      {
+        const __m128i* src_ptr = reinterpret_cast<const __m128i*>(src + c);
+        __m128i* dst_ptr = reinterpret_cast<__m128i*>(dst + c);
+        *dst_ptr = _mm_or_si128(*dst_ptr, *src_ptr);
+      }
+    }
+#if CV_SSE3
+    // Use LDDQU for fast unaligned load
+    else if (haveSSE3)
+    {
+      for ( ; c < width - 15; c += 16)
+      {
+        __m128i val = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(src + c));
+        __m128i* dst_ptr = reinterpret_cast<__m128i*>(dst + c);
+        *dst_ptr = _mm_or_si128(*dst_ptr, val);
+      }
+    }
+#endif
+    // Fall back to MOVDQU
+    else if (haveSSE2)
+    {
+      for ( ; c < width - 15; c += 16)
+      {
+        __m128i val = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + c));
+        __m128i* dst_ptr = reinterpret_cast<__m128i*>(dst + c);
+        *dst_ptr = _mm_or_si128(*dst_ptr, val);
+      }
+    }
+#endif
+    for ( ; c < width; ++c)
+      dst[c] |= src[c];
+
+    // Advance to next row
+    src += src_stride;
+    dst += dst_stride;
+  }
+}
+
+static void spread(const Mat& src, Mat& dst, int T)
+{
+  dst = Mat::zeros(src.size(), CV_8U);
+
+  // Fill in spread gradient image (section 2.3)
+  for (int r = 0; r < T; ++r)
+  {
+    int height = src.rows - r;
+    for (int c = 0; c < T; ++c)
+    {
+//      cout << "step1: " << src.step1() << endl;
+//      CV_Assert(src.step1() == src.cols);  // this will fail for 1channel src in some case???
+      orUnaligned8u(&src.at<unsigned char>(r, c), static_cast<const int>(src.cols), dst.ptr(),
+                    static_cast<const int>(dst.cols), src.cols - c, height);
+    }
+  }
+}
+
+// 1,2-->0 3-->1
+CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+
+static void computeResponseMaps(const Mat& src, std::vector<Mat>& response_maps)
+{
+  CV_Assert((src.rows * src.cols) % 16 == 0);
+
+  // Allocate response maps
+  response_maps.resize(8);
+  for (int i = 0; i < 8; ++i)
+    response_maps[i].create(src.size(), CV_8U);
+
+  Mat lsb4(src.size(), CV_8U);
+  Mat msb4(src.size(), CV_8U);
+
+  for (int r = 0; r < src.rows; ++r)
+  {
+    const uchar* src_r = src.ptr(r);
+    uchar* lsb4_r = lsb4.ptr(r);
+    uchar* msb4_r = msb4.ptr(r);
+
+    for (int c = 0; c < src.cols; ++c)
+    {
+      // Least significant 4 bits of spread image pixel
+      lsb4_r[c] = src_r[c] & 15;
+      // Most significant 4 bits, right-shifted to be in [0, 16)
+      msb4_r[c] = (src_r[c] & 240) >> 4;
+    }
+  }
+
+#if CV_SSSE3
+  volatile bool haveSSSE3 = checkHardwareSupport(CV_CPU_SSSE3);
+  if (haveSSSE3)
+  {
+    const __m128i* lut = reinterpret_cast<const __m128i*>(SIMILARITY_LUT);
+    for (int ori = 0; ori < 8; ++ori)
+    {
+      __m128i* map_data = response_maps[ori].ptr<__m128i>();
+      __m128i* lsb4_data = lsb4.ptr<__m128i>();
+      __m128i* msb4_data = msb4.ptr<__m128i>();
+
+      // Precompute the 2D response map S_i (section 2.4)
+      for (int i = 0; i < (src.rows * src.cols) / 16; ++i)
+      {
+        // Using SSE shuffle for table lookup on 4 orientations at a time
+        // The most/least significant 4 bits are used as the LUT index
+        __m128i res1 = _mm_shuffle_epi8(lut[2*ori + 0], lsb4_data[i]);
+        __m128i res2 = _mm_shuffle_epi8(lut[2*ori + 1], msb4_data[i]);
+
+        // Combine the results into a single similarity score
+        map_data[i] = _mm_max_epu8(res1, res2);
+      }
+    }
+  }
+  else
+#endif
+  {
+    // For each of the 8 quantized orientations...
+    for (int ori = 0; ori < 8; ++ori)
+    {
+      uchar* map_data = response_maps[ori].ptr<uchar>();
+      uchar* lsb4_data = lsb4.ptr<uchar>();
+      uchar* msb4_data = msb4.ptr<uchar>();
+      const uchar* lut_low = SIMILARITY_LUT + 32*ori;
+      const uchar* lut_hi = lut_low + 16;
+
+      for (int i = 0; i < src.rows * src.cols; ++i)
+      {
+        map_data[i] = std::max(lut_low[ lsb4_data[i] ], lut_hi[ msb4_data[i] ]);
+      }
+    }
+  }
 }
 
 bool Linemod_feature::constructEmbedding(){
+    {
+        auto d = cv::sum( depth )[0];
+        if(checkRange(d)){
+            embedding.center_dep = d/countNonZero(depth);
+        }else{
+            return false;
+        }
+    }
     {   // rgb embedding extract
-        embedding.center_dep = depth.at<uint16_t>(depth.rows/2, depth.cols/2);
         Mat local_mask;
         if (!mask.empty())
         {
@@ -357,7 +539,7 @@ bool Linemod_feature::constructEmbedding(){
         bool no_mask = local_mask.empty();
         Mat magnitude, angle;
         quantizedOrientations(rgb, magnitude, angle, embedding.weak_threshold);
-        embedding.angle = angle;
+
         std::vector<Linemod_embedding::Candidate> candidates;
         float threshold_sq = embedding.strong_threshold*embedding.strong_threshold;
         for (int r = 0; r < magnitude.rows; ++r)
@@ -386,15 +568,16 @@ bool Linemod_feature::constructEmbedding(){
           return false;
         std::stable_sort(candidates.begin(), candidates.end());
         // Use heuristic based on surplus of candidates in narrow outline for initial distance threshold
-        float distance = static_cast<float>(candidates.size() / embedding.num_features + 1);
+        float distance = static_cast<float>(candidates.size() / embedding.num_features + 4);
         selectScatteredFeatures(candidates, embedding.rgb_embedding, embedding.num_features, distance);
 //        auto bbox = cropTemplates(embedding.rgb_embedding);
+        if(embedding.rgb_embedding.empty()){
+            return false;
+        }
     }
     {// depth embedding extract
         Mat normal;
         quantizedNormals(depth, normal, embedding.distance_threshold, embedding.difference_threshold);
-
-//        cout << depth << endl;
         Mat local_mask;
         if (!mask.empty())
         {
@@ -456,30 +639,79 @@ bool Linemod_feature::constructEmbedding(){
             }
             std::stable_sort(candidates.begin(), candidates.end());
 
-
             // Use heuristic based on object area for initial distance threshold
             float area = no_mask ? (float)normal.total() : (float)countNonZero(local_mask);
             float distance = sqrtf(area) / sqrtf((float)embedding.num_features) + 1.5f;
             selectScatteredFeatures(candidates, embedding.depth_embedding, embedding.num_features, distance);
-            embedding.normal = normal;
             //        cropTemplates(embedding.depth_embedding);
         }
     }
     return true;
 }
 
-template <typename T>
-static T clamp(const T& n, const T& lower, const T& upper) {
-  return std::max(lower, std::min(n, upper));
+bool Linemod_feature::constructResponse()
+{
+    {
+        auto d = cv::sum( depth )[0];
+        if(checkRange(d)){
+            embedding.center_dep = d/countNonZero(depth);
+        }else{
+            return false;
+        }
+    }
+    {
+        Mat magnitude, angle, angle_spread;
+        quantizedOrientations(rgb, magnitude, angle, embedding.weak_threshold);
+
+        Mat src = angle;
+        //padding to 16n
+        int residual1 = src.rows%16;
+        int residual2 = src.cols%16;
+        if(residual1>0||residual2>0){
+            cv::Mat padded;
+            int padding1 = 16-residual1;
+            int padding2 = 16-residual2;
+            padded.create(src.rows + padding1, src.cols+padding2, src.type());
+            padded.setTo(cv::Scalar::all(0));
+            src.copyTo(padded(Rect(0, 0, src.cols, src.rows)));
+
+            spread(padded, angle_spread, 5);
+        }
+        else{
+            spread(src, angle_spread, 5);
+        }
+        computeResponseMaps(angle_spread, embedding.rgb_response);
+    }
+    {
+        Mat normal, normal_spread;
+        quantizedNormals(depth, normal, embedding.distance_threshold, embedding.difference_threshold);
+
+        //padding to 16n
+        int residual1 = normal.rows%16;
+        int residual2 = normal.cols%16;
+        if(residual1>0||residual2>0){
+            cv::Mat padded;
+            int padding1 = 16-residual1;
+            int padding2 = 16-residual2;
+            padded.create(normal.rows + padding1, normal.cols+padding2, normal.type());
+            padded.setTo(cv::Scalar::all(0));
+            normal.copyTo(padded(Rect(0, 0, normal.cols, normal.rows)));
+
+            CV_Assert((padded.rows * padded.cols) % 16 == 0);
+            spread(padded, normal_spread, 5);
+        }else{
+            spread(normal, normal_spread, 5);
+        }
+        computeResponseMaps(normal_spread, embedding.dep_response);
+    }
 }
 
-static uchar lutable[] = {4, 2, 1, 0, 0};
 float Linemod_feature::similarity(const Linemod_feature &other) const{
     int count = 0;
     float score = 0;
-    auto& rgb_res = other.embedding.angle;
-    int width = rgb_res.cols;
-    int height = rgb_res.rows;
+    auto& rgb_res = other.embedding.rgb_response;
+    int width = rgb_res[0].cols;
+    int height = rgb_res[0].rows;
     for(auto element: embedding.rgb_embedding){
         if(other.embedding.center_dep>0 && embedding.center_dep>0){
             int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
@@ -490,22 +722,16 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
             if(valid){
                 normalize_x = clamp(normalize_x, 0, width-1);
                 normalize_y = clamp(normalize_y, 0, height-1);
-                int ori = rgb_res.at<uchar>(normalize_y, normalize_x);
-                if(ori==0){
-                    continue;
-                }
-                ori = getLabel(ori);
-                int diff = element.label - ori;
-                diff = std::min(diff, 8-diff);
-                score += lutable[diff];
+                auto response = rgb_res[element.label];
+                score += response.at<uchar>(normalize_y,normalize_x);
                 count++;
             }
         }
     }
 
-    auto& dep_res = other.embedding.normal;
-    width = dep_res.cols;
-    height = dep_res.rows;
+    auto& dep_res = other.embedding.dep_response;
+    width = dep_res[0].cols;
+    height = dep_res[0].rows;
     for(auto element: embedding.depth_embedding){
         if(other.embedding.center_dep>0 && embedding.center_dep>0){
             int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
@@ -516,14 +742,8 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
             if(valid){
                 normalize_x = clamp(normalize_x, 0, width-1);
                 normalize_y = clamp(normalize_y, 0, height-1);
-                int ori = dep_res.at<uchar>(normalize_y, normalize_x);
-                if(ori==0){
-                    continue;
-                }
-                ori = getLabel(ori);
-                int diff = element.label - ori;
-                diff = std::min(diff, 8-diff);
-                score += lutable[diff];
+                auto response = dep_res[element.label];
+                score += response.at<uchar>(normalize_y,normalize_x);
                 count++;
             }
         }
@@ -635,58 +855,52 @@ void Info::read(const lchf::Info &info_)
 
 void Linemod_embedding::write(lchf::Linemod_embedding* embedding_)
 {
-    if(!angle.empty()){
-        lchf::Mat_i* mat_i = new lchf::Mat_i();
-        saveMat<uchar>(angle, mat_i);
-        embedding_->set_allocated_angle(mat_i);
-    }
-    if(!normal.empty()){
-        lchf::Mat_i* mat_i = new lchf::Mat_i();
-        saveMat<uchar>(normal, mat_i);
-        embedding_->set_allocated_normal(mat_i);
-    }
     embedding_->set_center_dep(center_dep);
 
-    auto lchf_ele_vec = new lchf::Linemod_embedding_ele_vector();
-    for(int i=0;i<rgb_embedding.size();i++){
-        auto& ele = rgb_embedding[i];
-        auto lchf_ele = lchf_ele_vec->add_element();
-        lchf_ele->set_x(ele.x);
-        lchf_ele->set_y(ele.y);
-        lchf_ele->set_label(ele.label);
+    if(rgb_response.size()>0){
+        for(auto& rgb_res: rgb_response){
+            auto lchf_rgb_res = embedding_->add_rgb_response();
+            saveMat<uchar>(rgb_res, lchf_rgb_res);
+        }
     }
-    embedding_->set_allocated_rgb_embedding(lchf_ele_vec);
 
-    auto lchf_ele_vec2 = new lchf::Linemod_embedding_ele_vector();
-    for(int i=0;i<depth_embedding.size();i++){
-        auto& ele = depth_embedding[i];
-        auto lchf_ele = lchf_ele_vec2->add_element();
-        lchf_ele->set_x(ele.x);
-        lchf_ele->set_y(ele.y);
-        lchf_ele->set_label(ele.label);
+    if(dep_response.size()>0){
+        for(auto& dep_res: dep_response){
+            auto lchf_dep_res = embedding_->add_dep_response();
+            saveMat<uchar>(dep_res, lchf_dep_res);
+        }
     }
-    embedding_->set_allocated_depth_embedding(lchf_ele_vec2);
+
+    if(rgb_embedding.size()>0){
+        auto lchf_ele_vec = new lchf::Linemod_embedding_ele_vector();
+        for(int i=0;i<rgb_embedding.size();i++){
+            auto& ele = rgb_embedding[i];
+            auto lchf_ele = lchf_ele_vec->add_element();
+            lchf_ele->set_x(ele.x);
+            lchf_ele->set_y(ele.y);
+            lchf_ele->set_label(ele.label);
+        }
+        embedding_->set_allocated_rgb_embedding(lchf_ele_vec);
+    }
+
+    if(depth_embedding.size()>0){
+        auto lchf_ele_vec2 = new lchf::Linemod_embedding_ele_vector();
+        for(int i=0;i<depth_embedding.size();i++){
+            auto& ele = depth_embedding[i];
+            auto lchf_ele = lchf_ele_vec2->add_element();
+            lchf_ele->set_x(ele.x);
+            lchf_ele->set_y(ele.y);
+            lchf_ele->set_label(ele.label);
+        }
+        embedding_->set_allocated_depth_embedding(lchf_ele_vec2);
+    }
+
+
 }
 
 void Linemod_embedding::read(const lchf::Linemod_embedding &embedding_)
 {
     center_dep = embedding_.center_dep();
-    int rows = embedding_.angle().row_size();
-    if(rows>0){
-        int cols = embedding_.angle().row(0).value_size();
-        angle = Mat(rows, cols, CV_8UC1);
-        loadMat<uchar>(angle, embedding_.angle());
-    }else{
-        cout << "no angle" << endl;
-    }
-    rows = embedding_.normal().row_size();
-    if(rows>0){
-        int cols = embedding_.normal().row(0).value_size();
-        normal = Mat(rows, cols, CV_8UC1);
-        loadMat<uchar>(normal, embedding_.normal());
-    }else{
-//        cout << "no normal" << endl;
-    }
 
     int rgb_ele_size = embedding_.rgb_embedding().element_size();
     if(rgb_ele_size>0){
@@ -709,6 +923,29 @@ void Linemod_embedding::read(const lchf::Linemod_embedding &embedding_)
             ele.x = lchf_ele.x();
             ele.y = lchf_ele.y();
             ele.label = lchf_ele.label();
+        }
+    }
+
+    int rgb_res_size = embedding_.rgb_response_size();
+    if(rgb_ele_size>0){
+        rgb_response.resize(rgb_res_size);
+        for(int i=0;i<rgb_ele_size;i++){
+            auto lchf_rgb_res = embedding_.rgb_response(i);
+            int rows = lchf_rgb_res.row_size();
+            int cols = lchf_rgb_res.row(0).value_size();
+            rgb_response[i] = Mat(rows, cols, CV_8UC1);
+            loadMat<uchar>(rgb_response[i], lchf_rgb_res);
+        }
+    }
+    int dep_res_size = embedding_.dep_response_size();
+    if(dep_ele_size>0){
+        dep_response.resize(dep_res_size);
+        for(int i=0;i<dep_ele_size;i++){
+            auto lchf_dep_res = embedding_.dep_response(i);
+            int rows = lchf_dep_res.row_size();
+            int cols = lchf_dep_res.row(0).value_size();
+            dep_response[i] = Mat(rows, cols, CV_8UC1);
+            loadMat<uchar>(dep_response[i], lchf_dep_res);
         }
     }
 }
