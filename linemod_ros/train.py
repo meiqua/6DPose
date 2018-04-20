@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import numpy as np
+import matplotlib.pyplot as plt
 import cv2
 import math
 from pysixd import view_sampler, inout

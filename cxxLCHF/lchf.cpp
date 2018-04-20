@@ -704,6 +704,7 @@ bool Linemod_feature::constructResponse()
         }
         computeResponseMaps(normal_spread, embedding.dep_response);
     }
+    return false;
 }
 
 float Linemod_feature::similarity(const Linemod_feature &other) const{

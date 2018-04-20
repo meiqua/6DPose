@@ -144,9 +144,9 @@ void fake_feature_test() {
 }
 
 int main(){
-    dataset_test();
+//    dataset_test();
 
-//    fake_feature_test();
+    fake_feature_test();
 
 //    lchf_model model;
 //    model.path = prefix;

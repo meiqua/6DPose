@@ -46,7 +46,6 @@ public:
     int split_feat_idx=0;
     float simi_thresh=50;
     std::vector<int> ind_feats;
-    std::vector<int> ind_infos;
 
    void write(lchf::Node* node){
        node->set_simi_thresh(simi_thresh);
@@ -59,9 +58,6 @@ public:
         node->set_split_feat_idx(split_feat_idx);
         for(auto idx: ind_feats){
             node->add_ind_feats(idx);
-        }
-        for(auto idx: ind_infos){
-            node->add_ind_infos(idx);
         }
     }
     void read(const lchf::Node& node){
@@ -77,11 +73,6 @@ public:
         ind_feats.resize(ind_num);
         for(int i=0;i<ind_num;i++){
             ind_feats[i] = node.ind_feats(i);
-        }
-        int ind_info_num = node.ind_infos_size();
-        ind_infos.resize(ind_info_num);
-        for(int i=0;i<ind_info_num;i++){
-            ind_infos[i] = node.ind_infos(i);
         }
     }
 };
@@ -407,14 +398,12 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
 {
     std::string type = "simis";
     if(type=="simis"){
-        std::vector<float> left_simis, right_simis, all_simis;
+        std::vector<float> left_simis, right_simis;
         for(auto idx: left){
             left_simis.push_back(simis[idx]);
-            all_simis.push_back(simis[idx]);
         }
         for(auto idx: right){
             right_simis.push_back(simis[idx]);
-            all_simis.push_back(simis[idx]);
         }
         float left_w = float(left_simis.size())/(left_simis.size()+right_simis.size());
         float u1 = lchf_helper::getMean(left_simis);
@@ -423,7 +412,17 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
         float var_reduce = left_w*(1-left_w)*(u1-u2)*(u1-u2);
         return var_reduce;
     }
-
+    if(type == "infos"){
+        std::vector<Info> left_infos, right_infos;
+        for(auto idx: left){
+            left_infos.push_back(std::move(infos[ind_feats[idx]]));
+        }
+        for(auto idx: right){
+            right_infos.push_back(std::move(infos[ind_feats[idx]]));
+        }
+        // calculate some metrics here, greater is better
+    }
+    return 0;
 }
 
 template<class Feature>
