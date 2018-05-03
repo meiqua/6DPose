@@ -7,6 +7,9 @@ linemodLevelup/CMakeLists.txt.user
 cxxlinemod/build/
 cxxlinemod/CMakeLists.txt.user
 
+cxx_3d_seg/build/
+cxx_3d_seg/CMakeLists.txt.user
+
 cxxLCHF/build/
 cxxLCHF/CMakeLists.txt.user
 cxxLCHF/test/features
