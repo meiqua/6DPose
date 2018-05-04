@@ -102,16 +102,16 @@ namespace asp
 		float depth_to_z = 0.001f;
 
 		// 3D radius of superpixels in meters
-		float radius = 0.01f;
+		float radius = 0.02f;
 
 		// if num_superpixels is greater 0, superpixel density is scaled by a constant factor to give the desired number of superpixels
 		unsigned num_superpixels = 0;
 
 		// tradeoff between 3D compact superpixels (compactness=1) and boundary recall (compactness=0)
-		float compactness = 0.4f;
+		float compactness = 0.5f;
 
 		// tradeoff between using color (normal_weight=0) and normals (normal_weight=1) as data term in the distance function
-		float normal_weight = 0.9f;
+		float normal_weight = 1.0f;
 	};
 
 	/** Depth-Adaptive Superpixels for RGB-D images */

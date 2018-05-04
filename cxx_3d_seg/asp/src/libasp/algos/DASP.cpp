@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cmath>
 #include <map>
-
+#include <unordered_map>
 namespace asp
 {
 namespace group_helper {
@@ -32,19 +32,6 @@ int find(int idx, std::vector<Vertex>& vertices){
     }
     return u_parent;
 }
-
-// for std map search
-struct edge_t{
-    int v1;
-    int v2;
-    bool operator == (const edge_t& rhs) const{
-        return ((v1==rhs.v1) && (v2==rhs.v2)) ||
-                ((v1==rhs.v2) && (v2==rhs.v1));
-    }
-    bool operator < (const edge_t& rhs) const{
-        return v1 < rhs.v1;
-    }
-};
 }
 
 	/** Computes first derivative for 5 evenly spaced depth samples (v0,...,v4) */
@@ -270,80 +257,67 @@ struct edge_t{
             vertices.push_back(v);
         }
 
-        std::map<group_helper::edge_t,std::vector<size_t>> edge2pixel;
-        size_t k = 0;
-        for(int y=0; y<height-2; y++) {
-            for(int x=0; x<width-2; x++, k++) {
+        slimage::Image<int,1> adj_table{uint32_t(unique_id.size()), uint32_t(unique_id.size())};
+        for(int y=0; y<height-1; y++) {
+            for(int x=0; x<width-1; x++) {
+
                 int i0 = indices(x,y);
                 if(i0 == -1) {
                     continue;
                 }
-                for(int i=0;i<2;i++){
-                    for(int j=0;j<2;j++){
-                        if(i>0 && j>0){
-                            int i_ = indices(x+i, y+j);
-                            if(i0 != i_ && i_ != -1) {
-                                auto& r = edge2pixel[{i0,i_}];
-                                r.push_back(k);
-                                r.push_back(k+i+j*width);
-                            }
-                        }
-                    }
+                int i1 = indices(x+1,y);
+                int i2 = indices(x,y+1);
+                if(i0 != i1 && i1 != -1) {
+                    int idx0 = id2idx.find(i0)->second;
+                    int idx1 = id2idx.find(i1)->second;
+                    adj_table(idx0, idx1) += 1;
+                    adj_table(idx1, idx0) += 1;
+                }
+                if(i0 != i2 && i2 != -1) {
+                    int idx0 = id2idx.find(i0)->second;
+                    int idx2 = id2idx.find(i2)->second;
+                    adj_table(idx0, idx2) += 1;
+                    adj_table(idx2, idx0) += 1;
                 }
             }
         }
 
-        for(auto e2p_iter = edge2pixel.begin(); e2p_iter!=edge2pixel.end(); e2p_iter++){
-            group_helper::Edge edge;
-            edge.v1 = e2p_iter->first.v1;
-            edge.v2 = e2p_iter->first.v2;
-            auto& idxs = e2p_iter->second;
-            edge.count = idxs.size();
 
-            auto& super1 = seg.superpixels[edge.v1];
-            auto& super2 = seg.superpixels[edge.v2];
-            auto& center1 = super1.data.world;
-            auto& center2 = super2.data.world;
-            auto& normal1 = super1.data.normal;
-            auto& normal2 = super2.data.normal;
+        for(int y=0; y<unique_id.size();y++){
+            for(int x=y+1; x<unique_id.size();x++){
+                if(adj_table(x,y)>0){
+                    group_helper::Edge edge;
+                    edge.v1 = unique_id[x];
+                    edge.v2 = unique_id[y];
+                    edge.count = adj_table(x,y);
 
-            auto center1_2 = (center1-center2);
-            bool isConvex = true;
-            auto convex_angle = center1_2.normalized().dot(normal1);
-            if(convex_angle<0){
-                isConvex = false;
-            }
+                    auto& super1 = seg.superpixels[edge.v1];
+                    auto& super2 = seg.superpixels[edge.v2];
+                    auto& center1 = super1.data.world;
+                    auto& center2 = super2.data.world;
+                    auto& normal1 = super1.data.normal;
+                    auto& normal2 = super2.data.normal;
 
-            float cos_norm = normal1.dot(normal2);
-
-            double weight = 0;
-            if(!isConvex){
-                weight = 100;
-                if(convex_angle<-0.5){
-                    weight = 100;
+                    auto center1_2 = (center1-center2);
+                    bool isConvex = true;
+                    auto convex_angle = center1_2.normalized().dot(normal1);
+                    if(convex_angle<-0.1){
+                        isConvex = false;
+                    }
+                    double weight =(1-std::abs(normal1.dot(normal2)));
+                    if(!isConvex || center1_2.norm()/R_seed>2){
+                            weight = 100;
+                    }
+                    edge.weight = weight;
+                    edges.push_back(edge);
                 }
-            }else {
-                weight = 0.25*weight*weight;
             }
-            edge.weight = 0;
-            edges.push_back(edge);
         }
         std::sort(edges.begin(), edges.end());
 
-        std::cout << "edges.size():" << edges.size() << std::endl;
-        std::vector<int> test;
         for(auto& edge: edges){
-            test.push_back(edge.v1);
-            test.push_back(edge.v2);
-        }
-        sort( test.begin(), test.end() );
-        test.erase( unique( test.begin(), test.end() ), test.end() );
-        assert(test == unique_id);
 
-        int count = 0;
-        for(auto& edge: edges){
-//            std::cout << edge.weight << std::endl;
-//            if(edge.weight<0.1)
+            if(edge.weight<0.4 && edge.count>10)
             {
                 int v1 = edge.v1;
                 int v2 = edge.v2;
@@ -352,7 +326,6 @@ struct edge_t{
                 int parent1 = group_helper::find(idx1, vertices);
                 int parent2 = group_helper::find(idx2, vertices);
                 if(parent1!=parent2){
-                    count ++;
                     // weighted union find
                     if(vertices[parent1].count>vertices[parent2].count){
                         int temp= parent1;
@@ -364,7 +337,6 @@ struct edge_t{
                 }
             }
         }
-        assert(count == int(unique_id.size()-1));
 
         std::map<int, int> id2new;
         int newid_size = 0;

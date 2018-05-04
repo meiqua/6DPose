@@ -70,12 +70,12 @@ std::vector<T> unique(const cv::Mat& input, bool sort = false)
 
 
 int main(){
-    string prefix = "/home/meiqua/cxx_3d_seg/test/1/";
-    Mat rgb = cv::imread(prefix+"rgb/0002.png");
-    Mat depth = cv::imread(prefix+"depth/0002.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/3/";
+    Mat rgb = cv::imread(prefix+"rgb/0000.png");
+    Mat depth = cv::imread(prefix+"depth/0000.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
-    pyrDown(rgb, rgb);
-    pyrDown(depth, depth);
+//    pyrDown(rgb, rgb);
+//    pyrDown(depth, depth);
 
     test_helper::Timer timer;
 
@@ -86,10 +86,8 @@ int main(){
 
     auto test_group = asp::DsapGrouping(img_color, img_depth);
     Mat idxs = slimage::ConvertToOpenCv(test_group);
-//    auto sp = asp::SuperpixelsDasp(img_color, img_depth);
-//    Mat idxs = slimage::ConvertToOpenCv(sp.indices);
-    cout << test_helper::type2str(idxs.type());
-    timer.out();
+
+    timer.out("grouping");
 
     std::vector<int> unik = test_helper::unique<int>(idxs, true);
     std::map<int, Vec3b> color_map;
@@ -106,7 +104,7 @@ int main(){
     }
 
     imshow("show", show);
-    imshow("rgb", rgb);
+//    imshow("rgb", rgb);
     waitKey(0);
 //    Mat rgb_ = slimage::ConvertToOpenCv(rgb_slimage);
 //    Mat depth_ = slimage::ConvertToOpenCv(dep_slimage);
