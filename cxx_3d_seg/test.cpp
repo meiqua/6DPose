@@ -70,7 +70,7 @@ std::vector<T> unique(const cv::Mat& input, bool sort = false)
 
 
 int main(){
-    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/3/";
+    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/1/";
     Mat rgb = cv::imread(prefix+"rgb/0000.png");
     Mat depth = cv::imread(prefix+"depth/0000.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
@@ -104,7 +104,7 @@ int main(){
     }
 
     imshow("show", show);
-//    imshow("rgb", rgb);
+    imshow("rgb", rgb);
     waitKey(0);
 //    Mat rgb_ = slimage::ConvertToOpenCv(rgb_slimage);
 //    Mat depth_ = slimage::ConvertToOpenCv(dep_slimage);

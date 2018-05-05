@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cmath>
 #include <map>
-#include <unordered_map>
+
 namespace asp
 {
 namespace group_helper {
@@ -14,6 +14,8 @@ struct Vertex{
     int idx;
     int parent;
     int count=1;
+    std::vector<Eigen::Vector3f> worlds;
+    std::vector<Eigen::Vector3f> normals;
 };
 struct Edge{
     int v1;
@@ -254,6 +256,8 @@ int find(int idx, std::vector<Vertex>& vertices){
             v.id = unique_id[i];
             v.idx = i;
             v.parent = i;
+            v.worlds.push_back(seg.superpixels[v.id].data.world);
+            v.normals.push_back(seg.superpixels[v.id].data.normal);
             vertices.push_back(v);
         }
 
@@ -298,7 +302,7 @@ int find(int idx, std::vector<Vertex>& vertices){
                     auto& normal1 = super1.data.normal;
                     auto& normal2 = super2.data.normal;
 
-                    auto center1_2 = (center1-center2);
+                    auto center1_2 = center1-center2;
                     bool isConvex = true;
                     auto convex_angle = center1_2.normalized().dot(normal1);
                     if(convex_angle<-0.1){
@@ -306,7 +310,7 @@ int find(int idx, std::vector<Vertex>& vertices){
                     }
                     double weight =(1-std::abs(normal1.dot(normal2)));
                     if(!isConvex || center1_2.norm()/R_seed>2){
-                            weight = 100;
+                        continue;  // don't want the edge
                     }
                     edge.weight = weight;
                     edges.push_back(edge);
@@ -316,24 +320,68 @@ int find(int idx, std::vector<Vertex>& vertices){
         std::sort(edges.begin(), edges.end());
 
         for(auto& edge: edges){
+            int v1 = edge.v1;
+            int v2 = edge.v2;
+            int idx1 = id2idx.find(v1)->second;
+            int idx2 = id2idx.find(v2)->second;
+            int parent1 = group_helper::find(idx1, vertices);
+            int parent2 = group_helper::find(idx2, vertices);
+            if(parent1!=parent2){
+                // weighted union find
+                if(vertices[parent1].count>vertices[parent2].count){
+                    int temp= parent1;
+                    parent1 = parent2;
+                    parent2 = temp;
+                }
+                if(edge.count>10){
+                    // plane grouping
+                    if(edge.weight<0.04)
+                    {
+                        vertices[parent1].parent = parent2;
 
-            if(edge.weight<0.4 && edge.count>10)
-            {
-                int v1 = edge.v1;
-                int v2 = edge.v2;
-                int idx1 = id2idx.find(v1)->second;
-                int idx2 = id2idx.find(v2)->second;
-                int parent1 = group_helper::find(idx1, vertices);
-                int parent2 = group_helper::find(idx2, vertices);
-                if(parent1!=parent2){
-                    // weighted union find
-                    if(vertices[parent1].count>vertices[parent2].count){
-                        int temp= parent1;
-                        parent1 = parent2;
-                        parent2 = temp;
+                        vertices[parent2].worlds[0] =
+                                vertices[parent1].worlds[0]*vertices[parent1].count +
+                                vertices[parent2].worlds[0]*vertices[parent2].count;
+                        vertices[parent2].normals[0] =
+                                vertices[parent1].normals[0]*vertices[parent1].count +
+                                vertices[parent2].normals[0]*vertices[parent2].count;
+
+                        vertices[parent2].count += vertices[parent1].count;
+                        vertices[parent2].worlds[0] /= vertices[parent2].count;
+                        vertices[parent2].normals[0] /= vertices[parent2].count;
+                        vertices[parent2].normals[0] = vertices[parent2].normals[0].normalized();
                     }
-                    vertices[parent1].parent = parent2;
-                    vertices[parent2].count += vertices[parent1].count;
+                    // convex cloud grouping
+                    else if(true){
+                        bool convex_check = true;
+                        for(int i=0; i<vertices[parent1].worlds.size(); i++){
+                            auto& world1 = vertices[parent1].worlds[i];
+                            for(int j=0; j<vertices[parent2].worlds.size(); j++){
+                                auto& world2 = vertices[parent2].worlds[j];
+                                auto& normal2 = vertices[parent2].normals[j];
+
+                                auto center2_1 = world2-world1;
+                                auto convex_angle = center2_1.normalized().dot(normal2);
+                                if(convex_angle<-0.1){
+                                    convex_check = false;
+                                    break;
+                                }
+                            }
+                            if(!convex_check){
+                                break;
+                            }
+                        }
+                        if(convex_check){
+                            vertices[parent1].parent = parent2;
+                            vertices[parent2].worlds.insert(vertices[parent2].worlds.end(),
+                                                            vertices[parent1].worlds.begin(),
+                                                            vertices[parent1].worlds.end());
+                            vertices[parent2].normals.insert(vertices[parent2].normals.end(),
+                                                            vertices[parent1].normals.begin(),
+                                                            vertices[parent1].normals.end());
+                            vertices[parent2].count += vertices[parent1].count;
+                        }
+                    }
                 }
             }
         }
