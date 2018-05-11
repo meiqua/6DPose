@@ -306,7 +306,8 @@ int find(int idx, std::vector<Vertex>& vertices){
                     auto center1_2 = center1-center2;
                     bool isConvex = true;
                     auto convex_angle = center1_2.normalized().dot(normal1);
-                    if(convex_angle<-0.1){
+                    auto convex_angle2 = -center1_2.normalized().dot(normal2);
+                    if(convex_angle<-0.2 || convex_angle2<-0.2){
                         isConvex = false;
                     }
                     double weight =(1-std::abs(normal1.dot(normal2)));
@@ -353,13 +354,15 @@ int find(int idx, std::vector<Vertex>& vertices){
                         int convex_thresh = 4;
                         for(int i=0; i<vertices[parent1].worlds.size(); i++){
                             auto& world1 = vertices[parent1].worlds[i];
+                            auto& normal1 = vertices[parent1].normals[i];
                             for(int j=0; j<vertices[parent2].worlds.size(); j++){
                                 auto& world2 = vertices[parent2].worlds[j];
                                 auto& normal2 = vertices[parent2].normals[j];
 
-                                auto center2_1 = world2-world1;
-                                auto convex_angle = center2_1.normalized().dot(normal2);
-                                if(convex_angle<-0.1){
+                                auto center2_1 = (world2-world1).normalized();
+                                auto convex_angle = center2_1.dot(normal2);
+                                auto convex_angle2 = -center2_1.dot(normal1);
+                                if(convex_angle<-0.2 || convex_angle2<-0.2){
                                     convex_check += vertices[parent1].count;
                                     break;
                                 }
