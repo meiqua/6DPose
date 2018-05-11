@@ -68,11 +68,55 @@ std::vector<T> unique(const cv::Mat& input, bool sort = false)
 }
 }
 
+void dataset_test(){
+    int train_size = 1000;
+    string prefix = "/home/meiqua/6DPose/public/datasets/doumanoglou/test/01/";
+    for(int i=0;i<train_size;i++){
+        auto i_str = to_string(i);
+        for(int pad=4-i_str.size();pad>0;pad--){
+            i_str = '0'+i_str;
+        }
+        Mat rgb = cv::imread(prefix+"rgb/"+i_str+".png");
+        Mat depth = cv::imread(prefix+"depth/"+i_str+".png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
-int main(){
-    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/1/";
-    Mat rgb = cv::imread(prefix+"rgb/0000.png");
-    Mat depth = cv::imread(prefix+"depth/0000.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+        test_helper::Timer timer;
+
+        auto rgb_slimage = slimage::ConvertToSlimage(rgb);
+        auto dep_slimage = slimage::ConvertToSlimage(depth);
+        slimage::Image3ub img_color = slimage::anonymous_cast<unsigned char,3>(rgb_slimage);
+        slimage::Image1ui16 img_depth = slimage::anonymous_cast<uint16_t,1>(dep_slimage);
+
+        auto test_group = asp::DsapGrouping(img_color, img_depth);
+        Mat idxs = slimage::ConvertToOpenCv(test_group);
+
+        timer.out("grouping");
+
+        std::vector<int> unik = test_helper::unique<int>(idxs, true);
+        std::map<int, Vec3b> color_map;
+        for(auto idx: unik){
+            auto color = Vec3b(rand()%255, rand()%255, rand()%255);
+            color_map[idx] = color;
+        }
+
+        Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+        auto show_iter = show.begin<Vec3b>();
+        for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
+            if(*idx_iter>0){
+                auto color = color_map.find(*idx_iter)->second;
+                *show_iter = color;
+            }
+        }
+
+        imshow("show", show);
+        imshow("rgb", rgb);
+        waitKey(3000);
+    }
+}
+
+void simple_test(){
+    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/3/";
+    Mat rgb = cv::imread(prefix+"rgb/0002.png");
+    Mat depth = cv::imread(prefix+"depth/0002.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
 //    pyrDown(rgb, rgb);
 //    pyrDown(depth, depth);
@@ -96,11 +140,13 @@ int main(){
         color_map[idx] = color;
     }
 
-    Mat show = Mat(idxs.size(), CV_8UC3);
+    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
     auto show_iter = show.begin<Vec3b>();
     for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
-        auto color = color_map.find(*idx_iter)->second;
-        *show_iter = color;
+        if(*idx_iter>0){
+            auto color = color_map.find(*idx_iter)->second;
+            *show_iter = color;
+        }
     }
 
     imshow("show", show);
@@ -109,6 +155,10 @@ int main(){
 //    Mat rgb_ = slimage::ConvertToOpenCv(rgb_slimage);
 //    Mat depth_ = slimage::ConvertToOpenCv(dep_slimage);
 
+}
+
+int main(){
+    dataset_test();
     cout << "end" << endl;
     return 0;
 }

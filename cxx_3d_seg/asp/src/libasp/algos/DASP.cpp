@@ -258,6 +258,7 @@ int find(int idx, std::vector<Vertex>& vertices){
             v.parent = i;
             v.worlds.push_back(seg.superpixels[v.id].data.world);
             v.normals.push_back(seg.superpixels[v.id].data.normal);
+//            v.count = seg.superpixels[v.id].num;
             vertices.push_back(v);
         }
 
@@ -333,27 +334,23 @@ int find(int idx, std::vector<Vertex>& vertices){
                     parent1 = parent2;
                     parent2 = temp;
                 }
-                if(edge.count>10){
+                if(edge.count>R_seed*400){
                     // plane grouping
                     if(edge.weight<0.04)
                     {
                         vertices[parent1].parent = parent2;
-
-                        vertices[parent2].worlds[0] =
-                                vertices[parent1].worlds[0]*vertices[parent1].count +
-                                vertices[parent2].worlds[0]*vertices[parent2].count;
-                        vertices[parent2].normals[0] =
-                                vertices[parent1].normals[0]*vertices[parent1].count +
-                                vertices[parent2].normals[0]*vertices[parent2].count;
-
+                        vertices[parent2].worlds.insert(vertices[parent2].worlds.end(),
+                                                        vertices[parent1].worlds.begin(),
+                                                        vertices[parent1].worlds.end());
+                        vertices[parent2].normals.insert(vertices[parent2].normals.end(),
+                                                        vertices[parent1].normals.begin(),
+                                                        vertices[parent1].normals.end());
                         vertices[parent2].count += vertices[parent1].count;
-                        vertices[parent2].worlds[0] /= vertices[parent2].count;
-                        vertices[parent2].normals[0] /= vertices[parent2].count;
-                        vertices[parent2].normals[0] = vertices[parent2].normals[0].normalized();
                     }
                     // convex cloud grouping
                     else if(true){
-                        bool convex_check = true;
+                        int convex_check = 0;
+                        int convex_thresh = 4;
                         for(int i=0; i<vertices[parent1].worlds.size(); i++){
                             auto& world1 = vertices[parent1].worlds[i];
                             for(int j=0; j<vertices[parent2].worlds.size(); j++){
@@ -363,15 +360,15 @@ int find(int idx, std::vector<Vertex>& vertices){
                                 auto center2_1 = world2-world1;
                                 auto convex_angle = center2_1.normalized().dot(normal2);
                                 if(convex_angle<-0.1){
-                                    convex_check = false;
+                                    convex_check += vertices[parent1].count;
                                     break;
                                 }
                             }
-                            if(!convex_check){
+                            if(convex_check>convex_thresh){
                                 break;
                             }
                         }
-                        if(convex_check){
+                        if(convex_check<=convex_thresh){
                             vertices[parent1].parent = parent2;
                             vertices[parent2].worlds.insert(vertices[parent2].worlds.end(),
                                                             vertices[parent1].worlds.begin(),
