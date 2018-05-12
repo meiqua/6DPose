@@ -14,14 +14,19 @@ struct Vertex{
     int idx;
     int parent;
     int count=1;
+    std::vector<size_t> children;
     std::vector<Eigen::Vector3f> worlds;
     std::vector<Eigen::Vector3f> normals;
+
+    bool operator>(const Vertex& rhs) const{
+      return count > rhs.count;
+    }
 };
 struct Edge{
     int v1;
     int v2;
     int count = 1;
-    double weight = 0;
+    float weight = 0;
     bool operator<(const Edge& rhs) const{
       return weight < rhs.weight;
     }
@@ -33,6 +38,20 @@ int find(int idx, std::vector<Vertex>& vertices){
         u_parent = vertices[u_parent].parent;
     }
     return u_parent;
+}
+
+template <typename T>
+std::vector<size_t> sort_indexes(const std::vector<T> &v) {
+
+  // initialize original index locations
+  std::vector<size_t> idx(v.size());
+  iota(idx.begin(), idx.end(), 0);
+
+  // sort indexes based on comparing values in v
+  sort(idx.begin(), idx.end(),
+       [&v](size_t i1, size_t i2) {return v[i1] > v[i2];});
+
+  return idx;
 }
 }
 
@@ -251,14 +270,15 @@ int find(int idx, std::vector<Vertex>& vertices){
 
         std::vector<group_helper::Vertex> vertices;
         std::vector<group_helper::Edge> edges;
-        for(int i=0;i < unique_id.size();i++){
+        for(size_t i=0;i < unique_id.size();i++){
             group_helper::Vertex v;
             v.id = unique_id[i];
             v.idx = i;
             v.parent = i;
             v.worlds.push_back(seg.superpixels[v.id].data.world);
             v.normals.push_back(seg.superpixels[v.id].data.normal);
-//            v.count = seg.superpixels[v.id].num;
+            v.count = seg.superpixels[v.id].num;
+            v.children.push_back(i);
             vertices.push_back(v);
         }
 
@@ -340,70 +360,102 @@ int find(int idx, std::vector<Vertex>& vertices){
                     if(edge.weight<0.04)
                     {
                         vertices[parent1].parent = parent2;
+
                         vertices[parent2].worlds.insert(vertices[parent2].worlds.end(),
                                                         vertices[parent1].worlds.begin(),
                                                         vertices[parent1].worlds.end());
                         vertices[parent2].normals.insert(vertices[parent2].normals.end(),
                                                         vertices[parent1].normals.begin(),
                                                         vertices[parent1].normals.end());
+                        vertices[parent2].children.insert(vertices[parent2].children.end(),
+                                                        vertices[parent1].children.begin(),
+                                                        vertices[parent1].children.end());
                         vertices[parent2].count += vertices[parent1].count;
-                    }
-                    // convex cloud grouping
-                    else if(true){
-                        int convex_check = 0;
-                        int convex_thresh = 4;
-                        for(int i=0; i<vertices[parent1].worlds.size(); i++){
-                            auto& world1 = vertices[parent1].worlds[i];
-                            auto& normal1 = vertices[parent1].normals[i];
-                            for(int j=0; j<vertices[parent2].worlds.size(); j++){
-                                auto& world2 = vertices[parent2].worlds[j];
-                                auto& normal2 = vertices[parent2].normals[j];
 
-                                auto center2_1 = (world2-world1).normalized();
-                                auto convex_angle = center2_1.dot(normal2);
-                                auto convex_angle2 = -center2_1.dot(normal1);
-                                if(convex_angle<-0.2 || convex_angle2<-0.2){
-                                    convex_check += vertices[parent1].count;
-                                    break;
+                        adj_table(idx1,idx2) = 0;
+                        adj_table(idx2,idx1) = 0;
+                    }else{
+                        break;
+                    }
+                }
+            }
+        }
+
+        auto idx_sorted = group_helper::sort_indexes(vertices);
+        for(auto parent2: idx_sorted){
+            auto& v = vertices[parent2];
+            if(v.idx == v.parent){
+                // find adj segments
+                for(size_t child_idx=0;child_idx<v.children.size();child_idx++){
+                    size_t c = v.children[child_idx];
+                    for(size_t x=0; x<unique_id.size(); x++){
+                        if(c != x){
+                            if(adj_table(x, c) > R_seed*400){
+                                int parent1 = group_helper::find(x, vertices);
+                                if(parent2 != parent1){
+                                    int convex_check = 0;
+                                    int convex_thresh = 2;
+                                    for(int i=0; i<vertices[parent1].worlds.size(); i++){
+                                        auto& world1 = vertices[parent1].worlds[i];
+                                        auto& normal1 = vertices[parent1].normals[i];
+                                        for(int j=0; j<vertices[parent2].worlds.size(); j++){
+                                            auto& world2 = vertices[parent2].worlds[j];
+                                            auto& normal2 = vertices[parent2].normals[j];
+
+                                            auto center2_1 = (world2-world1).normalized();
+                                            auto convex_angle = center2_1.dot(normal2);
+                                            auto convex_angle2 = -center2_1.dot(normal1);
+                                            if(convex_angle<-0.2 || convex_angle2<-0.2){
+                                                convex_check += 1;
+                                                if(convex_check>convex_thresh){
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if(convex_check>convex_thresh){
+                                            break;
+                                        }
+                                    }
+                                    if(convex_check<=convex_thresh){
+                                        vertices[parent1].parent = parent2;
+                                        vertices[parent2].worlds.insert(vertices[parent2].worlds.end(),
+                                                                        vertices[parent1].worlds.begin(),
+                                                                        vertices[parent1].worlds.end());
+                                        vertices[parent2].normals.insert(vertices[parent2].normals.end(),
+                                                                        vertices[parent1].normals.begin(),
+                                                                        vertices[parent1].normals.end());
+                                        vertices[parent2].children.insert(vertices[parent2].children.end(),
+                                                                        vertices[parent1].children.begin(),
+                                                                        vertices[parent1].children.end());
+                                        vertices[parent2].count += vertices[parent1].count;
+                                    }
                                 }
+                                adj_table(x, c) = 0;
+                                adj_table(c, x) = 0;
                             }
-                            if(convex_check>convex_thresh){
-                                break;
-                            }
-                        }
-                        if(convex_check<=convex_thresh){
-                            vertices[parent1].parent = parent2;
-                            vertices[parent2].worlds.insert(vertices[parent2].worlds.end(),
-                                                            vertices[parent1].worlds.begin(),
-                                                            vertices[parent1].worlds.end());
-                            vertices[parent2].normals.insert(vertices[parent2].normals.end(),
-                                                            vertices[parent1].normals.begin(),
-                                                            vertices[parent1].normals.end());
-                            vertices[parent2].count += vertices[parent1].count;
                         }
                     }
                 }
             }
         }
 
+
+        std::vector<int> segs_v;
         std::map<int, int> id2new;
-        int newid_size = 0;
         for(int i=0;i<vertices.size();i++){
             auto& v = vertices[i];
-            int parent = group_helper::find(v.idx, vertices);
-            if(parent==v.idx){
-                id2new[v.id] = newid_size;
-                newid_size++;
+            if(v.parent==v.idx){
+                segs_v.push_back(i);
             }
-        }
-        for(int i=0;i<vertices.size();i++){
-            auto& v = vertices[i];
-            int parent = group_helper::find(v.idx, vertices);
-            int newid = id2new.find(vertices[parent].id)->second;
-            id2new[v.id] = newid;
         }
 
         auto group = seg.indices;
+        for(int i=0; i<segs_v.size();i++){
+            for(auto c: vertices[segs_v[i]].children){
+                id2new[vertices[c].id] = i;
+            }
+        }
+
         for(int y=0; y<height; y++) {
             for(int x=0; x<width; x++) {
                 int i0 = group(x,y);

@@ -71,7 +71,7 @@ std::vector<T> unique(const cv::Mat& input, bool sort = false)
 void dataset_test(){
     int train_size = 1000;
     string prefix = "/home/meiqua/6DPose/public/datasets/doumanoglou/test/01/";
-    for(int i=0;i<train_size;i++){
+    for(int i=2;i<train_size;i++){
         auto i_str = to_string(i);
         for(int pad=4-i_str.size();pad>0;pad--){
             i_str = '0'+i_str;
@@ -114,9 +114,9 @@ void dataset_test(){
 }
 
 void simple_test(){
-    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/3/";
-    Mat rgb = cv::imread(prefix+"rgb/0002.png");
-    Mat depth = cv::imread(prefix+"depth/0002.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/1/";
+    Mat rgb = cv::imread(prefix+"rgb/0001.png");
+    Mat depth = cv::imread(prefix+"depth/0001.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
 //    pyrDown(rgb, rgb);
 //    pyrDown(depth, depth);
@@ -158,7 +158,7 @@ void simple_test(){
 }
 
 int main(){
-    dataset_test();
+    simple_test();
     cout << "end" << endl;
     return 0;
 }
