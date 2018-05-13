@@ -441,13 +441,17 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
 
 
         std::vector<int> segs_v;
+        std::vector<int> segs_count;
         std::map<int, int> id2new;
         for(int i=0;i<vertices.size();i++){
             auto& v = vertices[i];
             if(v.parent==v.idx){
                 segs_v.push_back(i);
+                segs_count.push_back(v.count);
             }
         }
+        std::sort(segs_v.begin(), segs_v.end(),
+                  [&segs_count](size_t c1, size_t c2){return segs_count[c1]>segs_count[c2];});
 
         auto group = seg.indices;
         for(int i=0; i<segs_v.size();i++){
