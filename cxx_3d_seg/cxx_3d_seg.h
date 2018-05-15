@@ -11,6 +11,10 @@
 #include <slimage/algorithm.hpp>
 #include <asp/algos.hpp>
 
+#include "super4pcs/algorithms/super4pcs.h"
+#include "super4pcs/io/io.h"
+#include <opencv2/rgbd.hpp>
+
 
 
 #endif

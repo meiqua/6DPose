@@ -447,15 +447,18 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
             auto& v = vertices[i];
             if(v.parent==v.idx){
                 segs_v.push_back(i);
-                segs_count.push_back(v.count);
+                int count = 0;
+                for(auto c: v.children){
+                    count += vertices[c].count;
+                }
+                segs_count.push_back(count);
             }
         }
-        std::sort(segs_v.begin(), segs_v.end(),
-                  [&segs_count](size_t c1, size_t c2){return segs_count[c1]>segs_count[c2];});
+        auto count_sorted = group_helper::sort_indexes(segs_count);
 
         auto group = seg.indices;
-        for(int i=0; i<segs_v.size();i++){
-            for(auto c: vertices[segs_v[i]].children){
+        for(int i=0; i<count_sorted.size();i++){
+            for(auto c: vertices[segs_v[count_sorted[i]]].children){
                 id2new[vertices[c].id] = i;
             }
         }
