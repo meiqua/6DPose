@@ -175,18 +175,26 @@ void super4pcs_test(){
 
     timer.out("grouping");
 
-//    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
-//    auto show_iter = show.begin<Vec3b>();
-//    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
-//        if(*idx_iter==3){
-//            *show_iter = {0, 0, 255};
-//        }
-//    }
-//    imshow("show", show);
-//    imshow("rgb", rgb);
-//    waitKey(0);
+    int test_which = 3;
+    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+    auto show_iter = show.begin<Vec3b>();
+    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
+        if(*idx_iter==test_which){
+            *show_iter = {0, 0, 255};
+        }
+    }
 
-    Mat test_seg = idxs == 3;
+    imshow("rgb", rgb);
+    imshow("show", show);
+
+    waitKey(0);
+
+    timer.reset();
+    Mat test_seg = idxs == test_which;
+
+//    Mat test_seg = imread(prefix+"test_seg.png");
+//    cvtColor(test_seg, test_seg, CV_BGR2GRAY);
+
     Mat test_dep;
     depth.copyTo(test_dep, test_seg);
 
@@ -218,43 +226,46 @@ void super4pcs_test(){
         iom.ReadObject((prefix+"model.ply").c_str(), model_v, tex_coords, model_n, tris, mtls);
     }
 
-    int model_icp_size = 1000;
-    int model_icp_step = model_v.size()/model_icp_size;
-    Eigen::Matrix3Xf model_v_eigen(3, model_v.size());
-    for(int i=0; i<model_v.size(); i+=model_icp_step){
-        model_v_eigen.col(i).x() = model_v[i].x();
-        model_v_eigen.col(i).y() = model_v[i].y();
-        model_v_eigen.col(i).z() = model_v[i].z();
-    }
-
     Eigen::Matrix4f	transformation = Eigen::Matrix4f::Identity();
     float score = 0;
     {
         GlobalRegistration::Match4PCSOptions options;
         options.sample_size = 30;
+        options.max_time_seconds = 3;
         constexpr GlobalRegistration::Utils::LogLevel loglvl = GlobalRegistration::Utils::Verbose;
         GlobalRegistration::Utils::Logger logger(loglvl);
         GlobalRegistration::MatchSuper4PCS matcher(options, logger);
-        score = matcher.ComputeTransformation(model_v, &test_cloud, transformation);
+//        score = matcher.ComputeTransformation(model_v, &test_cloud, transformation);
     }
     std::cout << "final LCP: " << score << std::endl;
     cout << transformation << endl;
     timer.out("super4pcs");
 
+    int model_icp_size = 10000;
+    if(model_icp_size > model_v.size()) model_icp_size = model_v.size();
+    int model_icp_step = model_v.size()/model_icp_size;
+    Eigen::Matrix3Xf model_v_eigen(3, model_icp_size);
+    for(int i=0; i<model_icp_size; i+=1){
+        model_v_eigen.col(i).x() = model_v[i*model_icp_step].x();
+        model_v_eigen.col(i).y() = model_v[i*model_icp_step].y();
+        model_v_eigen.col(i).z() = model_v[i*model_icp_step].z();
+    }
+
     int cloud_icp_size = 100;
+    if(cloud_icp_size > test_cloud.size()) cloud_icp_size = test_cloud.size();
     int cloud_icp_step = test_cloud.size()/cloud_icp_size;
-    Eigen::Matrix3Xf test_cloud_eigen(3, test_cloud.size());
-    for(int i=0; i<test_cloud.size(); i+=cloud_icp_step){
-        test_cloud_eigen.col(i).x() = test_cloud[i].x();
-        test_cloud_eigen.col(i).y() = test_cloud[i].y();
-        test_cloud_eigen.col(i).z() = test_cloud[i].z();
+    Eigen::Matrix3Xf test_cloud_eigen(3, cloud_icp_size);
+    for(int i=0; i<cloud_icp_size; i+=1){
+        test_cloud_eigen.col(i).x() = test_cloud[i*cloud_icp_step].x();
+        test_cloud_eigen.col(i).y() = test_cloud[i*cloud_icp_step].y();
+        test_cloud_eigen.col(i).z() = test_cloud[i*cloud_icp_step].z();
     }
 
     SICP::Parameters pars;
     pars.p = .5;
-    pars.max_icp = 30;
-    pars.print_icpn = true;
-    pars.stop = 1e-2;
+    pars.max_icp = 300;
+    pars.print_icpn = false;
+    pars.stop = 1e-5;
     auto icp_result = SICP::point_to_point(test_cloud_eigen, model_v_eigen, pars);
     cout << icp_result.matrix() << endl;
     timer.out("icp");
