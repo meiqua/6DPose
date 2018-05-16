@@ -1,6 +1,6 @@
 #include "cxx_3d_seg.h"
 #include <chrono>
-#include "ICP.h"
+#include "linemod_icp.h"
 
 using namespace std;
 using namespace cv;
@@ -165,35 +165,35 @@ void super4pcs_test(){
 
     test_helper::Timer timer;
 
-    auto rgb_slimage = slimage::ConvertToSlimage(rgb);
-    auto dep_slimage = slimage::ConvertToSlimage(depth);
-    slimage::Image3ub img_color = slimage::anonymous_cast<unsigned char,3>(rgb_slimage);
-    slimage::Image1ui16 img_depth = slimage::anonymous_cast<uint16_t,1>(dep_slimage);
+//    auto rgb_slimage = slimage::ConvertToSlimage(rgb);
+//    auto dep_slimage = slimage::ConvertToSlimage(depth);
+//    slimage::Image3ub img_color = slimage::anonymous_cast<unsigned char,3>(rgb_slimage);
+//    slimage::Image1ui16 img_depth = slimage::anonymous_cast<uint16_t,1>(dep_slimage);
 
-    auto test_group = asp::DsapGrouping(img_color, img_depth);
-    Mat idxs = slimage::ConvertToOpenCv(test_group);
+//    auto test_group = asp::DsapGrouping(img_color, img_depth);
+//    Mat idxs = slimage::ConvertToOpenCv(test_group);
 
-    timer.out("grouping");
+//    timer.out("grouping");
 
-    int test_which = 3;
-    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
-    auto show_iter = show.begin<Vec3b>();
-    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
-        if(*idx_iter==test_which){
-            *show_iter = {0, 0, 255};
-        }
-    }
+//    int test_which = 3;
+//    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+//    auto show_iter = show.begin<Vec3b>();
+//    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
+//        if(*idx_iter==test_which){
+//            *show_iter = {0, 0, 255};
+//        }
+//    }
 
-    imshow("rgb", rgb);
-    imshow("show", show);
+//    imshow("rgb", rgb);
+//    imshow("show", show);
 
-    waitKey(0);
+//    waitKey(0);
 
-    timer.reset();
-    Mat test_seg = idxs == test_which;
+//    timer.reset();
+//    Mat test_seg = idxs == test_which;
 
-//    Mat test_seg = imread(prefix+"test_seg.png");
-//    cvtColor(test_seg, test_seg, CV_BGR2GRAY);
+    Mat test_seg = imread(prefix+"test_seg.png");
+    cvtColor(test_seg, test_seg, CV_BGR2GRAY);
 
     Mat test_dep;
     depth.copyTo(test_dep, test_seg);
@@ -230,45 +230,73 @@ void super4pcs_test(){
     float score = 0;
     {
         GlobalRegistration::Match4PCSOptions options;
-        options.sample_size = 30;
-        options.max_time_seconds = 3;
+        options.sample_size = 200;
+        options.max_time_seconds = 1;
         constexpr GlobalRegistration::Utils::LogLevel loglvl = GlobalRegistration::Utils::Verbose;
         GlobalRegistration::Utils::Logger logger(loglvl);
         GlobalRegistration::MatchSuper4PCS matcher(options, logger);
-//        score = matcher.ComputeTransformation(model_v, &test_cloud, transformation);
+        score = matcher.ComputeTransformation(model_v, &test_cloud, transformation);
     }
     std::cout << "final LCP: " << score << std::endl;
-    cout << transformation << endl;
+    cout << transformation.inverse() << endl;
     timer.out("super4pcs");
 
     int model_icp_size = 10000;
     if(model_icp_size > model_v.size()) model_icp_size = model_v.size();
     int model_icp_step = model_v.size()/model_icp_size;
-    Eigen::Matrix3Xf model_v_eigen(3, model_icp_size);
+    std::vector<cv::Vec3f> model_v_eigen(model_icp_size);
     for(int i=0; i<model_icp_size; i+=1){
-        model_v_eigen.col(i).x() = model_v[i*model_icp_step].x();
-        model_v_eigen.col(i).y() = model_v[i*model_icp_step].y();
-        model_v_eigen.col(i).z() = model_v[i*model_icp_step].z();
+        model_v_eigen[i](0) = model_v[i*model_icp_step].x();
+        model_v_eigen[i](1) = model_v[i*model_icp_step].y();
+        model_v_eigen[i](2) = model_v[i*model_icp_step].z();
     }
 
-    int cloud_icp_size = 100;
+    int cloud_icp_size = 1000;
     if(cloud_icp_size > test_cloud.size()) cloud_icp_size = test_cloud.size();
     int cloud_icp_step = test_cloud.size()/cloud_icp_size;
-    Eigen::Matrix3Xf test_cloud_eigen(3, cloud_icp_size);
+    std::vector<cv::Vec3f> test_cloud_eigen(cloud_icp_size);
     for(int i=0; i<cloud_icp_size; i+=1){
-        test_cloud_eigen.col(i).x() = test_cloud[i*cloud_icp_step].x();
-        test_cloud_eigen.col(i).y() = test_cloud[i*cloud_icp_step].y();
-        test_cloud_eigen.col(i).z() = test_cloud[i*cloud_icp_step].z();
+        test_cloud_eigen[i](0) = test_cloud[i*cloud_icp_step].x();
+        test_cloud_eigen[i](1) = test_cloud[i*cloud_icp_step].y();
+        test_cloud_eigen[i](2) = test_cloud[i*cloud_icp_step].z();
     }
 
-    SICP::Parameters pars;
-    pars.p = .5;
-    pars.max_icp = 300;
-    pars.print_icpn = false;
-    pars.stop = 1e-5;
-    auto icp_result = SICP::point_to_point(test_cloud_eigen, model_v_eigen, pars);
-    cout << icp_result.matrix() << endl;
+    auto R_real_icp = cv::Matx33f(1,0,0,
+                                  0,1,0,
+                                  0,0,1);
+    auto T_real_icp = cv::Vec3f(0,0,0);
+    float px_ratio_match_inliers = 0.0f;
+    float icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
+                                     T_real_icp, px_ratio_match_inliers, 1);
+
+    icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
+                               T_real_icp, px_ratio_match_inliers, 2);
+
+    icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
+                               T_real_icp, px_ratio_match_inliers, 0);
     timer.out("icp");
+
+    cv::Mat t1(4,4,CV_32FC1,transformation.data());
+    t1 = t1.t();
+
+    cv::Mat t2(4,4,CV_32FC1, cv::Scalar(0));
+    t2.at<float>(0,3) = T_real_icp[0];
+    t2.at<float>(1,3) = T_real_icp[1];
+    t2.at<float>(2,3) = T_real_icp[2];
+    t2.at<float>(3,3) = 1;
+
+    for(int i=0;i<3;i++){
+        for(int j=0;j<3;j++){
+            t2.at<float>(i,j) = R_real_icp(i,j);
+        }
+    }
+
+    auto result = (t2*t1).inv();
+
+    std::cout << "result: " << result << std::endl;
+    std::cout << "icp_dist: " << icp_dist << std::endl;
+    std::cout << "px_ratio_match_inliers: " << px_ratio_match_inliers << std::endl;
+
 
     waitKey(0);
 
