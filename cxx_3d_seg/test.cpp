@@ -66,6 +66,37 @@ std::vector<T> unique(const cv::Mat& input, bool sort = true)
 
     return out;
 }
+
+cv::Mat draw_axis(cv::Mat& rgb, cv::Mat& T, cv::Mat& K){
+    // unit is mm
+    cv::Mat result = rgb;
+    float data[] = {
+                    100, 0,   0,   0,
+                    0,   100, 0,   0,
+                    0,   0,   100, 0,
+                    1,   1,   1,   1
+                    };
+    cv::Mat points = cv::Mat(4,4,CV_32FC1, data);
+
+    float tran[] = {
+                    1,   0,   0,   0,
+                    0,   1,   0,   0,
+                    0,   0,   1,   0,
+                    };
+    cv::Mat tran_mat = cv::Mat(3,4,CV_32FC1, tran);
+
+    cv::Mat p_3d = K*tran_mat*T*points;
+    std::vector<cv::Point2f> p_2d(4);
+    for(int i=0; i<4; i++){
+        p_2d[i].x = p_3d.col(i).at<float>(0,0)/p_3d.col(i).at<float>(2,0);
+        p_2d[i].y = p_3d.col(i).at<float>(1,0)/p_3d.col(i).at<float>(2,0);
+    }
+    cv::line(result, p_2d[0], p_2d[3], cv::Scalar(255, 0, 0), 3);
+    cv::line(result, p_2d[1], p_2d[3], cv::Scalar(0, 255, 0), 3);
+    cv::line(result, p_2d[2], p_2d[3], cv::Scalar(0, 0, 255), 3);
+    return result;
+}
+
 }
 
 void dataset_test(){
@@ -159,8 +190,8 @@ void simple_test(){
 
 void super4pcs_test(){
     string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/2/";
-    Mat rgb = cv::imread(prefix+"rgb/0001.png");
-    Mat depth = cv::imread(prefix+"depth/0001.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    Mat rgb = cv::imread(prefix+"rgb/0000.png");
+    Mat depth = cv::imread(prefix+"depth/0000.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
     test_helper::Timer timer;
 
@@ -174,9 +205,10 @@ void super4pcs_test(){
 
     timer.out("grouping");
 
-    int test_which = 12;
+    int test_which = 4;
     int test_count = 0;
-    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+//    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+    Mat  show = rgb.clone();
     auto show_iter = show.begin<Vec3b>();
     for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
         if(*idx_iter==test_which){
@@ -186,7 +218,7 @@ void super4pcs_test(){
     }
     std::cout << "test_count: " << test_count << std::endl;
 
-    imshow("rgb", rgb);
+//    imshow("rgb", rgb);
     imshow("show", show);
 
     waitKey(0);
@@ -232,7 +264,7 @@ void super4pcs_test(){
     float score = 0;
     {
         GlobalRegistration::Match4PCSOptions options;
-        options.sample_size = 200;
+        options.sample_size = 30;
         options.max_time_seconds = 1;
         constexpr GlobalRegistration::Utils::LogLevel loglvl = GlobalRegistration::Utils::Verbose;
         GlobalRegistration::Utils::Logger logger(loglvl);
@@ -243,7 +275,7 @@ void super4pcs_test(){
     cout << transformation.inverse() << endl;
     timer.out("super4pcs");
 
-    int model_icp_size = 10000;
+    int model_icp_size = 100000;
     if(model_icp_size > model_v.size()) model_icp_size = model_v.size();
     int model_icp_step = model_v.size()/model_icp_size;
     std::vector<cv::Vec3f> model_v_eigen(model_icp_size);
@@ -253,7 +285,7 @@ void super4pcs_test(){
         model_v_eigen[i](2) = model_v[i*model_icp_step].z();
     }
 
-    int cloud_icp_size = 1000;
+    int cloud_icp_size = 10000;
     if(cloud_icp_size > test_cloud.size()) cloud_icp_size = test_cloud.size();
     int cloud_icp_step = test_cloud.size()/cloud_icp_size;
     std::vector<cv::Vec3f> test_cloud_eigen(cloud_icp_size);
@@ -293,7 +325,10 @@ void super4pcs_test(){
         }
     }
 
-    auto result = (t2*t1).inv();
+    cv::Mat result = (t2*t1).inv();
+    cv::Mat result2 = (t1).inv();
+    cv::Mat axis = test_helper::draw_axis(rgb, result2, sceneK);
+    cv::imshow("axis", axis);
 
     std::cout << "result: " << result << std::endl;
     std::cout << "icp_dist: " << icp_dist << std::endl;

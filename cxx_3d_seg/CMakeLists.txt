@@ -12,10 +12,6 @@ set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)
 find_package(OpenCV 3 REQUIRED)
 #message(STATUS "dir='${OpenCV_LIBS}'")
 
-find_package(PythonLibs 3 REQUIRED)
-find_package(pybind11 REQUIRED)
-include(Cmake/FindNumPy.cmake)
-
 find_package( Eigen3 REQUIRED )
 include_directories(${INCLUDE_DIRECTORIES}
     ${EIGEN3_INCLUDE_DIR} )
@@ -39,10 +35,6 @@ include_directories(${INCLUDE_DIRECTORIES}
     ${PYTHON_NUMPY_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR})
 
-set(SOURCE_PYBIND
-    pybind11.cpp
-    np2mat/ndarray_converter.cpp)
-
 set(SOURCE_ASP
 	asp/src/libasp/algos/ASP.cpp
 	asp/src/libasp/algos/DASP.cpp
@@ -62,8 +54,15 @@ set(LIBS
     ${Super4PCS_LIBRARIES}
     )
 
-pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
+
+#find_package(PythonLibs 3 REQUIRED)
+#find_package(pybind11 REQUIRED)
+#include(Cmake/FindNumPy.cmake)
+#set(SOURCE_PYBIND
+#    pybind11.cpp
+#    np2mat/ndarray_converter.cpp)
+#pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
+#target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 
 add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
 target_link_libraries(${PROJECT_NAME}_executable PRIVATE ${LIBS})
