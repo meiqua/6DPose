@@ -46,7 +46,6 @@ set(SOURCE_ASP
 
 set(SOURCE
     ${SOURCE_ASP}
-    linemod_icp.cpp
     cxx_3d_seg.cpp)
 
 set(LIBS

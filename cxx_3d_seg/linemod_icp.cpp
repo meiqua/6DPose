@@ -224,8 +224,12 @@ float icpCloudToCloud(const std::vector<cv::Vec3f> &pts_ref_ori, std::vector<cv:
       cv::Matx33f covariance (0,0,0, 0,0,0, 0,0,0);
       std::vector<cv::Vec3f>::iterator it_s = pts_model.begin();
       std::vector<cv::Vec3f>::const_iterator it_ref = pts_ref.begin();
-      for (; it_s < pts_model.end(); ++it_s, ++it_ref)
-        covariance += (*it_s) * (*it_ref).t();
+
+      for (it_s = pts_model.begin(),it_ref = pts_ref.begin();
+           it_s < pts_model.end(); ++it_s, ++it_ref){
+      covariance += (*it_s) * (*it_ref).t();
+      }
+
 
       cv::Mat w, u, vt;
       cv::SVD::compute(covariance, w, u, vt);

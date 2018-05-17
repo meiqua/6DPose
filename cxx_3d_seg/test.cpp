@@ -205,7 +205,7 @@ void super4pcs_test(){
 
     timer.out("grouping");
 
-    int test_which = 4;
+    int test_which = 3;
     int test_count = 0;
 //    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
     Mat  show = rgb.clone();
@@ -274,65 +274,6 @@ void super4pcs_test(){
     std::cout << "final LCP: " << score << std::endl;
     cout << transformation.inverse() << endl;
     timer.out("super4pcs");
-
-    int model_icp_size = 100000;
-    if(model_icp_size > model_v.size()) model_icp_size = model_v.size();
-    int model_icp_step = model_v.size()/model_icp_size;
-    std::vector<cv::Vec3f> model_v_eigen(model_icp_size);
-    for(int i=0; i<model_icp_size; i+=1){
-        model_v_eigen[i](0) = model_v[i*model_icp_step].x();
-        model_v_eigen[i](1) = model_v[i*model_icp_step].y();
-        model_v_eigen[i](2) = model_v[i*model_icp_step].z();
-    }
-
-    int cloud_icp_size = 10000;
-    if(cloud_icp_size > test_cloud.size()) cloud_icp_size = test_cloud.size();
-    int cloud_icp_step = test_cloud.size()/cloud_icp_size;
-    std::vector<cv::Vec3f> test_cloud_eigen(cloud_icp_size);
-    for(int i=0; i<cloud_icp_size; i+=1){
-        test_cloud_eigen[i](0) = test_cloud[i*cloud_icp_step].x();
-        test_cloud_eigen[i](1) = test_cloud[i*cloud_icp_step].y();
-        test_cloud_eigen[i](2) = test_cloud[i*cloud_icp_step].z();
-    }
-
-    auto R_real_icp = cv::Matx33f(1,0,0,
-                                  0,1,0,
-                                  0,0,1);
-    auto T_real_icp = cv::Vec3f(0,0,0);
-    float px_ratio_match_inliers = 0.0f;
-    float icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
-                                     T_real_icp, px_ratio_match_inliers, 1);
-
-    icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
-                               T_real_icp, px_ratio_match_inliers, 2);
-
-    icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
-                               T_real_icp, px_ratio_match_inliers, 0);
-    timer.out("icp");
-
-    cv::Mat t1(4,4,CV_32FC1,transformation.data());
-    t1 = t1.t();
-
-    cv::Mat t2(4,4,CV_32FC1, cv::Scalar(0));
-    t2.at<float>(0,3) = T_real_icp[0];
-    t2.at<float>(1,3) = T_real_icp[1];
-    t2.at<float>(2,3) = T_real_icp[2];
-    t2.at<float>(3,3) = 1;
-
-    for(int i=0;i<3;i++){
-        for(int j=0;j<3;j++){
-            t2.at<float>(i,j) = R_real_icp(i,j);
-        }
-    }
-
-    cv::Mat result = (t2*t1).inv();
-    cv::Mat result2 = (t1).inv();
-    cv::Mat axis = test_helper::draw_axis(rgb, result2, sceneK);
-    cv::imshow("axis", axis);
-
-    std::cout << "result: " << result << std::endl;
-    std::cout << "icp_dist: " << icp_dist << std::endl;
-    std::cout << "px_ratio_match_inliers: " << px_ratio_match_inliers << std::endl;
 
     waitKey(0);
 }

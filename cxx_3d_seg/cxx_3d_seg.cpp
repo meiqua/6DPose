@@ -27,9 +27,7 @@ cv::Mat depth2cloud(cv::Mat &depth, cv::Mat &mask, cv::Mat &sceneK)
 }
 
 cv::Mat pose_estimation(cv::Mat &sceneCloud, std::string ply_model,
-                        float LCP_thresh, float ICP_thresh,
-                        bool use_pcs, int pcs_seconds, bool use_icp,
-                        int cloud_icp_size, int model_icp_size)
+                        float LCP_thresh, int pcs_seconds)
 {
     cv::Mat result;
 
@@ -57,7 +55,7 @@ cv::Mat pose_estimation(cv::Mat &sceneCloud, std::string ply_model,
 
     Eigen::Matrix4f	transformation = Eigen::Matrix4f::Identity();
     float score = 0;
-    if(use_pcs){
+    {
         GlobalRegistration::Match4PCSOptions options;
         options.sample_size = 30;
         options.max_time_seconds = pcs_seconds;
@@ -70,71 +68,7 @@ cv::Mat pose_estimation(cv::Mat &sceneCloud, std::string ply_model,
     cv::Mat t1(4,4,CV_32FC1,transformation.data());
     t1 = t1.t();
 
-    cv::Mat t2 = cv::Mat::eye(4,4,CV_32FC1);
-    float icp_dist;
-    if(use_icp){
-        if(model_icp_size > model_v.size()) model_icp_size = model_v.size();
-        int model_icp_step = model_v.size()/model_icp_size;
-        std::vector<cv::Vec3f> model_v_eigen(model_icp_size);
-        for(int i=0; i<model_icp_size; i+=1){
-            model_v_eigen[i](0) = model_v[i*model_icp_step].x();
-            model_v_eigen[i](1) = model_v[i*model_icp_step].y();
-            model_v_eigen[i](2) = model_v[i*model_icp_step].z();
-        }
+    if(score > LCP_thresh) return t1;
 
-        if(cloud_icp_size > test_cloud.size()) cloud_icp_size = test_cloud.size();
-        int cloud_icp_step = test_cloud.size()/cloud_icp_size;
-        std::vector<cv::Vec3f> test_cloud_eigen(cloud_icp_size);
-        for(int i=0; i<cloud_icp_size; i+=1){
-            test_cloud_eigen[i](0) = test_cloud[i*cloud_icp_step].x();
-            test_cloud_eigen[i](1) = test_cloud[i*cloud_icp_step].y();
-            test_cloud_eigen[i](2) = test_cloud[i*cloud_icp_step].z();
-        }
-
-        auto R_real_icp = cv::Matx33f(1,0,0,
-                                      0,1,0,
-                                      0,0,1);
-        auto T_real_icp = cv::Vec3f(0,0,0);
-        float px_ratio_match_inliers = 0.0f;
-        icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
-                                         T_real_icp, px_ratio_match_inliers, 1);
-
-        icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
-                                   T_real_icp, px_ratio_match_inliers, 2);
-
-        icp_dist = icpCloudToCloud(model_v_eigen, test_cloud_eigen, R_real_icp,
-                                   T_real_icp, px_ratio_match_inliers, 0);
-
-        t2.at<float>(0,3) = T_real_icp[0];
-        t2.at<float>(1,3) = T_real_icp[1];
-        t2.at<float>(2,3) = T_real_icp[2];
-        t2.at<float>(3,3) = 1;
-
-        for(int i=0;i<3;i++){
-            for(int j=0;j<3;j++){
-                t2.at<float>(i,j) = R_real_icp(i,j);
-            }
-        }
-    }
-    if(use_pcs){
-        if(score > LCP_thresh){
-            if(use_icp){
-                if(icp_dist<ICP_thresh){
-                    result = (t2*t1).inv();
-                    return result;
-                }
-            }else {
-                result = (t2*t1).inv();
-                return result;
-            }
-        }
-    }else{
-        if(use_icp){
-            if(icp_dist<ICP_thresh){
-                result = (t2*t1).inv();
-                return result;
-            }
-        }
-    }
     return cv::Mat::zeros(4,4,CV_32FC1);
 }
