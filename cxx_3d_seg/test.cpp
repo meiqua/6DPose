@@ -1,6 +1,5 @@
 #include "cxx_3d_seg.h"
 #include <chrono>
-#include "linemod_icp.h"
 
 using namespace std;
 using namespace cv;
@@ -165,35 +164,38 @@ void super4pcs_test(){
 
     test_helper::Timer timer;
 
-//    auto rgb_slimage = slimage::ConvertToSlimage(rgb);
-//    auto dep_slimage = slimage::ConvertToSlimage(depth);
-//    slimage::Image3ub img_color = slimage::anonymous_cast<unsigned char,3>(rgb_slimage);
-//    slimage::Image1ui16 img_depth = slimage::anonymous_cast<uint16_t,1>(dep_slimage);
+    auto rgb_slimage = slimage::ConvertToSlimage(rgb);
+    auto dep_slimage = slimage::ConvertToSlimage(depth);
+    slimage::Image3ub img_color = slimage::anonymous_cast<unsigned char,3>(rgb_slimage);
+    slimage::Image1ui16 img_depth = slimage::anonymous_cast<uint16_t,1>(dep_slimage);
 
-//    auto test_group = asp::DsapGrouping(img_color, img_depth);
-//    Mat idxs = slimage::ConvertToOpenCv(test_group);
+    auto test_group = asp::DsapGrouping(img_color, img_depth);
+    Mat idxs = slimage::ConvertToOpenCv(test_group);
 
-//    timer.out("grouping");
+    timer.out("grouping");
 
-//    int test_which = 3;
-//    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
-//    auto show_iter = show.begin<Vec3b>();
-//    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
-//        if(*idx_iter==test_which){
-//            *show_iter = {0, 0, 255};
-//        }
-//    }
+    int test_which = 12;
+    int test_count = 0;
+    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+    auto show_iter = show.begin<Vec3b>();
+    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
+        if(*idx_iter==test_which){
+            *show_iter = {0, 0, 255};
+            test_count ++;
+        }
+    }
+    std::cout << "test_count: " << test_count << std::endl;
 
-//    imshow("rgb", rgb);
-//    imshow("show", show);
+    imshow("rgb", rgb);
+    imshow("show", show);
 
-//    waitKey(0);
+    waitKey(0);
 
-//    timer.reset();
-//    Mat test_seg = idxs == test_which;
+    timer.reset();
+    Mat test_seg = idxs == test_which;
 
-    Mat test_seg = imread(prefix+"test_seg.png");
-    cvtColor(test_seg, test_seg, CV_BGR2GRAY);
+//    Mat test_seg = imread(prefix+"test_seg.png");
+//    cvtColor(test_seg, test_seg, CV_BGR2GRAY);
 
     Mat test_dep;
     depth.copyTo(test_dep, test_seg);
@@ -297,9 +299,7 @@ void super4pcs_test(){
     std::cout << "icp_dist: " << icp_dist << std::endl;
     std::cout << "px_ratio_match_inliers: " << px_ratio_match_inliers << std::endl;
 
-
     waitKey(0);
-
 }
 
 int main(){

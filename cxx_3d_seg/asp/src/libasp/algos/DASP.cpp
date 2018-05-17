@@ -244,6 +244,7 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
 	}
 
     slimage::Image<int,1> DsapGrouping(const slimage::Image3ub& img_rgb, const slimage::Image1ui16& img_d, const DaspParameters& opt_in){
+
         auto seg = SuperpixelsDasp(img_rgb, img_d, opt_in);
         auto R_seed = opt_in.radius;
 
