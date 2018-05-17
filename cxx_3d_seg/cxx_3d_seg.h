@@ -21,8 +21,8 @@ cv::Mat convex_cloud_seg(cv::Mat& rgb, cv::Mat& depth, cv::Mat& sceneK);
 cv::Mat depth2cloud(cv::Mat& depth, cv::Mat& mask, cv::Mat& sceneK);
 
 cv::Mat pose_estimation(cv::Mat& cloud, std::string ply_model,
-                        float LCP_thresh = 0.2, float ICP_thresh = 100,
+                        float LCP_thresh = 0.5, float ICP_thresh = 100,
                         bool use_pcs = true, int pcs_seconds=1,
-                        bool use_icp = true, int cloud_icp_size = 1000, int model_icp_size = 10000);
+                        bool use_icp = false, int cloud_icp_size = 1000, int model_icp_size = 10000);
 
 #endif
