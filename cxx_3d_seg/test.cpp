@@ -1,6 +1,9 @@
 #include "cxx_3d_seg.h"
 #include <chrono>
 
+#include "opencv2/surface_matching.hpp"
+#include "opencv2/surface_matching/ppf_helpers.hpp"
+#include "opencv2/core/utility.hpp"
 using namespace std;
 using namespace cv;
 // for test
@@ -278,10 +281,114 @@ void super4pcs_test(){
     waitKey(0);
 }
 
+void ppf_test(){
+    using namespace ppf_match_3d;
+    string prefix = "/home/meiqua/6DPose/cxx_3d_seg/test/2/";
+    Mat rgb = cv::imread(prefix+"rgb/0000.png");
+    Mat depth = cv::imread(prefix+"depth/0000.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+
+    test_helper::Timer timer;
+
+    auto rgb_slimage = slimage::ConvertToSlimage(rgb);
+    auto dep_slimage = slimage::ConvertToSlimage(depth);
+    slimage::Image3ub img_color = slimage::anonymous_cast<unsigned char,3>(rgb_slimage);
+    slimage::Image1ui16 img_depth = slimage::anonymous_cast<uint16_t,1>(dep_slimage);
+
+    auto test_group = asp::DsapGrouping(img_color, img_depth);
+    Mat idxs = slimage::ConvertToOpenCv(test_group);
+
+    timer.out("grouping");
+
+    int test_which = 3;
+    int test_count = 0;
+//    Mat show = Mat(idxs.size(), CV_8UC3, Scalar(0));
+    Mat  show = rgb.clone();
+    auto show_iter = show.begin<Vec3b>();
+    for(auto idx_iter = idxs.begin<int>(); idx_iter<idxs.end<int>();idx_iter++, show_iter++){
+        if(*idx_iter==test_which){
+            *show_iter = {0, 0, 255};
+            test_count ++;
+        }
+    }
+    std::cout << "test_count: " << test_count << std::endl;
+
+//    imshow("rgb", rgb);
+    imshow("show", show);
+
+    waitKey(0);
+
+
+    Mat test_seg = idxs == test_which;
+
+//    Mat test_seg = imread(prefix+"test_seg.png");
+//    cvtColor(test_seg, test_seg, CV_BGR2GRAY);
+
+    Mat test_dep;
+    depth.copyTo(test_dep, test_seg);
+
+    Mat sceneK = (Mat_<float>(3,3)
+                  << 550.0, 0.0, 316.0, 0.0, 540.0, 244.0, 0.0, 0.0, 1.0);
+    cv::Mat sceneCloud;
+    cv::rgbd::depthTo3d(test_dep, sceneK, sceneCloud);
+
+    int valid_cloud_count = 0;
+    for(auto iter = sceneCloud.begin<cv::Vec3f>();
+        iter!=sceneCloud.end<cv::Vec3f>(); iter++){
+        if(cv::checkRange(*iter)){
+            valid_cloud_count++;
+        }
+    }
+    cv::Mat sceneCloud_ = cv::Mat(valid_cloud_count, 3, CV_32FC1);
+    valid_cloud_count = 0;
+    for(auto iter = sceneCloud.begin<cv::Vec3f>();
+        iter!=sceneCloud.end<cv::Vec3f>(); iter++){
+        if(cv::checkRange(*iter)){
+            sceneCloud_.row(valid_cloud_count) = (*iter)/1000;
+            valid_cloud_count++;
+        }
+    }
+
+    timer.reset();
+    cv::Mat cloud_with_normal;
+    cv::ppf_match_3d::computeNormalsPC3d(sceneCloud_, cloud_with_normal, 20, false, {0,0,1});
+
+    cv::Mat model_cloud = loadPLYSimple((prefix+"model.ply").c_str(), 1);
+
+    timer.out("ppf train start");
+    ppf_match_3d::PPF3DDetector detector(0.025, 0.05);
+    detector.trainModel(model_cloud);
+    timer.out("ppf train");
+
+    vector<Pose3DPtr> results;
+    detector.match(cloud_with_normal, results, 1.0/40.0, 0.05);
+    timer.out("ppf match");
+
+    // Get only first N results
+    int N = 2;
+    vector<Pose3DPtr> resultsSub(results.begin(),results.begin()+N);
+
+    // Create an instance of ICP
+    ICP icp(100, 0.005f, 2.5f, 8);
+    // Register for all selected poses
+    cout << endl << "Performing ICP on " << N << " poses..." << endl;
+    icp.registerModelToScene(model_cloud, cloud_with_normal, resultsSub);
+    timer.out("icp");
+
+    for (size_t i=0; i<resultsSub.size(); i++)
+    {
+        Pose3DPtr result = resultsSub[i];
+        cout << "Pose Result " << i << endl;
+        result->printPose();
+    }
+
+//    Mat pc = loadPLYSimple(modelFileName.c_str(), 1);
+}
+
 int main(){
 //    simple_test();
 //    dataset_test();
     super4pcs_test();
+//    ppf_test();
     cout << "end" << endl;
     return 0;
 }
