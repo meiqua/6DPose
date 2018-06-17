@@ -40,9 +40,9 @@ cmake ..
 make  
 
 in 6dpose folder, if use pybind:  
-pip install target_folder/  
+pip3 install target_folder/  
 
-python target.py
+python3 target.py
 
 ## linemod
 
