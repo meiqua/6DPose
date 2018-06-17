@@ -64,7 +64,8 @@ run linemod with ros for real test, not done yet
 - [ ] icp for pose refine
 - [ ] train and test  
 
-[Chinese blog](https://zhuanlan.zhihu.com/p/35710562)  
+[Chinese blog 0](https://zhuanlan.zhihu.com/p/35710562)  
+[Chinese blog 1](https://zhuanlan.zhihu.com/p/35740328)  
 
 ## 3d convex segmentation
 
