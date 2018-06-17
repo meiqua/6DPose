@@ -31,6 +31,19 @@ wget -r -np -nH --cut-dirs=1 -R index.html http://ptak.felk.cvut.cz/6DB/public/
 install opencv3 with contrib rgbd module  
 install pybind11  
 
+### steps
+
+in target folder:  
+mkdir build  
+cd build/  
+cmake ..  
+make  
+
+in 6dpose folder, if use pybind:  
+pip install target_folder/  
+
+python target.py
+
 ## linemod
 
 Codes in linemod.py will train and detect objects in downloaded dataset.  
