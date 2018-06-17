@@ -68,7 +68,7 @@ run linemod with ros for real test, not done yet
 
 ## 3d convex segmentation
 
-segment 3d cloud to convex part, not done yet  
+segment 3d cloud to convex part, core func have been done, try to deploy now  
 
 [separated repo for deployment](https://github.com/meiqua/binPicking_3dseg)  
 
