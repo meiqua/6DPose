@@ -181,7 +181,7 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
 		const DaspParameters opt = opt_in; // use local copy for higher performance
 		const unsigned width = img_rgb.width();
 		const unsigned height = img_d.height();
-		const Eigen::Vector2f cam_center = 0.5f * Eigen::Vector2f{ static_cast<float>(width), static_cast<float>(height) };
+        const Eigen::Vector2f cam_center = Eigen::Vector2f{ static_cast<float>(opt.cx), static_cast<float>(opt.cy) };
 
 		slimage::Image<Pixel<PixelRgbd>,1> img_data{width, height};
 		for(unsigned y=0, i=0; y<height; y++) {
@@ -243,14 +243,31 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
 		return sp;
 	}
 
-    slimage::Image<int,1> DsapGrouping(const slimage::Image3ub& img_rgb, const slimage::Image1ui16& img_d, const DaspParameters& opt_in){
+    slimage::Image<int,1> DsapGrouping(const slimage::Image3ub& img_rgb,
+                                       const slimage::Image1ui16& img_d,
+                                       const DaspParameters& opt_in,
+                                       slimage::Image3f& sli_world,
+                                       slimage::Image3f& sli_normal){
 
         auto seg = SuperpixelsDasp(img_rgb, img_d, opt_in);
-        auto R_seed = opt_in.radius;
 
+        auto R_seed = opt_in.radius;
         auto& indices = seg.indices;
         const auto width = indices.width();
         const auto height = indices.height();
+
+        sli_world.resize(width, height);
+        sli_normal.resize(width, height);
+        for(int y=0; y<height; y++) {
+            for(int x=0; x<width; x++) {
+                auto pixel = seg.input(x,y);
+
+                for(int i=0; i<3; i++){
+                    sli_world(x,y)[i] = pixel.data.world(i);
+                    sli_normal(x,y)[i] = pixel.data.normal(i);
+                }
+            }
+        }
 
         std::vector<int> unique_id;
         for(int y=0; y<height; y++) {
@@ -328,11 +345,11 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
                     bool isConvex = true;
                     auto convex_angle = center1_2.normalized().dot(normal1);
                     auto convex_angle2 = -center1_2.normalized().dot(normal2);
-                    if(convex_angle<-0.2 || convex_angle2<-0.2){
+                    if(convex_angle<-0.2f || convex_angle2<-0.2f){
                         isConvex = false;
                     }
-                    double weight =(1-std::abs(normal1.dot(normal2)));
-                    if(!isConvex || center1_2.norm()/R_seed>2){
+                    float weight =(1-std::abs(normal1.dot(normal2)));
+                    if(!isConvex || center1_2.norm()/R_seed>3){
                         continue;  // don't want the edge
                     }
                     edge.weight = weight;
@@ -358,7 +375,7 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
                 }
                 if(edge.count>R_seed*400){
                     // plane grouping
-                    if(edge.weight<0.04)
+                    if(edge.weight<0.02)
                     {
                         vertices[parent1].parent = parent2;
 
@@ -395,7 +412,7 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
                                 int parent1 = group_helper::find(x, vertices);
                                 if(parent2 != parent1){
                                     int convex_check = 0;
-                                    int convex_thresh = 2;
+                                    int convex_thresh = 1;
                                     for(int i=0; i<vertices[parent1].worlds.size(); i++){
                                         auto& world1 = vertices[parent1].worlds[i];
                                         auto& normal1 = vertices[parent1].normals[i];
@@ -406,7 +423,7 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v) {
                                             auto center2_1 = (world2-world1).normalized();
                                             auto convex_angle = center2_1.dot(normal2);
                                             auto convex_angle2 = -center2_1.dot(normal1);
-                                            if(convex_angle<-0.2 || convex_angle2<-0.2){
+                                            if(convex_angle<-0.1f || convex_angle2<-0.1f){
                                                 convex_check += 1;
                                                 if(convex_check>convex_thresh){
                                                     break;

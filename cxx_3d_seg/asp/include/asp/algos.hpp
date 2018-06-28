@@ -97,18 +97,20 @@ namespace asp
 	{
 		// focal length in pixel of the camera (used to compute correct 3D points)
 		float focal_px = 545.0f;
+        float cx = 320;
+        float cy = 240;
 
 		// factor for converting Primesense depth values to meters 
 		float depth_to_z = 0.001f;
 
 		// 3D radius of superpixels in meters
-		float radius = 0.02f;
+        float radius = 0.015f;
 
 		// if num_superpixels is greater 0, superpixel density is scaled by a constant factor to give the desired number of superpixels
 		unsigned num_superpixels = 0;
 
 		// tradeoff between 3D compact superpixels (compactness=1) and boundary recall (compactness=0)
-		float compactness = 0.5f;
+        float compactness = 0.8f;
 
 		// tradeoff between using color (normal_weight=0) and normals (normal_weight=1) as data term in the distance function
 		float normal_weight = 1.0f;
@@ -116,5 +118,9 @@ namespace asp
 
 	/** Depth-Adaptive Superpixels for RGB-D images */
 	Segmentation<PixelRgbd> SuperpixelsDasp(const slimage::Image3ub& color, const slimage::Image1ui16& depth, const DaspParameters& opt=DaspParameters());
-        slimage::Image<int,1> DsapGrouping(const slimage::Image3ub& color, const slimage::Image1ui16& depth, const DaspParameters& opt=DaspParameters());
+        slimage::Image<int,1> DsapGrouping(const slimage::Image3ub& color,
+                                           const slimage::Image1ui16& depth,
+                                           const DaspParameters& opt,
+                                           slimage::Image3f& sli_world,
+                                           slimage::Image3f& sli_normal);
 }

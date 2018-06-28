@@ -83,9 +83,9 @@ def nms(dets, thresh):
 def receiveRGBD(rgb_, depth_):
     global lock, rgb, depth
     if not lock:
-        lock = True
         rgb = bridge.imgmsg_to_cv2(rgb_.data, "rgb8")
         depth = bridge.imgmsg_to_cv2(depth_.data, "mono16")
+        lock = True
 
 
 def match():
@@ -148,22 +148,14 @@ def publishResults(results):
     print('line for debug')
 
 
-def getK(info, subscriber):
-    #do processing here to get K_cam
-    global K_cam
-    K_cam = np.zeros(shape=(3,3))
-    for i in range(9):
-        K_cam[i % 3, i - (i % 3) * 3] = info.K[i]
-
-    subscriber.unregister()
-
 if __name__ == '__main__':
     rospy.init_node('linemod_detection')
+
     # get K from cam_info topic
-    sub_once = None
-    sub_once = rospy.Subscriber('color/camera_info', CameraInfo, getK, sub_once)
-    while not K_cam:
-        pass
+    cam_info = rospy.wait_for_message("camera/info", CameraInfo)
+    global K_cam
+    K_cam = cam_info.K
+    K_cam = np.reshape(K_cam, (3,3))
 
     rgb_sub = message_filters.Subscriber('/camera/color/image_raw', Image, queue_size=2)
     depth_sub = message_filters.Subscriber('/camera/depth/image_raw', Image, queue_size=2)
