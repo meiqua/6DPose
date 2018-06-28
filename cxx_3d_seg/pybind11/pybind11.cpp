@@ -8,7 +8,7 @@ PYBIND11_MODULE(cxx_3d_seg_pybind, m) {
     
     py::class_<cxx_3d_seg::convex_result>(m, "convex_result")
         .def("getIndices", &cxx_3d_seg::convex_result::getIndices)
-        .def("getWorld", &cxx_3d_seg::convex_result::getWorld)
+        .def("getCloud", &cxx_3d_seg::convex_result::getCloud)
         .def("getNormal", &cxx_3d_seg::convex_result::getNormal);
 
     m.def("convex_cloud_seg", &cxx_3d_seg::convex_cloud_seg, "all in float32");

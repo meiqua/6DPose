@@ -91,9 +91,12 @@ for scene_id in scene_ids_curr:
         match_ids.append('{:02d}_template'.format(scene_id))
         start_time = time.time()
 
-        seg_result = cxx_3d_seg.convex_cloud_seg(rgb, depth, K.astype(np.float32))
-        seg_mask = seg_result == 3
-        seg_test_cloud = cxx_3d_seg.depth2cloud(depth, seg_mask.astype(np.uint8), K.astype(np.float32))
+        result = cxx_3d_seg.convex_cloud_seg(rgb, depth, K.astype(np.float32))
+        indices = result.getIndices()
+        cloud = result.getCloud()
+        normal = result.getNormal()
+        seg_mask = indices == 3
+        seg_test_cloud = cloud[seg_mask>0]
 
         test_pose = cxx_3d_seg.pose_estimation(seg_test_cloud, model_path)
 

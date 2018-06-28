@@ -18,7 +18,7 @@ namespace cxx_3d_seg {
 
 struct convex_result {
     const cv::Mat &getIndices() const { return indices;}
-    const cv::Mat &getWorld() const { return world;}
+    const cv::Mat &getCloud() const { return world;}
     const cv::Mat &getNormal() const { return normal;}
     cv::Mat indices;
     cv::Mat world;
