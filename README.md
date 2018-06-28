@@ -83,7 +83,12 @@ run linemod with ros for real test, not done yet
 ## 3d convex segmentation
 
 segment 3d cloud to convex part, core func have been done, try to deploy now  
-
+ 
+NOTE: pybind11 can't be built with static super4pcs. Add one line to 
+super4pcs CMakeLists to make it shared:  
+```
+OPTION (BUILD_SHARED_LIBS "set shared libs as default" TRUE)
+```
 [separated repo for deployment](https://github.com/meiqua/binPicking_3dseg)  
 
 [Chinese blog](https://zhuanlan.zhihu.com/p/36419676)
