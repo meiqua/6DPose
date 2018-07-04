@@ -7,6 +7,7 @@ PYBIND11_MODULE(cxx_3d_seg_pybind, m) {
     NDArrayConverter::init_numpy();
     
     py::class_<cxx_3d_seg::convex_result>(m, "convex_result")
+        .def(py::init<>())
         .def("getIndices", &cxx_3d_seg::convex_result::getIndices)
         .def("getCloud", &cxx_3d_seg::convex_result::getCloud)
         .def("getNormal", &cxx_3d_seg::convex_result::getNormal);
