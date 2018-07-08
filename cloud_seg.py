@@ -2,7 +2,8 @@ import os
 import sys
 import time
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
+# sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import cv2
 import math
 from pysixd import view_sampler, inout, misc
@@ -10,7 +11,7 @@ from pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
 
-import cxx_3d_seg
+import cxx_3d_seg_pybind
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -91,14 +92,18 @@ for scene_id in scene_ids_curr:
         match_ids.append('{:02d}_template'.format(scene_id))
         start_time = time.time()
 
-        result = cxx_3d_seg.convex_cloud_seg(rgb, depth, K.astype(np.float32))
+        # result = cxx_3d_seg.convex_cloud_seg(rgb, depth, K.astype(np.float32))
+        result = cxx_3d_seg_pybind.convex_cloud_seg(rgb, depth, K.astype(np.float32))
         indices = result.getIndices()
         cloud = result.getCloud()
         normal = result.getNormal()
-        seg_mask = indices == 3
-        seg_test_cloud = cloud[seg_mask>0]
 
-        test_pose = cxx_3d_seg.pose_estimation(seg_test_cloud, model_path)
+        # just test one seg result, may break because it's not guaranteed as an object mask
+        seg_mask = (indices == 3)
+        seg_test_cloud = np.zeros_like(cloud)
+        seg_test_cloud[seg_mask] = cloud[seg_mask]
+
+        test_pose = cxx_3d_seg_pybind.pose_estimation(seg_test_cloud, model_path)
 
         render_R = test_pose[0:3, 0:3]
         render_t = test_pose[0:3, 3:4]
@@ -120,11 +125,11 @@ for scene_id in scene_ids_curr:
         visual = True
         # visual = False
         if visual:
-            cv2.namedWindow('rgb_render')
-            cv2.imshow('rgb_render', render_rgb)
             cv2.namedWindow('rgb')
             cv2.imshow('rgb', rgb)
-            cv2.waitKey(2000)
+            cv2.namedWindow('rgb_render')
+            cv2.imshow('rgb_render', render_rgb)
+            cv2.waitKey(0)
 
         gt_ids_curr = range(len(scene_gt[im_id]))
         if gt_ids:

@@ -31,6 +31,8 @@ wget -r -np -nH --cut-dirs=1 -R index.html http://ptak.felk.cvut.cz/6DB/public/
 install opencv3 with contrib rgbd module  
 install pybind11  
 
+pip3 install -r requirements.txt
+
 ### steps
 
 in target folder:  
@@ -83,6 +85,8 @@ run linemod with ros for real test, not done yet
 ## 3d convex segmentation
 
 segment 3d cloud to convex part, core func have been done, try to deploy now  
+### result of cloud_seg.py
+![cloud](./cxx_3d_seg/test/cloud_seg.png)
  
 NOTE: pybind11 can't be built with static super4pcs. Add one line to 
 super4pcs CMakeLists to make it shared:  

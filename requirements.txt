@@ -1,0 +1,8 @@
+scipy
+matplotlib
+opencv-python
+pypng
+ruamel.yaml
+Cython
+glumpy
+pyopengl
