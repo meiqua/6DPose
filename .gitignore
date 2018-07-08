@@ -1,5 +1,6 @@
 .idea/
 public/
+.vscode/
 
 linemodLevelup/build/
 linemodLevelup/CMakeLists.txt.user
