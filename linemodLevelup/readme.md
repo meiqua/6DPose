@@ -32,3 +32,7 @@ about 1000mm in scene. As is expected, our ori detector fails:
 As we can see, the template is trained from 600mm. We use histogram + 1D nms to
 find possible depth in scene, in this case we find 5 possible depths, and
 successfully, 1000mm is one of them. Matching time is about 60ms now.  
+
+todo: more than 64 features. need to modify
+similarity(local), and addSimilarities(delete 8u 8u), and distinguish them
+because use 16 sse may be slower than 8 sse
