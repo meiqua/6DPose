@@ -97,7 +97,7 @@ protected:
    * \param[in]  num_features Number of candidates to select.
    * \param[in]  distance     Hint for desired distance between features.
    */
-  static void selectScatteredFeatures(const std::vector<Candidate>& candidates,
+  static bool selectScatteredFeatures(const std::vector<Candidate>& candidates,
                                       std::vector<Feature>& features,
                                       size_t num_features, float distance);
 };
@@ -270,6 +270,7 @@ public:
   Detector();
 
   Detector(std::vector<int> T);
+  Detector(int num_features, std::vector<int> T);
 
   /**
    * \brief Constructor.

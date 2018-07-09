@@ -127,32 +127,6 @@ Mat poseRefine::getT()
 }
 
 namespace linemodLevelup {
-
-// for test
-std::string type2str(int type) {
-  std::string r;
-
-  uchar depth = type & CV_MAT_DEPTH_MASK;
-  uchar chans = 1 + (type >> CV_CN_SHIFT);
-
-  switch ( depth ) {
-    case CV_8U:  r = "8U"; break;
-    case CV_8S:  r = "8S"; break;
-    case CV_16U: r = "16U"; break;
-    case CV_16S: r = "16S"; break;
-    case CV_32S: r = "32S"; break;
-    case CV_32F: r = "32F"; break;
-    case CV_64F: r = "64F"; break;
-    default:     r = "User"; break;
-  }
-
-  r += "C";
-  r += (chans+'0');
-
-  return r;
-}
-
-
 /**
  * \brief Get the label [0,8) of the single bit set in quantized.
  */
@@ -259,7 +233,7 @@ static Rect cropTemplates(std::vector<Template>& templates)
   return Rect(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
-void QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate>& candidates,
+bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate>& candidates,
                                                std::vector<Feature>& features,
                                                size_t num_features, float distance)
 {
@@ -286,7 +260,17 @@ void QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate>& can
       i = 0;
       distance -= 1.0f;
       distance_sq = distance * distance;
+//      if(distance<3){
+//          // we don't want two features too close
+//          break;
+//      }
     }
+  }
+  if(features.size() == num_features){
+      return true;
+  }else{
+      std::cout << "this templ has no enough features" << std::endl;
+      return false;
   }
 }
 
@@ -299,10 +283,6 @@ Ptr<Modality> Modality::create(const std::string& modality_type)
   else
     return Ptr<Modality>();
 }
-
-// Forward declaration
-void hysteresisGradient(Mat& magnitude, Mat& angle,
-                        Mat& ap_tmp, float threshold);
 
 /****************************************************************************************\
 *                             Color gradient modality                                    *
@@ -607,7 +587,9 @@ bool ColorGradientPyramid::extractTemplate(Template& templ) const
 
   // Use heuristic based on surplus of candidates in narrow outline for initial distance threshold
   float distance = static_cast<float>(candidates.size() / num_features + 1);
-  selectScatteredFeatures(candidates, templ.features, num_features, distance);
+  if(!selectScatteredFeatures(candidates, templ.features, num_features, distance)){
+      return false;
+  }
 
   // Size determined externally, needs to match templates for other modalities
   templ.width = -1;
@@ -1263,6 +1245,172 @@ static void similarity(const std::vector<Mat>& linear_memories, const Template& 
   // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
   // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
   // general function would use _mm_add_epi16.
+  CV_Assert(templ.features.size() <= 8191);
+  /// @todo Handle more than 255/MAX_RESPONSE features!!
+
+  // Decimate input image size by factor of T
+  int W = size.width / T;
+  int H = size.height / T;
+
+  // Feature dimensions, decimated by factor T and rounded up
+  int wf = (templ.width - 1) / T + 1;
+  int hf = (templ.height - 1) / T + 1;
+
+  // Span is the range over which we can shift the template around the input image
+  int span_x = W - wf;
+  int span_y = H - hf;
+
+  // Compute number of contiguous (in memory) pixels to check when sliding feature over
+  // image. This allows template to wrap around left/right border incorrectly, so any
+  // wrapped template matches must be filtered out!
+  int template_positions = span_y * W + span_x + 1; // why add 1?
+  //int template_positions = (span_y - 1) * W + span_x; // More correct?
+
+  /// @todo In old code, dst is buffer of size m_U. Could make it something like
+  /// (span_x)x(span_y) instead?
+  dst = Mat::zeros(H, W, CV_16U);
+  short* dst_ptr = dst.ptr<short>();
+
+#if CV_SSE2
+  volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
+#endif
+
+  // Compute the similarity measure for this template by accumulating the contribution of
+  // each feature
+  for (int i = 0; i < (int)templ.features.size(); ++i)
+  {
+    // Add the linear memory at the appropriate offset computed from the location of
+    // the feature in the template
+    Feature f = templ.features[i];
+    // Discard feature if out of bounds
+    /// @todo Shouldn't actually see x or y < 0 here?
+    if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
+      continue;
+    const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+
+    // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
+    int j = 0;
+    // Process responses 16 at a time if vectorization possible
+#if CV_SSE2
+    if (haveSSE2)
+    {
+      __m128i const zero = _mm_setzero_si128();
+      // Fall back to MOVDQU
+      for ( ; j < template_positions - 7; j += 8)
+      {
+        __m128i responses = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(lm_ptr + j));
+        __m128i* dst_ptr_sse = reinterpret_cast<__m128i*>(dst_ptr + j);
+        responses = _mm_unpacklo_epi8(responses, zero);
+        *dst_ptr_sse = _mm_add_epi16(*dst_ptr_sse, responses);
+      }
+    }
+#endif
+    for ( ; j < template_positions; ++j)
+      dst_ptr[j] = short(dst_ptr[j] + short(lm_ptr[j]));
+  }
+}
+
+/**
+ * \brief Compute similarity measure for a given template in a local region.
+ *
+ * \param[in]  linear_memories Vector of 8 linear memories, one for each label.
+ * \param[in]  templ           Template to match against.
+ * \param[out] dst             Destination 8-bit similarity image, 16x16.
+ * \param      size            Size (W, H) of the original input image.
+ * \param      T               Sampling step.
+ * \param      center          Center of the local region.
+ */
+static void similarityLocal(const std::vector<Mat>& linear_memories, const Template& templ,
+                     Mat& dst, Size size, int T, Point center)
+{
+  // Similar to whole-image similarity() above. This version takes a position 'center'
+  // and computes the energy in the 16x16 patch centered on it.
+  CV_Assert(templ.features.size() <= 8191);
+
+  // Compute the similarity map in a 16x16 patch around center
+  int W = size.width / T;
+  dst = Mat::zeros(16, 16, CV_16U);
+
+  // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
+  // center to get the top-left corner of the 16x16 patch.
+  // NOTE: We make the offsets multiples of T to agree with results of the original code.
+  int offset_x = (center.x / T - 8) * T;
+  int offset_y = (center.y / T - 8) * T;
+
+#if CV_SSE2
+  volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
+  __m128i* dst_ptr_sse = dst.ptr<__m128i>();
+#endif
+
+  for (int i = 0; i < (int)templ.features.size(); ++i)
+  {
+    Feature f = templ.features[i];
+    f.x += offset_x;
+    f.y += offset_y;
+    // Discard feature if out of bounds, possibly due to applying the offset
+    if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
+      continue;
+
+    const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+
+    // Process whole row at a time if vectorization possible
+#if CV_SSE2
+    if (haveSSE2)
+    {
+      __m128i const zero = _mm_setzero_si128();
+      for (int row = 0; row < 16; ++row)
+      {
+        __m128i aligned_low = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(lm_ptr));
+        __m128i aligned_high = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(lm_ptr+8));
+        aligned_low = _mm_unpacklo_epi8(aligned_low, zero);
+        aligned_high = _mm_unpacklo_epi8(aligned_high, zero);
+        dst_ptr_sse[2*row] = _mm_add_epi16(dst_ptr_sse[2*row], aligned_low);
+        dst_ptr_sse[2*row+1] = _mm_add_epi16(dst_ptr_sse[2*row+1], aligned_high);
+        lm_ptr += W; // Step to next row
+      }
+    }
+    else
+#endif
+    {
+      short* dst_ptr = dst.ptr<short>();
+      for (int row = 0; row < 16; ++row)
+      {
+        for (int col = 0; col < 16; ++col)
+          dst_ptr[col] = short(dst_ptr[col] + short(lm_ptr[col]));
+        dst_ptr += 16;
+        lm_ptr += W;
+      }
+    }
+  }
+}
+/**
+ * \brief Accumulate one or more 8-bit similarity images.
+ *
+ * \param[in]  similarities Source 8-bit similarity images.
+ * \param[out] dst          Destination 16-bit similarity image.
+ */
+static void addSimilarities(const std::vector<Mat>& similarities, Mat& dst)
+{
+  if (similarities.size() == 1)
+  {
+    similarities[0].convertTo(dst, CV_16U);
+  }
+  else
+  {
+    dst = cv::Mat::zeros(similarities[0].size(), CV_16U);
+    for (size_t i = 0; i < similarities.size(); ++i){
+        dst += similarities[i];
+    }
+  }
+}
+
+static void similarity_64(const std::vector<Mat>& linear_memories, const Template& templ,
+                Mat& dst, Size size, int T)
+{
+  // 63 features or less is a special case because the max similarity per-feature is 4.
+  // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
+  // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
+  // general function would use _mm_add_epi16.
   CV_Assert(templ.features.size() <= 63);
   /// @todo Handle more than 255/MAX_RESPONSE features!!
 
@@ -1352,7 +1500,7 @@ static void similarity(const std::vector<Mat>& linear_memories, const Template& 
  * \param      T               Sampling step.
  * \param      center          Center of the local region.
  */
-static void similarityLocal(const std::vector<Mat>& linear_memories, const Template& templ,
+static void similarityLocal_64(const std::vector<Mat>& linear_memories, const Template& templ,
                      Mat& dst, Size size, int T, Point center)
 {
   // Similar to whole-image similarity() above. This version takes a position 'center'
@@ -1448,7 +1596,7 @@ static void addUnaligned8u16u(const uchar * src1, const uchar * src2, ushort * r
  * \param[in]  similarities Source 8-bit similarity images.
  * \param[out] dst          Destination 16-bit similarity image.
  */
-static void addSimilarities(const std::vector<Mat>& similarities, Mat& dst)
+static void addSimilarities_64(const std::vector<Mat>& similarities, Mat& dst)
 {
   if (similarities.size() == 1)
   {
@@ -1457,7 +1605,7 @@ static void addSimilarities(const std::vector<Mat>& similarities, Mat& dst)
   else
   {
     // NOTE: add() seems to be rather slow in the 8U + 8U -> 16U case
-    dst.create(similarities[0].size(), CV_16U);
+    dst = cv::Mat::zeros(similarities[0].size(), CV_16U);
     addUnaligned8u16u(similarities[0].ptr(), similarities[1].ptr(), dst.ptr<ushort>(), static_cast<int>(dst.total()));
 
     /// @todo Optimize 16u + 8u -> 16u when more than 2 modalities
@@ -1478,7 +1626,6 @@ Detector::Detector()
     pyramid_levels = 2;
     T_at_level.push_back(5);
     T_at_level.push_back(8);
-    CV_Assert(2 == this->modalities.size());
 }
 
 Detector::Detector(std::vector<int> T)
@@ -1486,6 +1633,16 @@ Detector::Detector(std::vector<int> T)
     std::vector< Ptr<Modality> > modalities;
     modalities.push_back(makePtr<ColorGradient>());
     modalities.push_back(makePtr<DepthNormal>());
+    this->modalities = modalities;
+    pyramid_levels = T.size();
+    T_at_level = T;
+}
+
+Detector::Detector(int num_features, std::vector<int> T)
+{
+    std::vector< Ptr<Modality> > modalities;
+    modalities.push_back(makePtr<ColorGradient>(10.0f, num_features, 55.0f));
+    modalities.push_back(makePtr<DepthNormal>(2000, 50, num_features, 2));
     this->modalities = modalities;
     pyramid_levels = T.size();
     T_at_level = T;
@@ -1605,23 +1762,31 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
       int lowest_start = static_cast<int>(tp.size() - modalities.size());
       int lowest_T = T_at_level.back();
       int num_features = 0;
+      int feature_64 = -1;
       for (int i = 0; i < (int)modalities.size(); ++i)
       {
         const Template& templ = tp[lowest_start + i];
         num_features += static_cast<int>(templ.features.size());
-        similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
+        if(feature_64<=0){
+            if(templ.features.size()<64){
+                feature_64 = 1;
+            }else if (templ.features.size()<8192) {
+                feature_64 = 2;
+            }
+        }
+        if(feature_64 == 1){
+            similarity_64(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
+        }else if (feature_64 == 2) {
+            similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
+        }
       }
 
-      // Combine into overall similarity
-      /// @todo Support weighting the modalities
       Mat total_similarity;
-      addSimilarities(similarities, total_similarity);
-
-      // Convert user-friendly percentage to raw similarity threshold. The percentage
-      // threshold scales from half the max response (what you would expect from applying
-      // the template to a completely random image) to the max response.
-      // NOTE: This assumes max per-feature response is 4, so we scale between [2*nf, 4*nf].
-      int raw_threshold = static_cast<int>(2*num_features + (threshold / 100.f) * (2*num_features) + 0.5f);
+      if(feature_64 == 1){
+          addSimilarities_64(similarities, total_similarity);
+      }else if (feature_64 == 2) {
+          addSimilarities(similarities, total_similarity);
+      }
 
       // Find initial matches
       std::vector<Match> candidates;
@@ -1631,12 +1796,13 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
         for (int c = 0; c < total_similarity.cols; ++c)
         {
           int raw_score = row[c];
-          if (raw_score > raw_threshold)
+          float score =(raw_score * 100.f) / (4 * num_features);
+
+          if (score > threshold)
           {
             int offset = lowest_T / 2 + (lowest_T % 2 - 1);
             int x = c * lowest_T + offset;
             int y = r * lowest_T + offset;
-            float score =(raw_score * 100.f) / (4 * num_features) + 0.5f;
             candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
           }
         }
@@ -1672,23 +1838,42 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
 
           // Compute local similarity maps for each modality
           int numFeatures = 0;
+          feature_64 = -1;
           for (int i = 0; i < (int)modalities.size(); ++i)
           {
             const Template& templ = tp[start + i];
             numFeatures += static_cast<int>(templ.features.size());
-            similarityLocal(lms[i], templ, similarities2[i], size, T, Point(x, y));
+            if(feature_64<=0){
+                if(templ.features.size()<64){
+                    feature_64 = 1;
+                }else if (templ.features.size()<8192) {
+                    feature_64 = 2;
+                }
+            }
+            if(feature_64 == 1){
+                similarityLocal_64(lms[i], templ, similarities2[i], size, T, Point(x, y));
+            }else if (feature_64 == 2) {
+                similarityLocal(lms[i], templ, similarities2[i], size, T, Point(x, y));
+            }
           }
-          addSimilarities(similarities2, total_similarity2);
+
+          if(feature_64 == 1){
+              addSimilarities_64(similarities2, total_similarity2);
+          }else if (feature_64 == 2) {
+              addSimilarities(similarities2, total_similarity2);
+          }
 
           // Find best local adjustment
-          int best_score = 0;
+          float best_score = 0;
           int best_r = -1, best_c = -1;
           for (int r = 0; r < total_similarity2.rows; ++r)
           {
             ushort* row = total_similarity2.ptr<ushort>(r);
             for (int c = 0; c < total_similarity2.cols; ++c)
             {
-              int score = row[c];
+              int score_int = row[c];
+              float score = (score_int * 100.f) / (4 * numFeatures);
+
               if (score > best_score)
               {
                 best_score = score;
@@ -1698,9 +1883,9 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
             }
           }
           // Update current match
+          match2.similarity = best_score;
           match2.x = (x / T - 8 + best_c) * T + offset;
           match2.y = (y / T - 8 + best_r) * T + offset;
-          match2.similarity = (best_score * 100.f) / (4 * numFeatures);
         }
 
         // Filter out any matches that drop below the similarity threshold
@@ -1708,7 +1893,6 @@ void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
                                                               MatchPredicate(threshold));
         candidates.erase(new_end, candidates.end());
       }
-
       matches.insert(matches.end(), candidates.begin(), candidates.end());
     }
 }

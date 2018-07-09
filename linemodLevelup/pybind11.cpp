@@ -25,6 +25,7 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
     py::class_<linemodLevelup::Detector>(m, "Detector")
         .def(py::init<>())
         .def(py::init<std::vector<int> >())
+        .def(py::init<int, std::vector<int> >())
         .def("addTemplate", &linemodLevelup::Detector::addTemplate)
         .def("writeClasses", &linemodLevelup::Detector::writeClasses)
         .def("readClasses", &linemodLevelup::Detector::readClasses)
