@@ -35,4 +35,5 @@ successfully, 1000mm is one of them. Matching time is about 60ms now.
 
 todo: more than 64 features. need to modify
 similarity(local), and addSimilarities(delete 8u 8u), and distinguish them
-because use 16 sse may be slower than 8 sse
+because use 16 sse may be slower than 8 sse  
+DONE
