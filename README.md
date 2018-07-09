@@ -60,8 +60,13 @@ Refer to opencv linemod and ork linemod src
 
 Linemod suffers a lot from scale and occlusion problems, to deal wtih
 them:  
-set low response closer to zero;(idea got from focal loss)  
-use depth histgram and 1D nms to find some primary scales  
+1. set low response closer to zero;(idea got from focal loss)  
+2. use depth histgram and 1D nms to find some primary scales  
+ 
+ori linemod can't run while our features are more than 64, due to 8bit SSE.
+after changing to 16bit SSE and preventing overflow,
+we can have up to 8192 features now.
+
 
 [Chinese blog about the ideas](https://zhuanlan.zhihu.com/p/35683990)  
 

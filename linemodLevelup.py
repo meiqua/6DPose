@@ -34,22 +34,28 @@ dataset = 'hinterstoisser'
 
 # set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
-detector = linemodLevelup_pybind.Detector()
-ori_detector = cv2.linemod.getDefaultLINEMOD()
+# detector = linemodLevelup_pybind.Detector()
+detector = linemodLevelup_pybind.Detector(150, [5,8]) # more than 64 features
 
 obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-# renderer = Renderer()
+scene_ids = [6]  # for each obj
+im_ids = []  # obj's img
+gt_ids = []  # multi obj in one img
+scene_ids_curr = range(1, dp['scene_count'] + 1)
+if scene_ids:
+    scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-mode = 'render_train'
+# mode = 'render_train'
+mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
-template_saved_to = join(dp['base_path'], 'linemod_render', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_render', '{:02d}_info.yaml')
+template_saved_to = join(dp['base_path'], 'linemod_render_up', '%s.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info.yaml')
 if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
@@ -137,10 +143,10 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
-        radii = [800, 1000]
+        radii = [1000]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
-        min_n_views = 200
+        min_n_views = 100
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
         ambient_weight = 0.8  # Weight of ambient light [0, 1]
@@ -241,10 +247,6 @@ if mode == 'test':
     for obj_id in obj_ids_curr:
         template_read_classes.append('{:02d}_template'.format(obj_id))
     detector.readClasses(template_read_classes, template_saved_to)
-    ori_detector.readClasses(template_read_classes, template_saved_to)
-    scene_ids = [6]  # for each obj
-    im_ids = []  # obj's img
-    gt_ids = []  # multi obj in one img
 
     # Whether to consider only the specified subset of images
     use_image_subset = True
@@ -254,10 +256,6 @@ if mode == 'test':
         im_ids_sets = inout.load_yaml(dp['test_set_fpath'])
     else:
         im_ids_sets = None
-
-    scene_ids_curr = range(1, dp['scene_count'] + 1)
-    if scene_ids:
-        scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
     for scene_id in scene_ids_curr:
         # Load scene info and gt poses
@@ -358,7 +356,7 @@ if mode == 'test':
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.waitKey(2000)
+                cv2.waitKey(0)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:

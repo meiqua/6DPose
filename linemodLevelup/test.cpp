@@ -110,11 +110,15 @@ void detect_test(){
                  -0.26157897, -0.65877056, -0.61767070, 0.22904489, -0.75234390);
     Mat t_ren = (Mat_<float>(3,1) << 0.0, 0.0, 1000.0);
 
-    auto detector = linemodLevelup::Detector();
     auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
-    detector.readClasses(classes, prefix + "/600/%s.yaml");
+
+    auto detector = linemodLevelup::Detector(127,{5, 8});
+    detector.readClasses(classes, prefix + "/127/%s.yaml");
+
+//    auto detector = linemodLevelup::Detector();
+//    detector.readClasses(classes, prefix + "/63/%s.yaml");
 
     vector<String> classes_ori;
     classes_ori.push_back("06_template");
@@ -154,14 +158,7 @@ void detect_test(){
     }
     imshow("rgb", draw);
 //    imwrite(prefix+"result/depth600_hist.png", draw);
-    waitKey(10000000);
-    auto match = matches[0];
-
-    cout << "x: " << match.x << "\ny: " << match.y << "\ntemplate id: " << match.template_id
-         << "\nsimilarity: "<< match.similarity <<endl;
-
-    auto templ = detector.getTemplates(matches[0].class_id, matches[0].template_id);
-    cout << "break point line" << endl;
+    waitKey(0);
 }
 
 void dataset_test(){
@@ -223,7 +220,7 @@ void dataset_test(){
 int main(){
 
 //    train_test();
-//    detect_test();
-dataset_test();
+    detect_test();
+//dataset_test();
     return 0;
 }
