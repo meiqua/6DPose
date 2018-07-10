@@ -24,11 +24,12 @@ struct Feature {
     int x;
     int y;
     int label;
+    int area;
 
     void read(const cv::FileNode& fn);
     void write(cv::FileStorage& fs) const;
 
-    Feature() : x(0), y(0), label(0) {}
+    Feature() : x(0), y(0), label(0), area(0) {}
     Feature(int x, int y, int label);
 };
 inline Feature::Feature(int _x, int _y, int _label) : x(_x), y(_y), label(_label) {}
@@ -37,6 +38,8 @@ struct Template
 {
     int width;
     int height;
+    int tl_x;
+    int tl_y;
     int pyramid_level;
     std::vector<Feature> features;
 
