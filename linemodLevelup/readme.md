@@ -38,10 +38,14 @@ similarity(local), and addSimilarities(delete 8u 8u), and distinguish them
 because use 16 sse may be slower than 8 sse  
 DONE
 
-Detector: areas nxn params  
+Detector: n clusters params  
 assign area to feature and hist area info(how many feats in one area) to templ in cropTemplates  
-area pyrDown  
+no need for hist, hist when matching  
+area pyrDown: clsuter after pyrDown    
 similarity_64 & similarity: add to different dst(dst become a vec now) according to featrue area  
 active specific area by the thresh of simi.  
 class Match: pass active areas to it.  
 func match: add a min num of active part param  
+
+!!!!!! num_feat and clusters /4 when pyrDown, may cause problems?  
+well, back to /2, /4 or /2, it's a question.  

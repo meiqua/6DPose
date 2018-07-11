@@ -127,7 +127,7 @@ void detect_test(){
     auto start_time = std::chrono::high_resolution_clock::now();
 //    vector<cv::linemod::Match> matches;
 //    ori_detector->match(sources, 90, matches, classes_ori);
-    vector<linemodLevelup::Match> matches = detector.match(sources, 75, classes);
+    vector<linemodLevelup::Match> matches = detector.match(sources, 75, 0.6f, classes);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
     cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 
@@ -180,7 +180,7 @@ void dataset_test(){
         detector.readClasses(classes, prefix + "/allScales/%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        vector<linemodLevelup::Match> matches = detector.match(sources, 80, classes);
+        vector<linemodLevelup::Match> matches = detector.match(sources, 80, 0.6f, classes);
         auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
         cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 

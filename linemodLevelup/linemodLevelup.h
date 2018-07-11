@@ -24,12 +24,12 @@ struct Feature {
     int x;
     int y;
     int label;
-    int area;
+    int cluster;
 
     void read(const cv::FileNode& fn);
     void write(cv::FileStorage& fs) const;
 
-    Feature() : x(0), y(0), label(0), area(0) {}
+    Feature() : x(0), y(0), label(0), cluster(0) {}
     Feature(int x, int y, int label);
 };
 inline Feature::Feature(int _x, int _y, int _label) : x(_x), y(_y), label(_label) {}
@@ -41,6 +41,7 @@ struct Template
     int tl_x;
     int tl_y;
     int pyramid_level;
+    int clusters;
     std::vector<Feature> features;
 
     void read(const cv::FileNode& fn);
@@ -272,8 +273,8 @@ public:
    */
   Detector();
 
-  Detector(std::vector<int> T);
-  Detector(int num_features, std::vector<int> T);
+  Detector(std::vector<int> T, int clusters_ = 16);
+  Detector(int num_features, std::vector<int> T, int clusters_ = 16);
 
   /**
    * \brief Constructor.
@@ -299,7 +300,7 @@ public:
    *                       the same size as sources.  Each element must be
    *                       empty or the same size as its corresponding source.
    */
-  std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold,
+  std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold, float active_ratio = 0.6,
              const std::vector<std::string>& class_ids = std::vector<std::string>(),
                            const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
   /**
@@ -357,6 +358,7 @@ public:
                            const std::string& format = "templates_%s.yml.gz");
   void writeClasses(const std::string& format = "templates_%s.yml.gz") const;
 protected:
+  int clusters;
   std::vector< cv::Ptr<Modality> > modalities;
   int pyramid_levels;
   std::vector<int> T_at_level;
@@ -371,7 +373,7 @@ protected:
 
   void matchClass(const LinearMemoryPyramid& lm_pyramid,
                   const std::vector<cv::Size>& sizes,
-                  float threshold, std::vector<Match>& matches,
+                  float threshold, float active_ratio, std::vector<Match>& matches,
                   const std::string& class_id,
                   const std::vector<TemplatePyramid>& template_pyramids) const;
 
