@@ -273,9 +273,10 @@ static Rect cropTemplates(std::vector<Template> &templates, int clusters)
     std::vector<std::vector<int>> k_means_center(templ.clusters);
     std::vector<std::vector<int>> k_means_center_last(templ.clusters);
 
-    // select first K init samples,
-    // because features are scattered selected
-    for(int j=0; j<templ.clusters; j++){
+    // select K init samples
+    int steps = int(templ.features.size())/templ.clusters;
+    if(int(templ.features.size())%templ.clusters>0) steps++;
+    for(int j=0; j<templ.features.size(); j+=steps){
         std::vector<int> center;
         center.push_back(templ.features[j].x);
         center.push_back(templ.features[j].y);
