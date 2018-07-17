@@ -105,13 +105,13 @@ def match():
             dets[i, 4] = match.similarity
         idx = nms(dets, 0.5)
 
-        ts = []
-        ts_scores = np.zeros(shape=(len(idx), 1))
+        ts = np.zeros(shape=(len(idx)))
+        ts_scores = np.zeros(shape=(len(idx)))
         Rs = []
         ids = []
         confidences = []
-        for i in idx:
-            match = matches[i]
+        for i in range(len(idx)):
+            match = matches[idx[i]]
             templateInfo = infos[match.class_id]
             info = templateInfo[match.template_id]
             model = models[match.class_id]
@@ -123,7 +123,7 @@ def match():
             poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K_cam.astype(np.float32),
                                K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                , match.x, match.y)
-            ts.append(poseRefine.getT())
+            ts[i,:] = np.reshape(poseRefine.getT(),newshape=(3,))
             Rs.append(poseRefine.getR())
             ids.append(match.class_id)
             confidences.append(match.similarity)
@@ -135,7 +135,7 @@ def match():
             result = {}
             result['id'] = ids[i]
             result['R'] = Rs[i]
-            result['t'] = ts[i]
+            result['t'] = ts[i, :]
             result['s'] = confidences[i]
             results.append(result)
         publishResults(results)

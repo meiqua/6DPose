@@ -8,3 +8,4 @@ our patch. A very strange thing is that for single channel img, step1()!=cols in
 some case, this will break spread func. We change step1() to cols then it works fine
 3. for normals extraction, if we have no zero padding(found via trial and error T_T), which is our case when using
 patches, all normals will become 0. We pad it first then crop at last.  
+strange proto bug, make twice then everything is OK  

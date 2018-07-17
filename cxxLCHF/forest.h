@@ -144,10 +144,10 @@ public:
                ,const std::vector<int>& index);
     bool Split(const std::vector<Feature>& feats, const std::vector<Info>& infos
                , const std::vector<int>& ind_feats,
-               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh);
+               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh, int depth);
     float info_gain(const std::vector<Info>& infos, const std::vector<int>& ind_feats,
                     const std::vector<int>& left,
-                    const std::vector<int>& right, const std::vector<float>& simis);
+                    const std::vector<int>& right, const std::vector<float>& simis, int depth);
     int predict(const std::vector<Feature> &feats, Feature& f);
 };
 
@@ -219,7 +219,7 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<In
                 }else{
                     bool success = Split(feats, infos, nodes_[n].ind_feats,
                                          nodes_[n].split_feat_idx, lcind, rcind,
-                                            nodes_[n].simi_thresh);
+                                            nodes_[n].simi_thresh, nodes_[n].depth);
 
                     if(success){
                         nodes_[n].issplit = true;
@@ -280,7 +280,7 @@ template<class Feature>
 bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<Info>& infos,
                           const std::vector<int>& ind_feats,
                            int& f_idx, std::vector<int> &lcind, std::vector<int> &rcind,
-                           float& simi_thresh)
+                           float& simi_thresh, int depth)
 {
     if(ind_feats.size()==0){
         f_idx = 0;
@@ -352,7 +352,7 @@ bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<I
                 }
             }
 
-            float gain = info_gain(infos, ind_feats, left, right, simis);
+            float gain = info_gain(infos, ind_feats, left, right, simis, depth);
             if(gain > best_gain){
                 best_gain = gain;
                 best_simi = simis[sel_simi];
@@ -394,7 +394,7 @@ template<class Feature>
 float Tree<Feature>::info_gain(const std::vector<Info>& infos,
                                const std::vector<int>& ind_feats,
                                const std::vector<int> &left,
-                               const std::vector<int> &right, const std::vector<float> &simis)
+                               const std::vector<int> &right, const std::vector<float> &simis, int depth)
 {
     std::string type = "simis";
     if(type=="simis"){

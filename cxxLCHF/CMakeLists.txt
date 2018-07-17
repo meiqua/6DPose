@@ -4,8 +4,8 @@ project(cxxLCHF_pybind)
 
 SET(CMAKE_BUILD_TYPE "Debug")
 #SET(CMAKE_BUILD_TYPE "Release")
-SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O3 -Wall -g2 -ggdb -fPIC -Wno-sign-compare")
-SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O0 -Wall -fPIC -Wno-sign-compare")
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -fPIC -Wno-sign-compare")
+SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC -Wno-sign-compare")
 
 set(CMAKE_PREFIX_PATH /home/meiqua/anaconda3/envs/furnace)
 # we install cuda9 but build opencv with cuda8, have to set mannually

@@ -10,7 +10,16 @@ from  pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
 
+# test for linemod
+
+# import cxxlinemod_pybind
+# detector = cv2.linemod.getDefaultLINEMOD()
+
+# test for linemod_levelup
+
 import linemodLevelup_pybind
+detector = linemodLevelup_pybind.Detector(150, [5,8]) # more than 64 features
+
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -24,6 +33,35 @@ def draw_axis(img, R, t, K):
     img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[2].ravel()), (0,0,255), 3)
     return img
 
+def nms(dets, thresh):
+    x1 = dets[:, 0]
+    y1 = dets[:, 1]
+    x2 = dets[:, 2]
+    y2 = dets[:, 3]
+    scores = dets[:, 4]
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+
+        inds = np.where(ovr <= thresh)[0]
+        order = order[inds + 1]
+
+    return keep
+
 dataset = 'hinterstoisser'
 # dataset = 'tless'
 # dataset = 'tudlight'
@@ -34,8 +72,6 @@ dataset = 'hinterstoisser'
 
 # set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
-# detector = linemodLevelup_pybind.Detector()
-detector = linemodLevelup_pybind.Detector(150, [5,8]) # more than 64 features
 
 obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
@@ -287,33 +323,30 @@ if mode == 'test':
             match_ids = list()
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
-            # only search for one obj
-            matches = detector.match([rgb, depth], 65.0, match_ids, masks=[])
-            # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
+
+            matches = detector.match([rgb, depth], 66.6, match_ids, masks=[])
+
             elapsed_time = time.time() - start_time
 
-            print('match time: {}s, {} matches'.format(elapsed_time, len(matches)))
-            most_like_match = matches[0]
-            print('(x={}, y={}, float similarity={:.2f}, class_id={}, template_id={})'
-                  .format(most_like_match.x, most_like_match.y, most_like_match.similarity,
-                            most_like_match.class_id, most_like_match.template_id))
-            startPos = (int(most_like_match.x), int(most_like_match.y))
+            render_K = aTemplateInfo[0]['cam_K']
 
-            # for m in range(1): # test if top5 matches drop in right area
-            #     startPos = (int(matches[m].x), int(matches[m].y))
-            #     template = detector.getTemplates(matches[m].class_id, matches[m].template_id)
-            #     tempR = 2
-            #     centerPos = (int(startPos[0]+tempR), int(startPos[1]+tempR))
-            #
-            #     cv2.circle(rgb, centerPos, int(tempR), (0, 0, 255), 2)
-
-            render_K = aTemplateInfo[most_like_match.template_id]['cam_K']
-            render_R = aTemplateInfo[most_like_match.template_id]['cam_R_w2c']
-            render_t = aTemplateInfo[most_like_match.template_id]['cam_t_w2c']
+            dets = np.zeros(shape=(len(matches), 5))
+            for i in range(len(matches)):
+                match = matches[i]
+                info = aTemplateInfo[match.template_id]
+                dets[i, 0] = match.x
+                dets[i, 1] = match.y
+                dets[i, 2] = match.x + info['width']
+                dets[i, 3] = match.y + info['height']
+                dets[i, 4] = match.similarity
+            idx = nms(dets, 0.5)
 
             render_rgb = rgb
-            for i in range(1):
-                match = matches[0]
+            top5 = 5
+            if top5 > len(idx):
+                top5 = len(idx)
+            for i in range(top5):
+                match = matches[idx[i]]
                 startPos = (int(match.x), int(match.y))
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
@@ -336,27 +369,23 @@ if mode == 'test':
 
                 elapsed_time = time.time() - start_time
                 # print("pose refine time: {}s".format(elapsed_time))
-                render_rgb, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
+                render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
                 visible_mask = render_depth < depth
                 mask = render_depth > 0
                 mask = mask.astype(np.uint8)
                 rgb_mask = np.dstack([mask] * 3)
-                render_rgb = render_rgb * rgb_mask
-                render_rgb = rgb * (1 - rgb_mask) + render_rgb
+                render_rgb = render_rgb * (1 - rgb_mask) + render_rgb_new * rgb_mask
 
                 draw_axis(rgb, render_R, render_t, render_K)
-
-
-            # draw_axis(render_rgb, render_R, render_t, render_K)
 
             visual = True
             # visual = False
             if visual:
-                cv2.namedWindow('rgb_render')
-                cv2.imshow('rgb_render', render_rgb)
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.waitKey(0)
+                cv2.namedWindow('rgb_render')
+                cv2.imshow('rgb_render', render_rgb)
+                cv2.waitKey(2000)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:
