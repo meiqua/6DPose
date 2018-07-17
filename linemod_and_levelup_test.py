@@ -11,12 +11,10 @@ from params.dataset_params import get_dataset_params
 from os.path import join
 
 # test for linemod
-
 # import cxxlinemod_pybind
 # detector = cv2.linemod.getDefaultLINEMOD()
 
 # test for linemod_levelup
-
 import linemodLevelup_pybind
 detector = linemodLevelup_pybind.Detector(150, [5,8]) # more than 64 features
 
@@ -365,9 +363,8 @@ if mode == 'test':
                 render_R = refinedR
                 render_t = refinedT
 
-                # print('residual: {}'.format(poseRefine.getResidual()))
-
                 elapsed_time = time.time() - start_time
+                # print('residual: {}'.format(poseRefine.getResidual()))
                 # print("pose refine time: {}s".format(elapsed_time))
                 render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
                 visible_mask = render_depth < depth
