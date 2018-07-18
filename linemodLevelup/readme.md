@@ -36,4 +36,11 @@ successfully, 1000mm is one of them. Matching time is about 60ms now.
 todo: more than 64 features. need to modify
 similarity(local), and addSimilarities(delete 8u 8u), and distinguish them
 because use 16 sse may be slower than 8 sse  
-DONE
+DONE  
+
+todo:  
+spread step same as stride or 2:1?  
+PSO or some other method rather than ICP  
+
+may implement PSO:  
+Correspondence-free pose estimation for 3D objects from noisydepth data

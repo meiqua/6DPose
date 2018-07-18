@@ -53,7 +53,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     cv::rgbd::depthTo3d(sceneDepth_cropped, sceneK, sceneCloud_cropped);
 //    imshow("rgb_ren_cropped", rgb_ren(ROI_modelDepth));
 //    imshow("rgb_cropped", rgb(ROI_sceneDepth));
-//    waitKey(1000000);
+//    waitKey(0);
 
     // get x,y coordinate of obj in scene
     // previous depth-cropped-first version is for icp
@@ -106,9 +106,9 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
     icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
                                T_real_icp, px_ratio_match_inliers, 0);
+    residual = icp_dist;
     R_refined = Mat(R_real_icp);
     t_refiend = Mat(T_real_icp);
-    residual = icp_dist;
 }
 
 float poseRefine::getResidual()

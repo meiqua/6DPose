@@ -161,7 +161,25 @@ def hinter_sampling(min_n_pts, radius=1):
 
     return pts, pts_level
 
-def pts2views(pts, azimuth_range, elev_range):
+
+def rotate_along_axis(theta, u3, x3):
+    u = u3[0]
+    v = u3[1]
+    w = u3[2]
+    x = x3[0]
+    y = x3[1]
+    z = x3[2]
+    a = 1-math.cos(theta)
+    b = math.cos(theta)
+    c = math.sin(theta)
+    return [
+        u*(u*x+v*y+w*z)*a + x*b + (v*z-w*y)*c,
+        v*(u*x+v*y+w*z)*a + y*b + (w*x-u*z)*c,
+        w*(u*x+v*y+w*z)*a + z*b + (u*y-v*x)*c
+    ]
+
+
+def pts2views(pts, azimuth_range, elev_range, tilt_range, tilt_step):
     # moved here from sample_views, because we may add some pts manually
     views = []
     for pt in pts:
@@ -188,30 +206,38 @@ def pts2views(pts, azimuth_range, elev_range):
         # [2] https://www.opengl.org/wiki/GluLookAt_code
         f = -np.array(pt) # Forward direction
         f /= np.linalg.norm(f)
-        u = np.array([0.0, 0.0, 1.0]) # Up direction
-        s = np.cross(f, u) # Side direction
-        if np.count_nonzero(s) == 0:
-            # f and u are parallel, i.e. we are looking along or against Z axis
-            s = np.array([1.0, 0.0, 0.0])
-        s /= np.linalg.norm(s)
-        u = np.cross(s, f) # Recompute up
-        R = np.array([[s[0], s[1], s[2]],
-                      [u[0], u[1], u[2]],
-                      [-f[0], -f[1], -f[2]]])
 
-        # Convert from OpenGL to OpenCV coordinate system
-        R_yz_flip = transform.rotation_matrix(math.pi, [1, 0, 0])[:3, :3]
-        R = R_yz_flip.dot(R)
+        for tilt in np.arange(tilt_range[0], tilt_range[1], tilt_step):
+            u = np.array([0.0, 0.0, 1.0])  # Up direction
+            s = np.cross(f, u)  # Side direction
+            if np.count_nonzero(s) == 0:
+                # f and u are parallel, i.e. we are looking along or against Z axis
+                s = np.array([1.0, 0.0, 0.0])
+            s /= np.linalg.norm(s)
 
-        # Translation vector
-        t = -R.dot(np.array(pt).reshape((3, 1)))
+            s = rotate_along_axis(tilt, f, s)
+            u = np.cross(s, f)  # Recompute up
 
-        views.append({'R': R, 't': t})
+            R = np.array([[s[0], s[1], s[2]],
+                          [u[0], u[1], u[2]],
+                          [-f[0], -f[1], -f[2]]])
+
+            # Convert from OpenGL to OpenCV coordinate system
+            R_yz_flip = transform.rotation_matrix(math.pi, [1, 0, 0])[:3, :3]
+            R = R_yz_flip.dot(R)
+
+            # Translation vector
+            t = -R.dot(np.array(pt).reshape((3, 1)))
+
+            views.append({'R': R, 't': t})
+
+
     return views
 
 def sample_views(min_n_views, radius=1,
                  azimuth_range=(0, 2 * math.pi),
-                 elev_range=(-0.5 * math.pi, 0.5 * math.pi)):
+                 elev_range=(-0.5 * math.pi, 0.5 * math.pi),
+                 tilt_range=(-0.5 * math.pi, 0.5 * math.pi), tilt_step=0.1*math.pi):
     '''
     Viewpoint sampling from a view sphere.
 
@@ -230,7 +256,7 @@ def sample_views(min_n_views, radius=1,
         pts = fibonacci_sampling(min_n_views + 1, radius=radius)
         pts_level = [0 for _ in range(len(pts))]
 
-    return pts2views(pts, azimuth_range, elev_range), pts_level
+    return pts2views(pts, azimuth_range, elev_range, tilt_range, tilt_step), pts_level
 
 def save_vis(path, views, views_level=None):
     '''

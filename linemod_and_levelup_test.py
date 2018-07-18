@@ -16,7 +16,7 @@ from os.path import join
 
 # test for linemod_levelup
 import linemodLevelup_pybind
-detector = linemodLevelup_pybind.Detector(150, [5,8]) # more than 64 features
+detector = linemodLevelup_pybind.Detector(150, [4, 8])  # more than 64 features
 
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -83,8 +83,8 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
@@ -201,7 +201,8 @@ if mode == 'render_train':
         for radius in radii:
             # Sample views
             views, views_level = view_sampler.sample_views(min_n_views, radius,
-                                                           azimuth_range, elev_range)
+                                                           azimuth_range, elev_range,
+                                                           tilt_range=(0, 2*math.pi), tilt_step=0.1*math.pi)
             print('Sampled views: ' + str(len(views)))
 
             # Render the object model from all the views
@@ -218,8 +219,6 @@ if mode == 'render_train':
                 # Convert depth so it is in the same units as the real test images
                 depth /= dp['cam']['depth_scale']
                 depth = depth.astype(np.uint16)
-
-
 
                 # Render RGB image
                 rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
@@ -251,15 +250,15 @@ if mode == 'render_train':
 
                 mask = (depth > 0).astype(np.uint8) * 255
 
-                visual = False
+                # visual = False
                 if visual:
                     cv2.namedWindow('rgb')
                     cv2.imshow('rgb', rgb)
-                    cv2.namedWindow('depth')
-                    cv2.imshow('depth', depth)
-                    cv2.namedWindow('mask')
-                    cv2.imshow('mask', mask)
-                    cv2.waitKey(1000)
+                    # cv2.namedWindow('depth')
+                    # cv2.imshow('depth', depth)
+                    # cv2.namedWindow('mask')
+                    # cv2.imshow('mask', mask)
+                    cv2.waitKey(1)
 
                 success = detector.addTemplate([rgb, depth], '{:02d}_template'.format(obj_id), mask)
                 print('success {}'.format(success))
@@ -314,8 +313,8 @@ if mode == 'test':
             # Load the images
             rgb = inout.load_im(dp['test_rgb_mpath'].format(scene_id, im_id))
             depth = inout.load_depth(dp['test_depth_mpath'].format(scene_id, im_id))
+            depth *= dp['cam']['depth_scale']  # to [mm]
             depth = depth.astype(np.uint16)  # [mm]
-            # depth *= dp['cam']['depth_scale']  # to [mm]
             im_size = (depth.shape[1], depth.shape[0])
 
             match_ids = list()
@@ -340,7 +339,15 @@ if mode == 'test':
             idx = nms(dets, 0.5)
 
             render_rgb = rgb
-            top5 = 5
+            color_list = list()
+            color_list.append([0, 1, 0])
+            color_list.append([1, 0, 0])
+            color_list.append([0, 0, 1])
+            color_list.append([1, 0, 1])
+            color_list.append([0, 1, 1])
+            color_list.append([1, 1, 0])
+
+            top5 = 3
             if top5 > len(idx):
                 top5 = len(idx)
             for i in range(top5):
@@ -366,7 +373,8 @@ if mode == 'test':
                 elapsed_time = time.time() - start_time
                 # print('residual: {}'.format(poseRefine.getResidual()))
                 # print("pose refine time: {}s".format(elapsed_time))
-                render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t, surf_color=[0, 1, 0])
+                render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t,
+                                                      surf_color=color_list[i])
                 visible_mask = render_depth < depth
                 mask = render_depth > 0
                 mask = mask.astype(np.uint8)
