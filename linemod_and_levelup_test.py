@@ -83,8 +83,8 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-mode = 'render_train'
-# mode = 'test'
+# mode = 'render_train'
+mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
@@ -202,7 +202,7 @@ if mode == 'render_train':
             # Sample views
             views, views_level = view_sampler.sample_views(min_n_views, radius,
                                                            azimuth_range, elev_range,
-                                                           tilt_range=(0, 2*math.pi), tilt_step=0.1*math.pi)
+                                                           tilt_range=(0, 0), tilt_step=0.1*math.pi)
             print('Sampled views: ' + str(len(views)))
 
             # Render the object model from all the views
@@ -324,6 +324,7 @@ if mode == 'test':
             matches = detector.match([rgb, depth], 66.6, match_ids, masks=[])
 
             elapsed_time = time.time() - start_time
+            print("linemod match time: {}s, {} matches".format(elapsed_time, len(matches)))
 
             render_K = aTemplateInfo[0]['cam_K']
 
