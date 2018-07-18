@@ -93,20 +93,20 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
                        modelR.at<float>(2, 0), modelR.at<float>(2, 1), modelR.at<float>(2, 2));
     auto T_real_icp = cv::Vec3f(modelT.at<float>(0, 0), modelT.at<float>(1, 0), modelT.at<float>(2, 0));
 
-//    std::vector<cv::Vec3f> pts_real_model_temp;
-//    std::vector<cv::Vec3f> pts_real_ref_temp;
-//    float px_ratio_missing = matToVec(sceneCloud_cropped, modelCloud_cropped, pts_real_ref_temp, pts_real_model_temp);
+    std::vector<cv::Vec3f> pts_real_model_temp;
+    std::vector<cv::Vec3f> pts_real_ref_temp;
+    float px_ratio_missing = matToVec(sceneCloud_cropped, modelCloud_cropped, pts_real_ref_temp, pts_real_model_temp);
 
-//    float px_ratio_match_inliers = 0.0f;
-//    float icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-//                                     T_real_icp, px_ratio_match_inliers, 1);
+    float px_ratio_match_inliers = 0.0f;
+    float icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
+                                     T_real_icp, px_ratio_match_inliers, 1);
 
-//    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-//                               T_real_icp, px_ratio_match_inliers, 2);
+    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
+                               T_real_icp, px_ratio_match_inliers, 2);
 
-//    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-//                               T_real_icp, px_ratio_match_inliers, 0);
-//    residual = icp_dist;
+    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
+                               T_real_icp, px_ratio_match_inliers, 0);
+    residual = icp_dist;
     R_refined = Mat(R_real_icp);
     t_refiend = Mat(T_real_icp);
 }
