@@ -47,4 +47,4 @@ Correspondence-free pose estimation for 3D objects from noisydepth data
 
 nms for accurate edge  
 
-with selective search?  
+with selective search? selective search in depth modality?  
