@@ -13,7 +13,7 @@ def get_dataset_params(name, model_type='', train_type='', test_type='',
          'train_type': train_type, 'test_type': test_type, 'cam_type': cam_type}
 
     # Path to the folder with datasets
-    common_base_path = '/home/meiqua/6DPose/public/datasets/'
+    common_base_path = '../public/datasets/'
 
     # Path to the T-LESS Toolkit (https://github.com/thodan/t-less_toolkit)
     tless_tk_path = '../t_less_toolkit/'
