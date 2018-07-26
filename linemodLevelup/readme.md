@@ -43,4 +43,8 @@ spread step same as stride or 2:1?
 PSO or some other method rather than ICP  
 
 may implement PSO:  
-Correspondence-free pose estimation for 3D objects from noisydepth data
+Correspondence-free pose estimation for 3D objects from noisydepth data  
+
+nms for accurate edge  
+
+with selective search?  
