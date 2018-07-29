@@ -142,13 +142,37 @@ public:
 
     void train(const std::vector<Feature>& feats, const std::vector<Info>& infos
                ,const std::vector<int>& index);
-    bool Split(const std::vector<Feature>& feats, const std::vector<Info>& infos
-               , const std::vector<int>& ind_feats,
-               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh, int depth);
     float info_gain(const std::vector<Info>& infos, const std::vector<int>& ind_feats,
                     const std::vector<int>& left,
                     const std::vector<int>& right, const std::vector<float>& simis, int depth);
-    int predict(const std::vector<Feature> &feats, Feature& f) const;
+
+
+    bool split_linemod(const std::vector<Feature>& feats, const std::vector<Info>& infos
+               , const std::vector<int>& ind_feats,
+               int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh, int depth);
+    int predict_linemod(const std::vector<Feature> &feats, Feature& f) const;
+
+    template <typename ...Params>
+    bool split(std::string name, Params&&... params){
+        if(name == "linemod"){
+            split_linemod(std::forward<Params>(params)...);
+        }else if(name == "cnn"){
+            CV_Error(cv::Error::StsBadArg, "not yet");
+        }
+        else{
+            CV_Error(cv::Error::StsBadArg, "unsupported feature type");
+        }
+    }
+    template <typename ...Params>
+    int predict(std::string name, Params&&... params) const{
+        if(name == "linemod"){
+            predict_linemod(std::forward<Params>(params)...);
+        }else if(name == "cnn"){
+            CV_Error(cv::Error::StsBadArg, "not yet");
+        }else{
+            CV_Error(cv::Error::StsBadArg, "unsupported feature type");
+        }
+    }
 };
 
 template <class Feature>
@@ -217,7 +241,10 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<In
                     nodes_[n].issplit = true;
                     nodes_[n].isleafnode = true;
                 }else{
-                    bool success = Split(feats, infos, nodes_[n].ind_feats,
+
+                    bool success = false;
+
+                    success = split(feats[0].name, feats, infos, nodes_[n].ind_feats,
                                          nodes_[n].split_feat_idx, lcind, rcind,
                                             nodes_[n].simi_thresh, nodes_[n].depth);
 
@@ -277,7 +304,7 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<In
 }
 
 template<class Feature>
-bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<Info>& infos,
+bool Tree<Feature>::split_linemod(const std::vector<Feature> &feats, const std::vector<Info>& infos,
                           const std::vector<int>& ind_feats,
                            int& f_idx, std::vector<int> &lcind, std::vector<int> &rcind,
                            float& simi_thresh, int depth)
@@ -304,7 +331,7 @@ bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<I
         auto rng = std::bind(dist, std::ref(engine));
         int select = rng();
 
-        // calculate simis using select with others
+        // calculate simis using selected one with others
         std::vector<float> simis(ind_feats.size(),0);
         for(int idx=0; idx<ind_feats.size(); idx++){
             if(select == idx){
@@ -325,7 +352,7 @@ bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<I
         //  sort idx by comparing simis
         auto sidxs = lchf_helper::sort_indexes(simis);
         int sample_count = 0;
-        // we only want simi closer to sims center
+        // we only want simi closer to simis center
         for(int i=simis.size()/4;i<simis.size()*3/4;i++){
             dist_simis[sidxs[i]] = 1;
             sample_count++;
@@ -361,6 +388,7 @@ bool Tree<Feature>::Split(const std::vector<Feature> &feats, const std::vector<I
             }
             dist_simis[sel_simi] = 0;
         }
+
         if(best_gain>best_gain_all_feature){
             best_gain_all_feature = best_gain;
             best_simis_all_feature = best_simi;
@@ -426,7 +454,7 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
 }
 
 template<class Feature>
-int Tree<Feature>::predict(const std::vector<Feature> &feats, Feature &f) const
+int Tree<Feature>::predict_linemod(const std::vector<Feature> &feats, Feature &f) const
 {
     auto current = nodes_[0];
     int current_idx = 0;
@@ -473,7 +501,7 @@ std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Fea
 {
     std::vector<int> results;
     for(auto& tree: trees){
-        auto result = tree.predict(feats, f);
+        auto result = tree.predict(feats[0].name, feats, f);
         results.push_back(result);
     }
     return results;

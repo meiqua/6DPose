@@ -98,6 +98,7 @@ void fake_feature_test() {
           float dis = (x-other.x)*(x-other.x) + (y-other.y)*(y-other.y);
           return (100/(dis+1));
       }
+      string name = "linemod";
     };
     vector<float> seed_center;
     for(int i=0;i<100;i++){

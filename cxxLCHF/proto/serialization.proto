@@ -55,6 +55,7 @@ message Linemod_feature {
     optional Mat_i mask = 3;
     optional Linemod_embedding embedding = 4;
     optional Info info = 5;
+    optional string name = 6;
 }
 
 message Linemod_features {

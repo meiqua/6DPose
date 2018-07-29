@@ -788,6 +788,8 @@ void Linemod_feature::write(lchf::Linemod_feature* feature_, bool save_src
         embedding.write(embedding_write);
         feature_->set_allocated_embedding(embedding_write);
     }
+
+    feature_->set_name(name);
 }
 
 void Linemod_feature::read(const lchf::Linemod_feature &feature_)
@@ -814,6 +816,9 @@ void Linemod_feature::read(const lchf::Linemod_feature &feature_)
 
     if(feature_.has_embedding())
     embedding.read(feature_.embedding());
+
+    if(feature_.has_name())
+    name = feature_.name();
 }
 
 void Info::write(lchf::Info* info_)

@@ -71,6 +71,7 @@ public:
         rgb(rgb_.clone()), depth(depth_.clone()), mask(mask_.clone()){}
     cv::Mat rgb, depth, mask;
     Linemod_embedding embedding;
+    std::string name = "linemod";
 
     bool constructEmbedding();
     bool constructResponse();
