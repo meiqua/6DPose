@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 2.8)
 set (CMAKE_CXX_STANDARD 14)
 project(cxxLCHF_pybind)
 
-SET(CMAKE_BUILD_TYPE "Debug")
-#SET(CMAKE_BUILD_TYPE "Release")
+#SET(CMAKE_BUILD_TYPE "Debug")
+SET(CMAKE_BUILD_TYPE "Release")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb -fPIC -Wno-sign-compare")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC -Wno-sign-compare")
 
@@ -39,6 +39,8 @@ set(LIBS
     stdc++fs)
 
 ADD_SUBDIRECTORY(proto)
+
+#set_target_properties(proto PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 

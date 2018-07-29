@@ -93,10 +93,14 @@ segment 3d cloud to convex part, core func have been done, try to deploy now
 ### result of cloud_seg.py
 ![cloud](./cxx_3d_seg/test/cloud_seg.png)
  
-NOTE: pybind11 can't be built with static super4pcs. Add one line to 
-super4pcs CMakeLists to make it shared:  
+NOTE: To use pybind, static super4pcs must be built with flag -fPIC.
+Build super4pcs using following lines:    
 ```
-OPTION (BUILD_SHARED_LIBS "set shared libs as default" TRUE)
+mkdir build
+cd build
+cmake .. -DCMAKE_CXX_FLAGS="-fpic"
+make
+sudo make install
 ```
 [separated repo for deployment](https://github.com/meiqua/binPicking_3dseg)  
 

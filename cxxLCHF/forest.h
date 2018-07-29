@@ -148,7 +148,7 @@ public:
     float info_gain(const std::vector<Info>& infos, const std::vector<int>& ind_feats,
                     const std::vector<int>& left,
                     const std::vector<int>& right, const std::vector<float>& simis, int depth);
-    int predict(const std::vector<Feature> &feats, Feature& f);
+    int predict(const std::vector<Feature> &feats, Feature& f) const;
 };
 
 template <class Feature>
@@ -163,7 +163,7 @@ public:
       train_ratio_ = train_ratio;
   }
   void Train(const std::vector<Feature>& feats, const std::vector<Info>& infos);
-  std::vector<int> Predict(const std::vector<Feature> &feats, Feature &f);
+  std::vector<int> Predict(const std::vector<Feature> &feats, Feature &f) const;
 
   void write(lchf::Forest* forest){
       forest->set_max_numtrees(max_numtrees_);
@@ -426,9 +426,9 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
 }
 
 template<class Feature>
-int Tree<Feature>::predict(const std::vector<Feature> &feats, Feature &f)
+int Tree<Feature>::predict(const std::vector<Feature> &feats, Feature &f) const
 {
-    auto& current = nodes_[0];
+    auto current = nodes_[0];
     int current_idx = 0;
     while(!current.isleafnode){
         if(f.similarity(feats[current.split_feat_idx]) <= current.simi_thresh){
@@ -469,7 +469,7 @@ void Forest<Feature>::Train(const std::vector<Feature> &feats, const std::vector
 }
 
 template<class Feature>
-std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Feature &f)
+std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Feature &f) const
 {
     std::vector<int> results;
     for(auto& tree: trees){
@@ -479,17 +479,17 @@ std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Fea
     return results;
 }
 
-class lchf_model {
-public:
-    Params params;
-    std::string path;
-    Forest<Linemod_feature> forest;
-    void train(const std::vector<Linemod_feature>& feats, const std::vector<Info>& infos);
-    std::vector<int> predict(const std::vector<Linemod_feature> &feats, Linemod_feature &f);
-    Forest<Linemod_feature> loadForest();
-    std::vector<Linemod_feature> loadFeatures();
-    std::vector<Info> loadCluster_infos();
-    void saveModel(Forest<Linemod_feature>& forest, std::vector<Linemod_feature>& features);
-    void saveInfos(std::vector<Info>& infos);
+namespace lchf_model {
+    Forest<Linemod_feature> train(const std::vector<Linemod_feature>& feats, const std::vector<Info>& infos);
+    std::vector<int> predict(const Forest<Linemod_feature>& forest, const std::vector<Linemod_feature> &feats, Linemod_feature &f);
+
+    void saveForest(Forest<Linemod_feature>& forest, std::string path);
+    Forest<Linemod_feature> loadForest(std::string path);
+
+    void saveFeatures(std::vector<Linemod_feature>& features, std::string path, bool save_src = false);
+    std::vector<Linemod_feature> loadFeatures(std::string path);
+
+    void saveInfos(std::vector<Info>& infos, std::string path);
+    std::vector<Info> loadInfos(std::string path);
 };
 #endif

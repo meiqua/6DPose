@@ -75,6 +75,7 @@ set(LIBS
 
 # pybind
 if (USE_PYBIND)
+    set_target_properties(super4pcs_io PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
     pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
     target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 endif()

@@ -6,7 +6,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include "proto/serialization.pb.h"
-#include "global_params.h"
+
 class Info {
 public:
     cv::Mat rpy;
@@ -65,8 +65,10 @@ inline Linemod_embedding::Candidate::Candidate(int x, int y, int label, float _s
 class Linemod_feature {
 public:
     Linemod_feature(){}
-    Linemod_feature(cv::Mat rgb_, cv::Mat depth_, cv::Mat mask_=cv::Mat()):
-        rgb(rgb_), depth(depth_), mask(mask_){}
+    Linemod_feature(cv::Mat rgb_, cv::Mat depth_):
+        rgb(rgb_.clone()), depth(depth_.clone()){}
+    Linemod_feature(cv::Mat rgb_, cv::Mat depth_, cv::Mat mask_):
+        rgb(rgb_.clone()), depth(depth_.clone()), mask(mask_.clone()){}
     cv::Mat rgb, depth, mask;
     Linemod_embedding embedding;
 

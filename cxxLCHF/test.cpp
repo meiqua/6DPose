@@ -84,12 +84,8 @@ void dataset_test(){
     }
     time.out("construct features");
 
-    lchf_model model;
-    model.train(features, infos);
+    auto forest = lchf_model::train(features, infos);
     time.out("train time:");
-
-    model.path = prefix;
-    model.saveModel(model.forest, features);
 
     cout << "dataset_test end line" << endl;
 }
