@@ -231,3 +231,16 @@ std::vector<size_t> lchf_helper::sort_indexes(const std::vector<T> &v) {
        [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
   return idx;
 }
+
+std::vector<std::map<int, std::vector<int>>> lchf_model::getLeaf_feats_map(const Forest<Linemod_feature> &forest)
+{
+    std::vector<std::map<int, std::vector<int>>> forest_leaf_map(forest.trees.size());
+    for(int i=0; i<forest.trees.size(); i++){
+        auto& tree = forest.trees[i];
+        auto& leaf_map = forest_leaf_map[i];
+        for(auto leaf: tree.id_leafnodes_){
+            leaf_map[leaf] = tree.nodes_[leaf].ind_feats;
+        }
+    }
+    return forest_leaf_map;
+}

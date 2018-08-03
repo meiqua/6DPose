@@ -136,8 +136,6 @@ if mode == 'render_train':
     LCHF_infos = []
     LCHF_linemod_feats = []
     for obj_id in obj_ids_curr:
-        templateInfo = dict()
-
         radii = [1000]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
@@ -253,7 +251,7 @@ if mode == 'render_train':
     elapsed_time = time.time() - start_time
     print('construct features time: {}\n'.format(elapsed_time))
 
-    print('sample size: {}'.format(len(LCHF_linemod_feats)))
+    print('sample size: {}\n'.format(len(LCHF_linemod_feats)))
     forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
     cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
     cxxLCHF_pybind.lchf_model_saveInfos(LCHF_infos, base_path)
