@@ -84,6 +84,7 @@ void dataset_test(){
     }
     time.out("construct features");
 
+    std::cout << "sample size: " << features.size() << std::endl;
     auto forest = lchf_model::train(features, infos);
     time.out("train time:");
 

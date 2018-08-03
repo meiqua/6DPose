@@ -123,8 +123,6 @@ std::vector<Info> lchf_model::loadInfos(std::string path)
     return infos_;
 }
 
-
-
 // lchf_helper
 float lchf_helper::getMean(std::vector<float>& v){
     float sum = std::accumulate(v.begin(), v.end(), 0.0);

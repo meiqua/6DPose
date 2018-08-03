@@ -2,19 +2,15 @@ import os
 import sys
 import time
 import numpy as np
-# import matplotlib.pyplot as plt
 import cv2
 import math
 from pysixd import view_sampler, inout, misc
 from pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
-
-import cxxLCHF_pybind
-
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import cxxLCHF_pybind
 
 def isRotationMatrix(R):
     Rt = np.transpose(R)
@@ -123,75 +119,22 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
-template_saved_to = join(dp['base_path'], 'LCHF', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'LCHF', '{:02d}_info.yaml')
-if mode == 'train':
-    start_time = time.time()
-    # im_ids = list(range(1, 1000, 10))  # obj's img
-    im_ids = []
-    visual = True
-    misc.ensure_dir(os.path.dirname(template_saved_to))
-
-    for obj_id in obj_ids_curr:
-        scene_info = inout.load_info(dp['obj_info_mpath'].format(obj_id))
-        scene_gt = inout.load_gt(dp['obj_gt_mpath'].format(obj_id))
-
-        im_ids_curr = sorted(scene_info.keys())
-
-        if im_ids:
-            im_ids_curr = set(im_ids_curr).intersection(im_ids)
-
-        templateInfo = dict()
-        for im_id in im_ids_curr:
-            print('obj: {}, im: {}'.format(obj_id, im_id))
-
-            # Load the images
-            rgb = inout.load_im(dp['train_rgb_mpath'].format(obj_id, im_id))
-            depth = inout.load_depth(dp['train_depth_mpath'].format(obj_id, im_id))
-
-            depth *= dp['cam']['depth_scale']  # to [mm]
-            depth = depth.astype(np.uint16)  # [mm]
-
-            # during training, there's only one obj
-            gt = scene_gt[im_id][0]
-
-            K = scene_info[im_id]['cam_K']
-            R = gt['cam_R_m2c']
-            t = gt['cam_t_m2c']
-            # have read rgb, depth, pose, obj_bb, obj_id here
-
-            aTemplateInfo = dict()
-            aTemplateInfo['cam_K'] = K
-            aTemplateInfo['cam_R_w2c'] = R
-            aTemplateInfo['cam_t_w2c'] = t
-
-            mask = (depth > 0).astype(np.uint8) * 255
-
-            # visual = False
-            if visual:
-                cv2.namedWindow('rgb')
-                cv2.imshow('rgb', rgb)
-                cv2.namedWindow('depth')
-                cv2.imshow('depth', depth)
-                cv2.namedWindow('mask')
-                cv2.imshow('mask', mask)
-                cv2.waitKey(1)
-
-    elapsed_time = time.time() - start_time
-    print('train time: {}\n'.format(elapsed_time))
+base_path = join(dp['base_path'], 'LCHF')
 
 if mode == 'render_train':
     start_time = time.time()
     visual = True
-    misc.ensure_dir(os.path.dirname(template_saved_to))
+    misc.ensure_dir(base_path)
 
     ssaa_fact = 4
     im_size_rgb = [int(round(x * float(ssaa_fact))) for x in dp['cam']['im_size']]
     K_rgb = dp['cam']['K'] * ssaa_fact
 
+    LCHF_infos = []
+    LCHF_linemod_feats = []
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
@@ -247,37 +190,74 @@ if mode == 'render_train':
                 K = dp['cam']['K']
                 R = view['R']
                 t = view['t']
-                # have read rgb, depth, pose, obj_bb, obj_id here
 
-                rows = np.any(depth, axis=1)
-                cols = np.any(depth, axis=0)
-                ymin, ymax = np.where(rows)[0][[0, -1]]
-                xmin, xmax = np.where(cols)[0][[0, -1]]
-
-                # cv2.rectangle(rgb, (xmin, ymin), (xmax, ymax),(0,255,0),3)
-                # cv2.imshow('mask', rgb)
-                # cv2.waitKey(0)
-
-                aTemplateInfo = dict()
-                aTemplateInfo['cam_K'] = K
-                aTemplateInfo['cam_R_w2c'] = R
-                aTemplateInfo['cam_t_w2c'] = t
-                aTemplateInfo['width'] = int(xmax-xmin)
-                aTemplateInfo['height'] = int(ymax-ymin)
+                rows_any = np.any(depth, axis=1)
+                cols_any = np.any(depth, axis=0)
+                ymin, ymax = np.where(rows_any)[0][[0, -1]]
+                xmin, xmax = np.where(cols_any)[0][[0, -1]]
 
                 mask = (depth > 0).astype(np.uint8) * 255
 
-                # visual = False
-                if visual:
-                    cv2.namedWindow('rgb')
-                    cv2.imshow('rgb', rgb)
-                    # cv2.namedWindow('depth')
-                    # cv2.imshow('depth', depth)
-                    # cv2.namedWindow('mask')
-                    # cv2.imshow('mask', mask)
-                    cv2.waitKey(1)
+                padding = 3
+                ymin = ymin - padding
+                ymax = ymax + padding
+                xmin = xmin - padding
+                xmax = xmax + padding
+
+                rgb = rgb[ymin:ymax, xmin:xmax, :]
+                depth = depth[ymin:ymax, xmin:xmax]
+                mask = mask[ymin:ymax, xmin:xmax]
+
+                rows = depth.shape[1]
+                cols = depth.shape[0]
+                # have read rgb, depth, pose, obj_bb, obj_id, bbox, mask here
+
+                # 5 box
+                for i in range(5):
+                    j = (i - (i%2))/2
+
+                    # offset, width, height, depth
+                    offset1 = [int(i%2*rows/2), int(j*cols/2), int(rows / 2), int(cols / 2)]
+                    if i == 4:
+                        offset1 = [int(rows / 4), int(cols / 4), int(rows / 2), int(cols / 2), t[2]]
+
+                    rgb1 = rgb[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2]), :]
+                    depth1 = depth[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2])]
+
+                    visualized = False
+                    if visualized:
+                        rgb_ = np.copy(rgb)
+                        cv2.rectangle(rgb_, (offset1[0], offset1[1]),
+                                      (offset1[0] + offset1[2], offset1[1] + offset1[3]), (0, 0, 255), 1)
+                        cv2.imshow('rgb', rgb_)
+                        cv2.imshow('rgb1', rgb1)
+                        cv2.waitKey(500)
+
+                    LCHF_linemod_feat = cxxLCHF_pybind.Linemod_feature(rgb1, depth1)
+                    if LCHF_linemod_feat.constructEmbedding():  # extract template OK
+                        LCHF_linemod_feat.constructResponse()  # extract response map for simi func
+                    else:
+                        # print('points not enough')
+                        continue  # no enough points for template extraction, pass
+
+                    LCHF_linemod_feats.append(LCHF_linemod_feat)  # record feature
+
+                    LCHF_info = cxxLCHF_pybind.Info()
+                    LCHF_info.rpy = rotationMatrixToEulerAngles(R)
+                    LCHF_info.t = np.array(offset1)
+                    LCHF_info.id = str(obj_id)
+                    LCHF_infos.append(LCHF_info)  # record info
 
                 del rgb, depth, mask
+
+    elapsed_time = time.time() - start_time
+    print('construct features time: {}\n'.format(elapsed_time))
+
+    print('sample size: {}'.format(len(LCHF_linemod_feats)))
+    forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
+    cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
+    cxxLCHF_pybind.lchf_model_saveInfos(LCHF_infos, base_path)
+    cxxLCHF_pybind.lchf_model_saveFeatures(LCHF_linemod_feats, base_path, False)
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
@@ -300,7 +280,6 @@ if mode == 'test':
         scene_info = inout.load_info(dp['scene_info_mpath'].format(scene_id))
         scene_gt = inout.load_gt(dp['scene_gt_mpath'].format(scene_id))
         model = inout.load_ply(dp['model_mpath'].format(scene_id))
-        aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
 
         # Considered subset of images for the current scene
         if im_ids_sets is not None:

@@ -26,7 +26,7 @@ public:
             (clock_::now() - beg_).count(); }
     void out(std::string message = ""){
         double t = elapsed();
-        std::cout << message << "  elasped time:" << t << "s" << std::endl;
+        std::cout << message << ", elasped time:" << t << "s\n" << std::endl;
         reset();
     }
 private:
@@ -155,7 +155,7 @@ public:
     template <typename ...Params>
     bool split(std::string name, Params&&... params){
         if(name == "linemod"){
-            split_linemod(std::forward<Params>(params)...);
+            return split_linemod(std::forward<Params>(params)...);
         }else if(name == "cnn"){
             CV_Error(cv::Error::StsBadArg, "not yet");
         }
@@ -163,10 +163,11 @@ public:
             CV_Error(cv::Error::StsBadArg, "unsupported feature type");
         }
     }
+
     template <typename ...Params>
     int predict(std::string name, Params&&... params) const{
         if(name == "linemod"){
-            predict_linemod(std::forward<Params>(params)...);
+            return predict_linemod(std::forward<Params>(params)...);
         }else if(name == "cnn"){
             CV_Error(cv::Error::StsBadArg, "not yet");
         }else{
@@ -181,7 +182,7 @@ public:
   std::vector<Tree<Feature> > trees;
   int max_numtrees_;
   double train_ratio_;
-  Forest(int max_numtrees=2, double train_ratio = 0.8){
+  Forest(int max_numtrees=5, double train_ratio = 0.8){
       max_numtrees_ = max_numtrees;
       trees.resize(max_numtrees_);
       train_ratio_ = train_ratio;
@@ -224,12 +225,12 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<In
     num_nodes_ = 1;
     num_leafnodes_ = 1;
 
-    bool stop = 0;
+    bool stop = false;
     int num_nodes = 1;
     int num_leafnodes = 1;
     std::vector<int> lcind,rcind;
-    int num_nodes_iter;
-    int num_split;
+    int num_nodes_iter = 0;
+    int num_split = 0;
     while(!stop){ // restart when we finish spliting old nodes
         num_nodes_iter = num_nodes_;
         nodes_.resize(num_nodes_*2+1);
@@ -241,13 +242,9 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<In
                     nodes_[n].issplit = true;
                     nodes_[n].isleafnode = true;
                 }else{
-
-                    bool success = false;
-
-                    success = split(feats[0].name, feats, infos, nodes_[n].ind_feats,
+                    bool success = split(feats[0].name, feats, infos, nodes_[n].ind_feats,
                                          nodes_[n].split_feat_idx, lcind, rcind,
                                             nodes_[n].simi_thresh, nodes_[n].depth);
-
                     if(success){
                         nodes_[n].issplit = true;
                         nodes_[n].isleafnode = false;
@@ -282,7 +279,7 @@ void Tree<Feature>::train(const std::vector<Feature> &feats,const std::vector<In
             }
         }
         if (num_split == 0){  // no new node to split
-            stop = 1;
+            stop = true;
         }
         else{
             num_nodes_ = num_nodes;
@@ -449,6 +446,7 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
             right_infos.push_back(std::move(infos[ind_feats[idx]]));
         }
         // calculate some metrics here, greater is better
+
     }
     return 0;
 }

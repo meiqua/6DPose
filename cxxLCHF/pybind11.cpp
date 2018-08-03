@@ -1,4 +1,5 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "np2mat/ndarray_converter.h"
 #include "forest.h"
 namespace py = pybind11;
