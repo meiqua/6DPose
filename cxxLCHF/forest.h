@@ -508,7 +508,10 @@ std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Fea
 namespace lchf_model {
     Forest<Linemod_feature> train(const std::vector<Linemod_feature>& feats, const std::vector<Info>& infos);
     std::vector<int> predict(const Forest<Linemod_feature>& forest, const std::vector<Linemod_feature> &feats, Linemod_feature &f);
+
     std::vector<std::map<int, std::vector<int>>> getLeaf_feats_map(const Forest<Linemod_feature>& forest);
+
+    std::vector<Linemod_feature> get_feats_from_scene(cv::Mat& rgb, cv::Mat& depth, std::vector<std::vector<int>>& rois);
 
     void saveForest(Forest<Linemod_feature>& forest, std::string path);
     Forest<Linemod_feature> loadForest(std::string path);

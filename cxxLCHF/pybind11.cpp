@@ -23,7 +23,10 @@ PYBIND11_MODULE(cxxLCHF_pybind, m) {
     // func
     m.def("lchf_model_train", &lchf_model::train);
     m.def("lchf_model_predict", &lchf_model::predict);
+
     m.def("getLeaf_feats_map", &lchf_model::getLeaf_feats_map);
+
+    m.def("get_feats_from_scene", &lchf_model::get_feats_from_scene);
 
     m.def("lchf_model_saveForest", &lchf_model::saveForest);
     m.def("lchf_model_loadForest", &lchf_model::loadForest);

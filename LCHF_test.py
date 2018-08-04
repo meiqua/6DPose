@@ -215,9 +215,9 @@ if mode == 'render_train':
                     j = (i - (i%2))/2
 
                     # offset, width, height, depth
-                    offset1 = [int(i%2*rows/2), int(j*cols/2), int(rows / 2), int(cols / 2)]
+                    offset1 = [int(i%2*cols/2), int(j*rows/2), int(cols / 2), int(rows / 2)]
                     if i == 4:
-                        offset1 = [int(rows / 4), int(cols / 4), int(rows / 2), int(cols / 2), t[2]]
+                        offset1 = [int(cols / 4), int(rows / 4), int(cols / 2), int(rows / 2), t[2]]
 
                     rgb1 = rgb[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2]), :]
                     depth1 = depth[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2])]
@@ -300,11 +300,24 @@ if mode == 'test':
             depth = inout.load_depth(dp['test_depth_mpath'].format(scene_id, im_id))
             depth *= dp['cam']['depth_scale']  # to [mm]
             depth = depth.astype(np.uint16)  # [mm]
-            im_size = (depth.shape[1], depth.shape[0])
 
-            match_ids = list()
-            match_ids.append('{:02d}_template'.format(scene_id))
+            rows = depth.shape[0]
+            cols = depth.shape[1]
+            stride = 3
+            width = 50  # bigger is OK, top left corner should align obj
+            height = 50
+            dep_x = int(width/2)
+            dep_y = int(height/2)
+
             start_time = time.time()
+
+            rois = []
+            for x in range(0, cols - width - 2*stride, stride):  # avoid out of img
+                for y in range(0, rows - height - 2*stride, stride):
+                    roi = [x, y, width, height, dep_x, dep_y]
+                    rois.append(roi)
+
+            scene_feats = cxxLCHF_pybind.get_feats_from_scene(rgb, depth, rois)
 
             elapsed_time = time.time() - start_time
 
@@ -313,7 +326,7 @@ if mode == 'test':
             if visual:
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.waitKey(2000)
+                cv2.waitKey(0)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:
