@@ -91,7 +91,7 @@ void lchf_model::saveInfos(std::vector<Info> &cluster_infos, std::string path)
 {
     fs::path dir(path);
     {
-        fs::path file("cluster_infos");
+        fs::path file("infos");
         auto full_path = dir / file;
         fstream output(full_path.c_str(), ios::out | ios::trunc | ios::binary);
         lchf::Infos infos;
@@ -106,7 +106,7 @@ void lchf_model::saveInfos(std::vector<Info> &cluster_infos, std::string path)
 }
 std::vector<Info> lchf_model::loadInfos(std::string path)
 {
-    fs::path file("cluster_infos");
+    fs::path file("infos");
     lchf::Infos infos;
     fs::path dir(path);
     auto full_path = dir / file;

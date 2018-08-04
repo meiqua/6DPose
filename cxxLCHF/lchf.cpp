@@ -644,6 +644,11 @@ bool Linemod_feature::constructEmbedding(){
             float distance = sqrtf(area) / sqrtf((float)embedding.num_features) + 1.5f;
             selectScatteredFeatures(candidates, embedding.depth_embedding, embedding.num_features, distance);
             //        cropTemplates(embedding.depth_embedding);
+        }else{
+            return false;
+        }
+        if(embedding.depth_embedding.empty()){
+            return false;
         }
     }
     return true;
@@ -815,10 +820,10 @@ void Linemod_feature::read(const lchf::Linemod_feature &feature_)
     }
 
     if(feature_.has_embedding())
-    embedding.read(feature_.embedding());
+        embedding.read(feature_.embedding());
 
     if(feature_.has_name())
-    name = feature_.name();
+        name = feature_.name();
 }
 
 void Info::write(lchf::Info* info_)
@@ -908,50 +913,60 @@ void Linemod_embedding::read(const lchf::Linemod_embedding &embedding_)
 {
     center_dep = embedding_.center_dep();
 
-    int rgb_ele_size = embedding_.rgb_embedding().element_size();
-    if(rgb_ele_size>0){
-        rgb_embedding.resize(rgb_ele_size);
-        for(int i=0; i<rgb_ele_size; i++){
-            auto lchf_ele = embedding_.rgb_embedding().element(i);
-            auto& ele = rgb_embedding[i];
-            ele.x = lchf_ele.x();
-            ele.y = lchf_ele.y();
-            ele.label = lchf_ele.label();
+    {
+        int rgb_ele_size = embedding_.rgb_embedding().element_size();
+        if(rgb_ele_size>0){
+            rgb_embedding.resize(rgb_ele_size);
+            for(int i=0; i<rgb_ele_size; i++){
+                auto lchf_ele = embedding_.rgb_embedding().element(i);
+                auto& ele = rgb_embedding[i];
+                ele.x = lchf_ele.x();
+                ele.y = lchf_ele.y();
+                ele.label = lchf_ele.label();
+            }
         }
     }
 
-    int dep_ele_size = embedding_.depth_embedding().element_size();
-    if(dep_ele_size>0){
-        depth_embedding.resize(dep_ele_size);
-        for(int i=0;i<dep_ele_size;i++){
-            auto lchf_ele = embedding_.depth_embedding().element(i);
-            auto& ele = depth_embedding[i];
-            ele.x = lchf_ele.x();
-            ele.y = lchf_ele.y();
-            ele.label = lchf_ele.label();
+    {
+        int dep_ele_size = embedding_.depth_embedding().element_size();
+        if(dep_ele_size>0){
+            depth_embedding.resize(dep_ele_size);
+            for(int i=0;i<dep_ele_size;i++){
+                auto lchf_ele = embedding_.depth_embedding().element(i);
+                auto& ele = depth_embedding[i];
+                ele.x = lchf_ele.x();
+                ele.y = lchf_ele.y();
+                ele.label = lchf_ele.label();
+            }
+        }
+
+    }
+
+    {
+        int rgb_res_size = embedding_.rgb_response_size();
+        if(rgb_res_size>0){
+            rgb_response.resize(rgb_res_size);
+            for(int i=0;i<rgb_res_size;i++){
+                auto lchf_rgb_res = embedding_.rgb_response(i);
+                int rows = lchf_rgb_res.row_size();
+                int cols = lchf_rgb_res.row(0).value_size();
+                rgb_response[i] = Mat(rows, cols, CV_8UC1);
+                loadMat<uchar>(rgb_response[i], lchf_rgb_res);
+            }
         }
     }
 
-    int rgb_res_size = embedding_.rgb_response_size();
-    if(rgb_ele_size>0){
-        rgb_response.resize(rgb_res_size);
-        for(int i=0;i<rgb_ele_size;i++){
-            auto lchf_rgb_res = embedding_.rgb_response(i);
-            int rows = lchf_rgb_res.row_size();
-            int cols = lchf_rgb_res.row(0).value_size();
-            rgb_response[i] = Mat(rows, cols, CV_8UC1);
-            loadMat<uchar>(rgb_response[i], lchf_rgb_res);
-        }
-    }
-    int dep_res_size = embedding_.dep_response_size();
-    if(dep_ele_size>0){
-        dep_response.resize(dep_res_size);
-        for(int i=0;i<dep_ele_size;i++){
-            auto lchf_dep_res = embedding_.dep_response(i);
-            int rows = lchf_dep_res.row_size();
-            int cols = lchf_dep_res.row(0).value_size();
-            dep_response[i] = Mat(rows, cols, CV_8UC1);
-            loadMat<uchar>(dep_response[i], lchf_dep_res);
+    {
+        int dep_res_size = embedding_.dep_response_size();
+        if(dep_res_size>0){
+            dep_response.resize(dep_res_size);
+            for(int i=0;i<dep_res_size;i++){
+                auto lchf_dep_res = embedding_.dep_response(i);
+                int rows = lchf_dep_res.row_size();
+                int cols = lchf_dep_res.row(0).value_size();
+                dep_response[i] = Mat(rows, cols, CV_8UC1);
+                loadMat<uchar>(dep_response[i], lchf_dep_res);
+            }
         }
     }
 }

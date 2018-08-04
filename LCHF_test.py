@@ -119,11 +119,11 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-mode = 'render_train'
-# mode = 'test'
+# mode = 'render_train'
+mode = 'test'
 
 base_path = join(dp['base_path'], 'LCHF')
-
+train_from_radius = 1000
 if mode == 'render_train':
     start_time = time.time()
     visual = True
@@ -136,7 +136,7 @@ if mode == 'render_train':
     LCHF_infos = []
     LCHF_linemod_feats = []
     for obj_id in obj_ids_curr:
-        radii = [1000]
+        radii = [train_from_radius]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
         min_n_views = 100
@@ -241,8 +241,8 @@ if mode == 'render_train':
                     LCHF_linemod_feats.append(LCHF_linemod_feat)  # record feature
 
                     LCHF_info = cxxLCHF_pybind.Info()
-                    LCHF_info.rpy = rotationMatrixToEulerAngles(R)
-                    LCHF_info.t = np.array(offset1)
+                    LCHF_info.rpy = (rotationMatrixToEulerAngles(R)).astype(np.float32)  # make sure consistent
+                    LCHF_info.t = (np.array(offset1)).astype(np.float32)
                     LCHF_info.id = str(obj_id)
                     LCHF_infos.append(LCHF_info)  # record info
 
@@ -255,14 +255,17 @@ if mode == 'render_train':
     forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
     cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
     cxxLCHF_pybind.lchf_model_saveInfos(LCHF_infos, base_path)
-    cxxLCHF_pybind.lchf_model_saveFeatures(LCHF_linemod_feats, base_path, False)
+    cxxLCHF_pybind.lchf_model_saveFeatures(LCHF_linemod_feats, base_path, False)  # save source rgb & depth or not
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
 
 if mode == 'test':
-    print('reading detector template & info')
-    templateInfo = dict()
+    print('reading detector forest & info')
+    forest = cxxLCHF_pybind.lchf_model_loadForest(base_path)
+    LCHF_infos = cxxLCHF_pybind.lchf_model_loadInfos(base_path)
+    LCHF_linemod_feats = cxxLCHF_pybind.lchf_model_loadFeatures(base_path)
+    leaf_feats_map = cxxLCHF_pybind.getLeaf_feats_map(forest)
 
     # Whether to consider only the specified subset of images
     use_image_subset = True

@@ -141,14 +141,12 @@ void fake_feature_test() {
 }
 
 int main(){
-    dataset_test();
-
 //    fake_feature_test();
+//    dataset_test();
 
-//    lchf_model model;
-//    model.path = prefix;
-//    model.forest = model.loadForest();
-//    auto features = model.loadFeatures();
+    // read write test
+//    auto infos = lchf_model::loadInfos("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+
 //    google::protobuf::ShutdownProtobufLibrary();
     cout << "end" << endl;
     return 0;
