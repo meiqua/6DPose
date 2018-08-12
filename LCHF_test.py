@@ -206,8 +206,8 @@ if mode == 'render_train':
                 depth = depth[ymin:ymax, xmin:xmax]
                 mask = mask[ymin:ymax, xmin:xmax]
 
-                rows = depth.shape[1]
-                cols = depth.shape[0]
+                rows = depth.shape[0]
+                cols = depth.shape[1]
                 # have read rgb, depth, pose, obj_bb, obj_id, bbox, mask here
 
                 # 5 box
@@ -229,7 +229,7 @@ if mode == 'render_train':
                                       (offset1[0] + offset1[2], offset1[1] + offset1[3]), (0, 0, 255), 1)
                         cv2.imshow('rgb', rgb_)
                         cv2.imshow('rgb1', rgb1)
-                        cv2.waitKey(500)
+                        cv2.waitKey(0)
 
                     LCHF_linemod_feat = cxxLCHF_pybind.Linemod_feature(rgb1, depth1)
                     if LCHF_linemod_feat.constructEmbedding():  # extract template OK
@@ -255,7 +255,7 @@ if mode == 'render_train':
     forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
     cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
     cxxLCHF_pybind.lchf_model_saveInfos(LCHF_infos, base_path)
-    cxxLCHF_pybind.lchf_model_saveFeatures(LCHF_linemod_feats, base_path, False)  # save source rgb & depth or not
+    cxxLCHF_pybind.lchf_model_saveFeatures(LCHF_linemod_feats, base_path)
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
@@ -304,10 +304,12 @@ if mode == 'test':
             rows = depth.shape[0]
             cols = depth.shape[1]
             stride = 3
+
+            # should be max_bbox * render_depth/max_scene_depth
             width = 50  # bigger is OK, top left corner should align obj
             height = 50
-            dep_x = int(width/2)
-            dep_y = int(height/2)
+            dep_x = 10  # closer to top left, for patch depth estimation
+            dep_y = 10
 
             start_time = time.time()
 
@@ -318,8 +320,10 @@ if mode == 'test':
                     rois.append(roi)
 
             scene_feats = cxxLCHF_pybind.get_feats_from_scene(rgb, depth, rois)
+            leaf_of_trees_of_scene = cxxLCHF_pybind.lchf_model_predict(forest, LCHF_linemod_feats, scene_feats)
 
             elapsed_time = time.time() - start_time
+            print('forest predict time: {}'.format(elapsed_time))
 
             visual = True
             # visual = False

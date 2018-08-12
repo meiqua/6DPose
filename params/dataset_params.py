@@ -2,9 +2,12 @@
 # Center for Machine Perception, Czech Technical University in Prague
 
 import math
+import os
 from os.path import join as pjoin
 
 from pysixd import inout
+
+top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def get_dataset_params(name, model_type='', train_type='', test_type='',
                        cam_type=''):
@@ -13,7 +16,7 @@ def get_dataset_params(name, model_type='', train_type='', test_type='',
          'train_type': train_type, 'test_type': test_type, 'cam_type': cam_type}
 
     # Path to the folder with datasets
-    common_base_path = '/home/meiqua/6DPose/public/datasets/'
+    common_base_path = pjoin(top_level_path, 'public/datasets/')
 
     # Path to the T-LESS Toolkit (https://github.com/thodan/t-less_toolkit)
     tless_tk_path = '../t_less_toolkit/'

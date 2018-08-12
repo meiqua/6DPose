@@ -78,8 +78,7 @@ public:
     void setEmbedding(Linemod_embedding& embedding_){embedding = std::move(embedding_);}
     float similarity(const Linemod_feature& other) const;
 
-    void write(lchf::Linemod_feature* f, bool save_src = 0
-            , bool save_embedding = 0);
+    void write(lchf::Linemod_feature* f);
     void read(const lchf::Linemod_feature &feature_);
 };
 

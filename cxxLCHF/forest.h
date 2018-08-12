@@ -150,7 +150,7 @@ public:
     bool split_linemod(const std::vector<Feature>& feats, const std::vector<Info>& infos
                , const std::vector<int>& ind_feats,
                int& f_idx, std::vector<int>& lcind, std::vector<int>& rcind, float& simi_thresh, int depth);
-    int predict_linemod(const std::vector<Feature> &feats, Feature& f) const;
+    int predict_linemod(const std::vector<Feature> &feats, const Feature& f) const;
 
     template <typename ...Params>
     bool split(std::string name, Params&&... params){
@@ -188,7 +188,7 @@ public:
       train_ratio_ = train_ratio;
   }
   void Train(const std::vector<Feature>& feats, const std::vector<Info>& infos);
-  std::vector<int> Predict(const std::vector<Feature> &feats, Feature &f) const;
+  std::vector<int> Predict(const std::vector<Feature> &feats, const Feature &f) const;
 
   void write(lchf::Forest* forest){
       forest->set_max_numtrees(max_numtrees_);
@@ -421,7 +421,7 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
                                const std::vector<int> &left,
                                const std::vector<int> &right, const std::vector<float> &simis, int depth)
 {
-    std::string type = "simis";
+    std::string type = "infos";
     if(type=="simis"){
         std::vector<float> left_simis, right_simis;
         for(auto idx: left){
@@ -437,27 +437,60 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
         float var_reduce = left_w*(1-left_w)*(u1-u2)*(u1-u2);
         return var_reduce;
     }
-    if(type == "infos"){
-        std::vector<Info> left_infos, right_infos;
+    else if(type == "infos"){
+        std::vector<int> left_infos, right_infos;
         for(auto idx: left){
-            left_infos.push_back(std::move(infos[ind_feats[idx]]));
+            left_infos.push_back(ind_feats[idx]);
         }
         for(auto idx: right){
-            right_infos.push_back(std::move(infos[ind_feats[idx]]));
+            right_infos.push_back(ind_feats[idx]);
         }
+
         // calculate some metrics here, greater is better
 
+        // refer to 3.2 info gain, rpy only
+        // Real Time Head Pose Estimation with Random Regression Forests
+        auto get_var = [&infos](std::vector<int> info_idxs){
+            float mean[3] = {0};
+            cv::Mat A = cv::Mat(info_idxs.size(), 3, CV_32FC1, cv::Scalar(0));
+            for(int i=0; i<info_idxs.size(); i++){
+                const auto& info = infos[info_idxs[i]];
+                for(int j=0; j<3; j++){
+                    mean[j] += info.rpy.at<float>(j,0);
+                    A.at<float>(i, j) = info.rpy.at<float>(j,0);
+                }
+            }
+            {
+                for(int j=0; j<3; j++){
+                    mean[j] /= info_idxs.size();
+                }
+                cv::Mat mean_mat = cv::Mat(1, 3, CV_32FC1,  mean);
+                cv::Mat ones = cv::Mat::ones(info_idxs.size(), 1, CV_32FC1);
+                A = A - ones*mean_mat;
+            }
+            cv::Mat var = A.t()*A/info_idxs.size();
+            return var;
+        };
+        cv::Mat left_var = get_var(left_infos);
+        cv::Mat right_var = get_var(left_infos);
+        cv::Mat total_var = get_var(ind_feats);
+
+        auto var_value = [](cv::Mat& var){return std::log2f(cv::determinant(var));};
+        float var_reduce = var_value(total_var) -
+                (left_infos.size() *var_value(left_var)+
+                 right_infos.size()*var_value(right_var))/infos.size();
+        return var_reduce;
     }
     return 0;
 }
 
 template<class Feature>
-int Tree<Feature>::predict_linemod(const std::vector<Feature> &feats, Feature &f) const
+int Tree<Feature>::predict_linemod(const std::vector<Feature> &feats, const Feature &f) const
 {
     auto current = nodes_[0];
     int current_idx = 0;
     while(!current.isleafnode){
-        if(f.similarity(feats[current.split_feat_idx]) <= current.simi_thresh){
+        if(feats[current.split_feat_idx].similarity(f) <= current.simi_thresh){
             current_idx = current.cnodes[0];
             current = nodes_[current_idx];
         }else{
@@ -495,7 +528,7 @@ void Forest<Feature>::Train(const std::vector<Feature> &feats, const std::vector
 }
 
 template<class Feature>
-std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Feature &f) const
+std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, const Feature &f) const
 {
     std::vector<int> results;
     for(auto& tree: trees){
@@ -507,7 +540,7 @@ std::vector<int> Forest<Feature>::Predict(const std::vector<Feature> &feats, Fea
 
 namespace lchf_model {
     Forest<Linemod_feature> train(const std::vector<Linemod_feature>& feats, const std::vector<Info>& infos);
-    std::vector<int> predict(const Forest<Linemod_feature>& forest, const std::vector<Linemod_feature> &feats, Linemod_feature &f);
+    std::vector<std::vector<int>> predict(const Forest<Linemod_feature>& forest, const std::vector<Linemod_feature> &templ_feats, const std::vector<Linemod_feature> &scene_feats);
 
     std::vector<std::map<int, std::vector<int>>> getLeaf_feats_map(const Forest<Linemod_feature>& forest);
 
@@ -516,7 +549,7 @@ namespace lchf_model {
     void saveForest(Forest<Linemod_feature>& forest, std::string path);
     Forest<Linemod_feature> loadForest(std::string path);
 
-    void saveFeatures(std::vector<Linemod_feature>& features, std::string path, bool save_src = false);
+    void saveFeatures(std::vector<Linemod_feature>& features, std::string path);
     std::vector<Linemod_feature> loadFeatures(std::string path);
 
     void saveInfos(std::vector<Info>& infos, std::string path);

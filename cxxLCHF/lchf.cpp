@@ -722,6 +722,12 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
         if(other.embedding.center_dep>0 && embedding.center_dep>0){
             int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
             int normalize_y = element.y*embedding.center_dep/other.embedding.center_dep;
+
+            if(element.y>=depth.rows || element.x>=depth.cols ||
+                    normalize_y>=other.depth.rows || normalize_x>=other.depth.cols){
+                continue;
+            }
+
             int z_1 = embedding.center_dep-depth.at<uint16_t>(element.y,element.x);
             int z_2 = other.embedding.center_dep-other.depth.at<uint16_t>(normalize_y,normalize_x);
             bool valid = std::abs(z_1-z_2) < embedding.z_check;
@@ -742,6 +748,12 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
         if(other.embedding.center_dep>0 && embedding.center_dep>0){
             int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
             int normalize_y = element.y*embedding.center_dep/other.embedding.center_dep;
+
+            if(element.y>=depth.rows || element.x>=depth.cols ||
+                    normalize_y>=other.depth.rows || normalize_x>=other.depth.cols){
+                continue;
+            }
+
             int z_1 = embedding.center_dep-depth.at<uint16_t>(element.y,element.x);
             int z_2 = other.embedding.center_dep-other.depth.at<uint16_t>(normalize_y,normalize_x);
             bool valid = std::abs(z_1-z_2) < embedding.z_check;
@@ -761,10 +773,9 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
     return score/count/4*100;
 }
 
-void Linemod_feature::write(lchf::Linemod_feature* feature_, bool save_src
-        , bool save_embedding)
+void Linemod_feature::write(lchf::Linemod_feature* feature_)
 {
-    if(save_src){
+    {
         if(!rgb.empty()){
             lchf::Mat_i_3* mat_i_3 = new lchf::Mat_i_3();
             Mat bgr[3];
@@ -787,7 +798,7 @@ void Linemod_feature::write(lchf::Linemod_feature* feature_, bool save_src
         }
     }
 
-    if(save_embedding){
+    {
         // where there is a set_allocated, there is a new
         auto embedding_write = new lchf::Linemod_embedding();
         embedding.write(embedding_write);

@@ -17,9 +17,14 @@ Forest<Linemod_feature> lchf_model::train(const std::vector<Linemod_feature> &fe
     forest.Train(feats, infos);
     return forest;
 }
-std::vector<int> lchf_model::predict(const Forest<Linemod_feature>& forest, const std::vector<Linemod_feature> &feats, Linemod_feature &f)
+std::vector<std::vector<int>> lchf_model::predict(const Forest<Linemod_feature>& forest, const std::vector<Linemod_feature> &templ_feats, const std::vector<Linemod_feature> &scene_feats)
 {
-    return forest.Predict(feats, f);
+    std::vector<std::vector<int>> scene_leafs;
+    for(auto& f: scene_feats){
+        auto leafs = forest.Predict(templ_feats, f);
+        scene_leafs.push_back(leafs);
+    }
+    return scene_leafs;
 }
 
 void lchf_model::saveForest(Forest<Linemod_feature> &forest, std::string path){
@@ -50,7 +55,7 @@ Forest<Linemod_feature> lchf_model::loadForest(std::string path)
     return forest;
 }
 
-void lchf_model::saveFeatures(std::vector<Linemod_feature> &features, std::string path, bool save_src){
+void lchf_model::saveFeatures(std::vector<Linemod_feature> &features, std::string path){
     fs::path dir(path);
     if(!features.empty())
     {
@@ -60,7 +65,7 @@ void lchf_model::saveFeatures(std::vector<Linemod_feature> &features, std::strin
         lchf::Linemod_features fs;
         for(auto& feature: features){
             auto fs_ = fs.add_features();
-            feature.write(fs_, save_src, 1);
+            feature.write(fs_);
         }
         if(!fs.SerializeToOstream(&output)){
             cerr << "Fail to write features" << endl;
@@ -287,9 +292,14 @@ std::vector<Linemod_feature> lchf_model::get_feats_from_scene(Mat &rgb, Mat &dep
                     }
                 }
             }
-            embedding.center_dep = depth_sum/valid_dep_count;
+            if(valid_dep_count == 0){
+                embedding.center_dep = 0;
+            }else{
+                embedding.center_dep = depth_sum/valid_dep_count;
+            }
         }
         Linemod_feature feat;
+        feat.depth = depth(cv::Rect(roi[0], roi[1], roi[2], roi[3]));
         feat.setEmbedding(embedding);
         feats.push_back(feat);
     }
