@@ -252,19 +252,23 @@ if mode == 'render_train':
     print('construct features time: {}\n'.format(elapsed_time))
 
     print('sample size: {}\n'.format(len(LCHF_linemod_feats)))
-    forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
-    cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
     cxxLCHF_pybind.lchf_model_saveInfos(LCHF_infos, base_path)
     cxxLCHF_pybind.lchf_model_saveFeatures(LCHF_linemod_feats, base_path)
+
+    forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
+    cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
+
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
 
 if mode == 'test':
     print('reading detector forest & info')
-    forest = cxxLCHF_pybind.lchf_model_loadForest(base_path)
+
     LCHF_infos = cxxLCHF_pybind.lchf_model_loadInfos(base_path)
     LCHF_linemod_feats = cxxLCHF_pybind.lchf_model_loadFeatures(base_path)
+
+    forest = cxxLCHF_pybind.lchf_model_loadForest(base_path)
     leaf_feats_map = cxxLCHF_pybind.getLeaf_feats_map(forest)
 
     # Whether to consider only the specified subset of images
@@ -316,7 +320,22 @@ if mode == 'test':
             rois = []
             for x in range(0, cols - width - 2*stride, stride):  # avoid out of img
                 for y in range(0, rows - height - 2*stride, stride):
-                    roi = [x, y, width, height, dep_x, dep_y]
+
+                    ker_size = 5
+                    dep_sum = 0
+                    dep_valid = 0
+                    for i in range(ker_size):
+                        for j in range(ker_size):
+                            depth_value = depth[i + dep_y + y, j + dep_x + x]
+                            if depth_value > 0:
+                                dep_sum += depth_value
+                                dep_valid += 1
+                    if dep_valid > 0:
+                        dep_sum /= dep_valid
+                    else:
+                        continue
+
+                    roi = [x, y, width, height, int(dep_sum)]
                     rois.append(roi)
 
             scene_feats = cxxLCHF_pybind.get_feats_from_scene(rgb, depth, rois)

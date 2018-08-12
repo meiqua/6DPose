@@ -144,40 +144,44 @@ int main(){
 //    fake_feature_test();
 //    dataset_test();
 
-    // read write test
-    auto forest = lchf_model::loadForest("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+    auto infos = lchf_model::loadInfos("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
     auto feats = lchf_model::loadFeatures("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+    auto forest = lchf_model::train(feats, infos);
 
-    Mat rgb = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_rgb.png");
-    Mat depth = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    // read write test
+//    auto forest = lchf_model::loadForest("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+//    auto feats = lchf_model::loadFeatures("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
 
-    int rows = depth.rows;
-    int cols = depth.cols;
-    int stride = 3;
-    int width = 100;
-    int height = 100;
-    int dep_x = 10;
-    int dep_y = 10;
+//    Mat rgb = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_rgb.png");
+//    Mat depth = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
-    std::vector<std::vector<int>> rois;
-    for(int x=0; x<cols-width-2*stride; x+=stride){
-        for(int y=0; y<rows-height-2*stride; y+=stride){
-            std::vector<int> roi = {x, y, width, height, dep_x, dep_y};
-            rois.push_back(roi);
-        }
-    }
+//    int rows = depth.rows;
+//    int cols = depth.cols;
+//    int stride = 3;
+//    int width = 100;
+//    int height = 100;
+//    int dep_x = 10;
+//    int dep_y = 10;
 
-    auto scene_feats = lchf_model::get_feats_from_scene(rgb, depth, rois);
+//    std::vector<std::vector<int>> rois;
+//    for(int x=0; x<cols-width-2*stride; x+=stride){
+//        for(int y=0; y<rows-height-2*stride; y+=stride){
+//            std::vector<int> roi = {x, y, width, height, dep_x, dep_y};
+//            rois.push_back(roi);
+//        }
+//    }
 
-    auto leaf_of_trees_of_scene = lchf_model::predict(forest, feats, scene_feats);
+//    auto scene_feats = lchf_model::get_feats_from_scene(rgb, depth, rois);
 
-    auto first_one = leaf_of_trees_of_scene[0];
-    for(auto& leaf_of_trees: leaf_of_trees_of_scene){
-        if(leaf_of_trees!=first_one){
-            std::cout << "found it!" << std::endl;
-            first_one = leaf_of_trees;
-        }
-    }
+//    auto leaf_of_trees_of_scene = lchf_model::predict(forest, feats, scene_feats);
+
+//    auto first_one = leaf_of_trees_of_scene[0];
+//    for(auto& leaf_of_trees: leaf_of_trees_of_scene){
+//        if(leaf_of_trees!=first_one){
+//            std::cout << "found it!" << std::endl;
+//            first_one = leaf_of_trees;
+//        }
+//    }
 
     //    google::protobuf::ShutdownProtobufLibrary();
     cout << "end" << endl;

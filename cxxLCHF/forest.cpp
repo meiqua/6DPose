@@ -253,7 +253,7 @@ std::vector<std::map<int, std::vector<int>>> lchf_model::getLeaf_feats_map(const
 std::vector<Linemod_feature> lchf_model::get_feats_from_scene(Mat &rgb, Mat &depth, std::vector<std::vector<int> > &rois)
 {
     assert(rois.size()>0);
-    assert(rois[0].size() == 6);
+    assert(rois[0].size() == 5);
 
     Linemod_feature whole_scene(rgb, depth);
     whole_scene.constructResponse();
@@ -261,6 +261,7 @@ std::vector<Linemod_feature> lchf_model::get_feats_from_scene(Mat &rgb, Mat &dep
     std::vector<Linemod_feature> feats;
     for(auto& roi: rois){
         Linemod_embedding embedding;
+        embedding.center_dep = roi[5];
         {
             std::vector<cv::Mat> rgb_response;
             for(cv::Mat& res: whole_scene.embedding.rgb_response){
@@ -278,25 +279,6 @@ std::vector<Linemod_feature> lchf_model::get_feats_from_scene(Mat &rgb, Mat &dep
                 dep_response.push_back(res_roi);
             }
             embedding.dep_response = dep_response;
-        }
-        {
-            int kernel_size = 5;
-            int depth_sum = 0;
-            int valid_dep_count = 0;
-            for(int c=roi[4]+roi[0]-kernel_size/2; c<=roi[4]+roi[0]-kernel_size/2; c++){
-                for(int r=roi[5]+roi[1]-kernel_size/2; r<=roi[5]+roi[1]-kernel_size/2; r++){
-                    auto d = depth.at<short>(r, c);
-                    if(checkRange(d)){
-                        depth_sum += d;
-                        valid_dep_count ++;
-                    }
-                }
-            }
-            if(valid_dep_count == 0){
-                embedding.center_dep = 0;
-            }else{
-                embedding.center_dep = depth_sum/valid_dep_count;
-            }
         }
         Linemod_feature feat;
         feat.depth = depth(cv::Rect(roi[0], roi[1], roi[2], roi[3]));

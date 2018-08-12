@@ -430,6 +430,10 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
         for(auto idx: right){
             right_simis.push_back(simis[idx]);
         }
+
+        if(left_simis.empty() || right_simis.empty() || ind_feats.empty())
+            return 0;
+
         float left_w = float(left_simis.size())/(left_simis.size()+right_simis.size());
         float u1 = lchf_helper::getMean(left_simis);
         float u2 = lchf_helper::getMean(right_simis);
@@ -446,14 +450,18 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
             right_infos.push_back(ind_feats[idx]);
         }
 
+        if(left_infos.empty() || right_infos.empty() || ind_feats.empty())
+            return 0;
+
         // calculate some metrics here, greater is better
 
         // refer to 3.2 info gain, rpy only
         // Real Time Head Pose Estimation with Random Regression Forests
         auto get_var = [&infos](std::vector<int> info_idxs){
             float mean[3] = {0};
-            cv::Mat A = cv::Mat(info_idxs.size(), 3, CV_32FC1, cv::Scalar(0));
-            for(int i=0; i<info_idxs.size(); i++){
+            int num = info_idxs.size();
+            cv::Mat A = cv::Mat(num, 3, CV_32FC1, cv::Scalar(0));
+            for(int i=0; i<num; i++){
                 const auto& info = infos[info_idxs[i]];
                 for(int j=0; j<3; j++){
                     mean[j] += info.rpy.at<float>(j,0);
@@ -465,17 +473,19 @@ float Tree<Feature>::info_gain(const std::vector<Info>& infos,
                     mean[j] /= info_idxs.size();
                 }
                 cv::Mat mean_mat = cv::Mat(1, 3, CV_32FC1,  mean);
-                cv::Mat ones = cv::Mat::ones(info_idxs.size(), 1, CV_32FC1);
+                cv::Mat ones = cv::Mat::ones(num, 1, CV_32FC1);
+
                 A = A - ones*mean_mat;
             }
-            cv::Mat var = A.t()*A/info_idxs.size();
+
+            cv::Mat var = A.t()*A/double(num);
             return var;
         };
         cv::Mat left_var = get_var(left_infos);
-        cv::Mat right_var = get_var(left_infos);
+        cv::Mat right_var = get_var(right_infos);
         cv::Mat total_var = get_var(ind_feats);
 
-        auto var_value = [](cv::Mat& var){return std::log2f(cv::determinant(var));};
+        auto var_value = [](cv::Mat& var){return std::log2(cv::determinant(var));};
         float var_reduce = var_value(total_var) -
                 (left_infos.size() *var_value(left_var)+
                  right_infos.size()*var_value(right_var))/infos.size();
