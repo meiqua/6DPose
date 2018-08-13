@@ -342,14 +342,58 @@ if mode == 'test':
             leaf_of_trees_of_scene = cxxLCHF_pybind.lchf_model_predict(forest, LCHF_linemod_feats, scene_feats)
 
             elapsed_time = time.time() - start_time
+            start_time = time.time()
             print('forest predict time: {}'.format(elapsed_time))
+
+            num_x_bins = int(cols/20)
+            num_y_bins = int(rows/20)
+            num_angle_bins = 10
+
+            votes = np.zeros(shape=(num_x_bins, num_y_bins, num_angle_bins, num_angle_bins, num_angle_bins),
+                             dtype=np.float32)
+
+            for scene_i in range(len(leaf_of_trees_of_scene)):
+                trees_of_scene = leaf_of_trees_of_scene[scene_i]
+                roi = rois[scene_i]
+                for tree_i in range(len(trees_of_scene)):
+                    leaf_i = trees_of_scene[tree_i]
+                    leaf_map = leaf_feats_map[tree_i]
+                    predicted_ids = leaf_map[leaf_i]
+                    for id_ in predicted_ids:
+                        info = LCHF_infos[id_]
+                        offset = info.t
+                        offset_x = offset[0] * train_from_radius / roi[4]
+                        offset_y = offset[1] * train_from_radius / roi[4]
+
+                        x = int((roi[0] - offset_x) / 20)
+                        y = int((roi[1] - offset_y) / 20)
+                        theta0 = int(info.rpy[0] / 2 / 3.14 * num_angle_bins)
+                        theta1 = int(info.rpy[1] / 2 / 3.14 * num_angle_bins)
+                        theta2 = int(info.rpy[2] / 2 / 3.14 * num_angle_bins)
+
+                        # votes[x-1:x+1, y-1:y+1, theta0-1:theta0+1, theta1-1:theta1+1, theta2-1:theta2+1] \
+                        #     += 1.0/len(predicted_ids)/len(trees_of_scene)
+                        votes[x, y, theta0, theta1, theta2] \
+                            += 1.0/len(predicted_ids)/len(trees_of_scene)
+
+            votes_sort_idx = np.dstack(np.unravel_index(np.argsort(votes.ravel()), votes.shape))
+
+            top10 = 100
+            for i in range(1, top10):
+                if 19 > votes_sort_idx[0, -i, 0] > 1 and 19 > votes_sort_idx[0, -i, 1] > 1:
+                    cv2.circle(rgb, (votes_sort_idx[0, -i, 1]*20, votes_sort_idx[0, -i, 0]*20), 2, (0, 0, 255), -1)
+                    print('votes_sort_idx: {}, votes: {}'.format(votes_sort_idx[0, -i, :],
+                                                                 votes[tuple(votes_sort_idx[0, -i, :])]))
+
+            elapsed_time = time.time() - start_time
+            print('voting time: {}'.format(elapsed_time))
 
             visual = True
             # visual = False
             if visual:
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.waitKey(0)
+                cv2.waitKey(1000)
 
             gt_ids_curr = range(len(scene_gt[im_id]))
             if gt_ids:
