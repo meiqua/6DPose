@@ -345,6 +345,8 @@ if mode == 'test':
             start_time = time.time()
             print('forest predict time: {}'.format(elapsed_time))
 
+            # voting isn't working well, and
+            # should meanshift the leaf first
             num_x_bins = int(cols/20)
             num_y_bins = int(rows/20)
             num_angle_bins = 10

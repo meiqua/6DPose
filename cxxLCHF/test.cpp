@@ -209,7 +209,7 @@ void simi_test(){
 //                std::cout << "\nself simi(should be 100): " << simi << std::endl;
 //            }
 
-            {
+            { // result is around 75, 55-95
                 cv::Mat rgb_2, depth_2;
                 pyrDown(rgb(bbox), rgb_2);
 

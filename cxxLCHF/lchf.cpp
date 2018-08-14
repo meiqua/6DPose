@@ -719,17 +719,17 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
     float score = 0;
     auto& rgb_res = other.embedding.rgb_response;
 
-    cv::Mat templ = cv::Mat::zeros(500, 500, CV_8UC1);
-    cv::Mat templ2 = cv::Mat::zeros(500, 500, CV_8UC1);
+//    cv::Mat templ = cv::Mat::zeros(500, 500, CV_8UC1);
+//    cv::Mat templ2 = cv::Mat::zeros(500, 500, CV_8UC1);
     for(auto element: embedding.rgb_embedding){
 
-        templ.at<uchar>(element.y+100, element.x+100) = 255;
+//        templ.at<uchar>(element.y+100, element.x+100) = 255;
 
         if(other.embedding.center_dep>0 && embedding.center_dep>0){
             int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
             int normalize_y = element.y*embedding.center_dep/other.embedding.center_dep;
 
-            templ2.at<uchar>(normalize_y+100, normalize_x+100) = 255;
+//            templ2.at<uchar>(normalize_y+100, normalize_x+100) = 255;
 
             if(element.y>=depth.rows || element.x>=depth.cols ||
                     normalize_y>=other.depth.rows || normalize_x>=other.depth.cols){
@@ -742,8 +742,6 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
 //            bool valid = std::abs(z_1-z_2) < embedding.z_check;
 //            if(valid)
             {
-//                normalize_x = clamp(normalize_x, 0, width-1);
-//                normalize_y = clamp(normalize_y, 0, height-1);
                 auto response = rgb_res[element.label];
                 score += response.at<uchar>(normalize_y,normalize_x);
             }
@@ -751,35 +749,34 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
         }
     }
 
-    std::cout << embedding.rgb_embedding.size() << std::endl;
-    cv::imshow("t1", templ);
-    cv::imshow("t2", templ2);
-    cv::waitKey(0);
+//    std::cout << embedding.rgb_embedding.size() << std::endl;
+//    cv::imshow("t1", templ);
+//    cv::imshow("t2", templ2);
+//    cv::waitKey(0);
 
     auto& dep_res = other.embedding.dep_response;
-//    for(auto element: embedding.depth_embedding){
-//        if(other.embedding.center_dep>0 && embedding.center_dep>0){
-//            int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
-//            int normalize_y = element.y*embedding.center_dep/other.embedding.center_dep;
+    for(auto element: embedding.depth_embedding){
+        if(other.embedding.center_dep>0 && embedding.center_dep>0){
+            int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
+            int normalize_y = element.y*embedding.center_dep/other.embedding.center_dep;
 
-//            if(element.y>=depth.rows || element.x>=depth.cols ||
-//                    normalize_y>=other.depth.rows || normalize_x>=other.depth.cols){
-//                continue;
-//            }
+            if(element.y>=depth.rows || element.x>=depth.cols ||
+                    normalize_y>=other.depth.rows || normalize_x>=other.depth.cols){
+                continue;
+            }
 
 //            int z_1 = embedding.center_dep-get_depth(depth, element.y, element.x);
 //            int z_2 = other.embedding.center_dep-get_depth(other.depth, normalize_y,normalize_x);
 
 //            bool valid = std::abs(z_1-z_2) < embedding.z_check;
-//            if(valid){
-//                normalize_x = clamp(normalize_x, 0, width-1);
-//                normalize_y = clamp(normalize_y, 0, height-1);
-//                auto response = dep_res[element.label];
-//                score += response.at<uchar>(normalize_y,normalize_x);
-//            }
-//            count++;
-//        }
-//    }
+//            if(valid)
+            {
+                auto response = dep_res[element.label];
+                score += response.at<uchar>(normalize_y,normalize_x);
+            }
+            count++;
+        }
+    }
     if(count==0){
         return 0;
     }
