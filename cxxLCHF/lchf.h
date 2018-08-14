@@ -26,7 +26,7 @@ public:
         distance_threshold(2000),
         difference_threshold(50),
         extract_threshold(2),
-        z_check(50){}
+        z_check(100){}
     float weak_threshold, strong_threshold;
     int num_features, distance_threshold, difference_threshold, extract_threshold;
     class element {

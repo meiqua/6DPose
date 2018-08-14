@@ -140,49 +140,103 @@ void fake_feature_test() {
     cout << "fake feature test end" << endl;
 }
 
-int main(){
-//    fake_feature_test();
-//    dataset_test();
+void API_test(){
 
-    auto infos = lchf_model::loadInfos("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
-    auto feats = lchf_model::loadFeatures("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
-    auto forest = lchf_model::train(feats, infos);
-
-    // read write test
-//    auto forest = lchf_model::loadForest("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+//    auto infos = lchf_model::loadInfos("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
 //    auto feats = lchf_model::loadFeatures("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+//    auto forest = lchf_model::train(feats, infos);
 
-//    Mat rgb = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_rgb.png");
-//    Mat depth = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    auto forest = lchf_model::loadForest("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
+    auto feats = lchf_model::loadFeatures("/home/meiqua/6DPose/public/datasets/hinterstoisser/LCHF");
 
-//    int rows = depth.rows;
-//    int cols = depth.cols;
-//    int stride = 3;
-//    int width = 100;
-//    int height = 100;
-//    int dep_x = 10;
-//    int dep_y = 10;
+    Mat rgb = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_rgb.png");
+    Mat depth = imread("/home/meiqua/6DPose/cxxLCHF/test/0000_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
-//    std::vector<std::vector<int>> rois;
-//    for(int x=0; x<cols-width-2*stride; x+=stride){
-//        for(int y=0; y<rows-height-2*stride; y+=stride){
-//            std::vector<int> roi = {x, y, width, height, dep_x, dep_y};
-//            rois.push_back(roi);
-//        }
-//    }
+    int rows = depth.rows;
+    int cols = depth.cols;
+    int stride = 3;
+    int width = 100;
+    int height = 100;
+    int dep_x = 10;
+    int dep_y = 10;
 
-//    auto scene_feats = lchf_model::get_feats_from_scene(rgb, depth, rois);
+    std::vector<std::vector<int>> rois;
+    for(int x=0; x<cols-width-2*stride; x+=stride){
+        for(int y=0; y<rows-height-2*stride; y+=stride){
+            std::vector<int> roi = {x, y, width, height, dep_x, dep_y};
+            rois.push_back(roi);
+        }
+    }
 
-//    auto leaf_of_trees_of_scene = lchf_model::predict(forest, feats, scene_feats);
+    auto scene_feats = lchf_model::get_feats_from_scene(rgb, depth, rois);
 
-//    auto first_one = leaf_of_trees_of_scene[0];
-//    for(auto& leaf_of_trees: leaf_of_trees_of_scene){
-//        if(leaf_of_trees!=first_one){
-//            std::cout << "found it!" << std::endl;
-//            first_one = leaf_of_trees;
-//        }
-//    }
+    auto leaf_of_trees_of_scene = lchf_model::predict(forest, feats, scene_feats);
 
+    auto first_one = leaf_of_trees_of_scene[0];
+    for(auto& leaf_of_trees: leaf_of_trees_of_scene){
+        if(leaf_of_trees!=first_one){
+            std::cout << "found it!" << std::endl;
+            first_one = leaf_of_trees;
+        }
+    }
+}
+
+void simi_test(){
+    string pre = "/home/meiqua/6DPose/public/datasets/hinterstoisser/train/06/";
+
+    vector<Linemod_feature> features;
+    int train_size = 1000;
+    for(int i=0;i<train_size;i++){
+        auto i_str = to_string(i);
+        for(int pad=4-i_str.size();pad>0;pad--){
+            i_str = '0'+i_str;
+        }
+        Mat rgb = cv::imread(pre+"rgb/"+i_str+".png");
+        Mat depth = cv::imread(pre+"depth/"+i_str+".png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+        Mat Points;
+        findNonZero(depth>0,Points);
+        Rect bbox=boundingRect(Points);
+
+        Linemod_feature f(rgb(bbox), depth(bbox));
+        if(f.constructEmbedding()){
+            f.constructResponse();
+            features.push_back(f);
+            cv::imshow("rgb", rgb);
+
+//            {
+//                float simi = features[features.size()-1]
+//                                        .similarity(features[features.size()-1]);
+//                std::cout << "\nself simi(should be 100): " << simi << std::endl;
+//            }
+
+            {
+                cv::Mat rgb_2, depth_2;
+                pyrDown(rgb(bbox), rgb_2);
+
+                imshow("rgb_2", rgb_2);
+
+                pyrDown(depth(bbox), depth_2);
+                depth_2 *= 2;
+
+                Linemod_feature f_2(rgb_2, depth_2);
+                f_2.constructResponse();
+                float simi = features[features.size()-1]
+                                        .similarity(f_2);
+                std::cout << "\ndiff depth simi: " << simi << std::endl;
+            }
+
+//            if(features.size() > 1){
+//                float simi = features[features.size()-2]
+//                        .similarity(features[features.size()-1]);
+//                std::cout << "adj simi: " << simi << std::endl;
+//            }
+        }
+
+    }
+}
+int main(){
+
+    simi_test();
     //    google::protobuf::ShutdownProtobufLibrary();
     cout << "end" << endl;
     return 0;
