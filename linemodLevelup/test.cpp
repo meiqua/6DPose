@@ -36,17 +36,15 @@ std::string type2str(int type) {
   return r;
 }
 void train_test(){
-    Mat rgb = cv::imread(prefix+"train_rgb.png");
-    Mat depth = cv::imread(prefix+"train_dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
-    Mat mask = cv::imread(prefix+"train_mask.png");
+    Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/667/rgb.png");
+    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/667/dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    Mat mask = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/667/mask.png");
     cvtColor(mask, mask, cv::COLOR_RGB2GRAY);
-    cout << "rgb: " << type2str(rgb.type())  << endl;
-    cout << "depth: " << type2str(depth.type())  << endl;
-    cout << "mask: " << type2str(mask.type())  << endl;
+
     vector<Mat> sources;
     sources.push_back(rgb);
     sources.push_back(depth);
-    auto detector = linemodLevelup::Detector();
+    auto detector = linemodLevelup::Detector(20, {4, 8}, 16);
     detector.addTemplate(sources, "06_template", mask);
     detector.writeClasses(prefix+"writeClasses/%s.yaml");
     cout << "break point line: train_test" << endl;
@@ -103,30 +101,20 @@ void detect_test(){
 //    imwrite(prefix+"0000_dep_half.png", depth);
 //    imwrite(prefix+"0000_rgb_half.png", rgb);
 //    imshow("rgb", rgb);
-//    waitKey(10000000);
+//    waitKey(0);
 
     Mat K_ren = (Mat_<float>(3,3) << 572.4114, 0.0, 325.2611, 0.0, 573.57043, 242.04899, 0.0, 0.0, 1.0);
     Mat R_ren = (Mat_<float>(3,3) << 0.34768538, 0.93761126, 0.00000000, 0.70540612,
                  -0.26157897, -0.65877056, -0.61767070, 0.22904489, -0.75234390);
     Mat t_ren = (Mat_<float>(3,1) << 0.0, 0.0, 1000.0);
 
-    auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
 
-    auto detector = linemodLevelup::Detector(127,{5, 8});
-    detector.readClasses(classes, prefix + "/127/%s.yaml");
-
-//    auto detector = linemodLevelup::Detector();
-//    detector.readClasses(classes, prefix + "/63/%s.yaml");
-
-    vector<String> classes_ori;
-    classes_ori.push_back("06_template");
-    ori_detector->readClasses(classes_ori, prefix + "/600/%s.yaml");
+    auto detector = linemodLevelup::Detector(20,{4, 8});
+    detector.readClasses(classes, prefix + "%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
-//    vector<cv::linemod::Match> matches;
-//    ori_detector->match(sources, 90, matches, classes_ori);
     vector<linemodLevelup::Match> matches = detector.match(sources, 75, 0.6f, classes);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
     cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;

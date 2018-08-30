@@ -1,8 +1,3 @@
-# Author: Tomas Hodan (hodantom@cmp.felk.cvut.cz)
-# Center for Machine Perception, Czech Technical University in Prague
-
-# Samples views from a sphere.
-
 import math
 import numpy as np
 from . import transform, inout
@@ -11,16 +6,13 @@ def fibonacci_sampling(n_pts, radius=1):
     '''
     Returns an arbitrary odd number of almost equidistant points from the
     Fibonacci lattice on a unit sphere.
-
     Latitude (elevation) represents rotation angle around X axis.
     Longitude (azimuth) represents rotation angle around Z axis
-
     Ref:
     [1] https://arxiv.org/pdf/0912.4540.pdf
     [2] http://stackoverflow.com/questions/34302938/map-point-to-closest-point-on-fibonacci-lattice
     [3] http://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere
     [4] https://www.openprocessing.org/sketch/41142
-
     :param n_pts: Number of required points (an odd number).
     :param radius: Radius of the view sphere.
     :return: List of 3D points on the sphere surface.
@@ -63,7 +55,6 @@ def hinter_sampling(min_n_pts, radius=1):
     Sphere sampling based on refining icosahedron as described in:
     Hinterstoisser et al., Simultaneous Recognition and Homography Extraction of
     Local Patches with a Simple Linear Classifier, BMVC 2008
-
     :param min_n_pts: Minimum required number of points on the whole view sphere.
     :param radius: Radius of the view sphere.
     :return: 3D points on the sphere surface and a list that indicates on which
@@ -161,7 +152,25 @@ def hinter_sampling(min_n_pts, radius=1):
 
     return pts, pts_level
 
-def pts2views(pts, azimuth_range, elev_range):
+
+def rotate_along_axis(theta, u3, x3):
+    u = u3[0]
+    v = u3[1]
+    w = u3[2]
+    x = x3[0]
+    y = x3[1]
+    z = x3[2]
+    a = 1-math.cos(theta)
+    b = math.cos(theta)
+    c = math.sin(theta)
+    return [
+        u*(u*x+v*y+w*z)*a + x*b + (v*z-w*y)*c,
+        v*(u*x+v*y+w*z)*a + y*b + (w*x-u*z)*c,
+        w*(u*x+v*y+w*z)*a + z*b + (u*y-v*x)*c
+    ]
+
+
+def pts2views(pts, azimuth_range, elev_range, tilt_range, tilt_step):
     # moved here from sample_views, because we may add some pts manually
     views = []
     for pt in pts:
@@ -188,33 +197,40 @@ def pts2views(pts, azimuth_range, elev_range):
         # [2] https://www.opengl.org/wiki/GluLookAt_code
         f = -np.array(pt) # Forward direction
         f /= np.linalg.norm(f)
-        u = np.array([0.0, 0.0, 1.0]) # Up direction
-        s = np.cross(f, u) # Side direction
-        if np.count_nonzero(s) == 0:
-            # f and u are parallel, i.e. we are looking along or against Z axis
-            s = np.array([1.0, 0.0, 0.0])
-        s /= np.linalg.norm(s)
-        u = np.cross(s, f) # Recompute up
-        R = np.array([[s[0], s[1], s[2]],
-                      [u[0], u[1], u[2]],
-                      [-f[0], -f[1], -f[2]]])
 
-        # Convert from OpenGL to OpenCV coordinate system
-        R_yz_flip = transform.rotation_matrix(math.pi, [1, 0, 0])[:3, :3]
-        R = R_yz_flip.dot(R)
+        for tilt in np.arange(tilt_range[0], tilt_range[1], tilt_step):
+            u = np.array([0.0, 0.0, 1.0])  # Up direction
+            s = np.cross(f, u)  # Side direction
+            if np.count_nonzero(s) == 0:
+                # f and u are parallel, i.e. we are looking along or against Z axis
+                s = np.array([1.0, 0.0, 0.0])
+            s /= np.linalg.norm(s)
 
-        # Translation vector
-        t = -R.dot(np.array(pt).reshape((3, 1)))
+            s = rotate_along_axis(tilt, f, s)
+            u = np.cross(s, f)  # Recompute up
 
-        views.append({'R': R, 't': t})
+            R = np.array([[s[0], s[1], s[2]],
+                          [u[0], u[1], u[2]],
+                          [-f[0], -f[1], -f[2]]])
+
+            # Convert from OpenGL to OpenCV coordinate system
+            R_yz_flip = transform.rotation_matrix(math.pi, [1, 0, 0])[:3, :3]
+            R = R_yz_flip.dot(R)
+
+            # Translation vector
+            t = -R.dot(np.array(pt).reshape((3, 1)))
+
+            views.append({'R': R, 't': t})
+
+
     return views
 
 def sample_views(min_n_views, radius=1,
                  azimuth_range=(0, 2 * math.pi),
-                 elev_range=(-0.5 * math.pi, 0.5 * math.pi)):
+                 elev_range=(-0.5 * math.pi, 0.5 * math.pi),
+                 tilt_range=(-0.5 * math.pi, 0.5 * math.pi), tilt_step=0.1*math.pi):
     '''
     Viewpoint sampling from a view sphere.
-
     :param min_n_views: Minimum required number of views on the whole view sphere.
     :param radius: Radius of the view sphere.
     :param azimuth_range: Azimuth range from which the viewpoints are sampled.
@@ -230,12 +246,11 @@ def sample_views(min_n_views, radius=1,
         pts = fibonacci_sampling(min_n_views + 1, radius=radius)
         pts_level = [0 for _ in range(len(pts))]
 
-    return pts2views(pts, azimuth_range, elev_range), pts_level
+    return pts2views(pts, azimuth_range, elev_range, tilt_range, tilt_step), pts_level
 
 def save_vis(path, views, views_level=None):
     '''
     Creates a PLY file visualizing the views.
-
     :param path: Path to output PLY file.
     :param views: Views as returned by sample_views().
     :param views_level: View levels as returned by sample_views().
@@ -286,60 +301,3 @@ if __name__ == '__main__':
     # Sample views
     views, views_level = sample_views(min_n_views, radius, azimuth_range, elev_range)
     print('Sampled views: ' + str(len(views)))
-
-    #out_views_vis_path = '../output/view_sphere.ply'
-    #save_vis(out_views_vis_path, views)
-
-
-# Unfinished implementation of sphere sampling used by TUD:
-#
-# def sample_views_dresden(
-#     elev_steps=1,
-#     azimuth_steps=1,
-#     cell_samples=1,
-#     inplane_steps=1,
-#     inplane_max_angle=1,
-#     z_shift=1
-# ):#
-#     def slice_sample_angle(x_min, x_max, x_last):
-#         if x_last > x_max or x_last < x_min:
-#             x_last = random.uniform(x_min, x_max)
-#         y = math.cos(x_last)
-#         y_sample = random.uniform(0, y)
-#         x_limit = min(math.acos(y_sample), x_max)
-#         x_sample = random.uniform(x_min, x_limit)
-#         return x_sample
-#
-#     elev_angle = -1.0
-#     for elev in range(elev_steps):
-#         for azimuth in range(azimuth_steps):
-#             for inplane in range(inplane_steps):
-#                 for cell_id in range(cell_samples):
-#                     start = math.asin(elev / float(elev_steps))
-#                     end = math.asin((elev + 1) / float(elev_steps))
-#
-#                     # Sample elevation
-#                     elev_angle = slice_sample_angle(start, end, elev_angle)
-#
-#                     # Sample azimuth
-#                     extent = (2 * math.pi) / float(azimuth_steps)
-#                     azimuth_angle = azimuth * extent + random.uniform(0, extent)
-#
-#                     # Sample in-plane rotation
-#                     extent = inplane_max_angle * 2.0 / float(inplane_steps)
-#                     inplane_angle_start = -inplane_max_angle + extent * inplane
-#                     inplane_angle_end = inplane_angle_start + extent
-#                     inplane_angle = random.uniform(inplane_angle_start, inplane_angle_end)
-#
-#                     rvI = [0, 0, inplane_angle, 0, 0, 0]
-#                     #6DPose hIn(rvI);
-#
-#                     rv_ = [elev_angle, 0, 0, 0, 0, 0]
-#                     #6DPose hAng(rv_);
-#
-#                     rv = [0, azimuth_angle, 0, 0, 0, 0]
-#                     #6DPose hAngB(rv);
-#
-#                     # Combine rotations around axis into one rotation and set translation
-#                     #6DPose pose(hIn.getTransformation() * hAng.getTransformation() * hAngB.getTransformation())
-#                     #pose.setTranslation(cv::Point3d(0.0, 0.0, z_shift * 1000.0))

@@ -285,34 +285,10 @@ public:
    */
   Detector(const std::vector< cv::Ptr<Modality> >& modalities, const std::vector<int>& T_pyramid);
 
-  /**
-   * \brief Detect objects by template matching.
-   *
-   * Matches globally at the lowest pyramid level, then refines locally stepping up the pyramid.
-   *
-   * \param      sources   Source images, one for each modality.
-   * \param      threshold Similarity threshold, a percentage between 0 and 100.
-   * \param[out] matches   Template matches, sorted by similarity score.
-   * \param      class_ids If non-empty, only search for the desired object classes.
-   * \param[out] quantized_images Optionally return vector<Mat> of quantized images.
-   * \param      masks     The masks for consideration during matching. The masks should be CV_8UC1
-   *                       where 255 represents a valid pixel.  If non-empty, the vector must be
-   *                       the same size as sources.  Each element must be
-   *                       empty or the same size as its corresponding source.
-   */
   std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold, float active_ratio = 0.6,
              const std::vector<std::string>& class_ids = std::vector<std::string>(),
                            const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
-  /**
-   * \brief Add new object template.
-   *
-   * \param      sources      Source images, one for each modality.
-   * \param      class_id     Object class ID.
-   * \param      object_mask  Mask separating object from background.
-   * \param[out] bounding_box Optionally return bounding box of the extracted features.
-   *
-   * \return Template ID, or -1 if failed to extract a valid template.
-   */
+
   int addTemplate(const std::vector<cv::Mat>& sources, const std::string& class_id,
           const cv::Mat& object_mask);
 
