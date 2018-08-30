@@ -119,11 +119,11 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
 base_path = join(dp['base_path'], 'LCHF')
-train_from_radius = 1000
+train_from_radius = 500
 if mode == 'render_train':
     start_time = time.time()
     visual = True
@@ -160,7 +160,7 @@ if mode == 'render_train':
             # Sample views
             views, views_level = view_sampler.sample_views(min_n_views, radius,
                                                            azimuth_range, elev_range,
-                                                           tilt_range=(0, 2*math.pi), tilt_step=0.1*math.pi)
+                                                           tilt_range=(-math.pi/2, math.pi/2), tilt_step=0.2*math.pi)
             print('Sampled views: ' + str(len(views)))
 
             # Render the object model from all the views
@@ -210,41 +210,37 @@ if mode == 'render_train':
                 cols = depth.shape[1]
                 # have read rgb, depth, pose, obj_bb, obj_id, bbox, mask here
 
-                # 5 box
-                for i in range(5):
-                    j = (i - (i%2))/2
+                # 5x5 cm patch, stride 5, assume 1pix = 1mm in around 500mm depth
+                stride = 10
+                for row in range(0, rows - 50, stride):
+                    for col in range(0, cols - 50, stride):
+                        offset1 = [col, row, 50, 50]
+                        rgb1 = rgb[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2]), :]
+                        depth1 = depth[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2])]
 
-                    # offset, width, height, depth
-                    offset1 = [int(i%2*cols/2), int(j*rows/2), int(cols / 2), int(rows / 2)]
-                    if i == 4:
-                        offset1 = [int(cols / 4), int(rows / 4), int(cols / 2), int(rows / 2), t[2]]
+                        visualized = False
+                        if visualized:
+                            rgb_ = np.copy(rgb)
+                            cv2.rectangle(rgb_, (offset1[0], offset1[1]),
+                                          (offset1[0] + offset1[2], offset1[1] + offset1[3]), (0, 0, 255), 1)
+                            cv2.imshow('rgb', rgb_)
+                            cv2.imshow('rgb1', rgb1)
+                            cv2.waitKey(0)
 
-                    rgb1 = rgb[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2]), :]
-                    depth1 = depth[offset1[1]:(offset1[1] + offset1[3]), offset1[0]:(offset1[0] + offset1[2])]
+                        LCHF_linemod_feat = cxxLCHF_pybind.Linemod_feature(rgb1, depth1)
+                        if LCHF_linemod_feat.constructEmbedding():  # extract template OK
+                            LCHF_linemod_feat.constructResponse()  # extract response map for simi func
+                        else:
+                            # print('points not enough')
+                            continue  # no enough points for template extraction, pass
 
-                    visualized = False
-                    if visualized:
-                        rgb_ = np.copy(rgb)
-                        cv2.rectangle(rgb_, (offset1[0], offset1[1]),
-                                      (offset1[0] + offset1[2], offset1[1] + offset1[3]), (0, 0, 255), 1)
-                        cv2.imshow('rgb', rgb_)
-                        cv2.imshow('rgb1', rgb1)
-                        cv2.waitKey(0)
+                        LCHF_linemod_feats.append(LCHF_linemod_feat)  # record feature
 
-                    LCHF_linemod_feat = cxxLCHF_pybind.Linemod_feature(rgb1, depth1)
-                    if LCHF_linemod_feat.constructEmbedding():  # extract template OK
-                        LCHF_linemod_feat.constructResponse()  # extract response map for simi func
-                    else:
-                        # print('points not enough')
-                        continue  # no enough points for template extraction, pass
-
-                    LCHF_linemod_feats.append(LCHF_linemod_feat)  # record feature
-
-                    LCHF_info = cxxLCHF_pybind.Info()
-                    LCHF_info.rpy = (rotationMatrixToEulerAngles(R)).astype(np.float32)  # make sure consistent
-                    LCHF_info.t = (np.array(offset1)).astype(np.float32)
-                    LCHF_info.id = str(obj_id)
-                    LCHF_infos.append(LCHF_info)  # record info
+                        LCHF_info = cxxLCHF_pybind.Info()
+                        LCHF_info.rpy = (rotationMatrixToEulerAngles(R)).astype(np.float32)  # make sure consistent
+                        LCHF_info.t = (np.array(offset1)).astype(np.float32)
+                        LCHF_info.id = str(obj_id)
+                        LCHF_infos.append(LCHF_info)  # record info
 
                 del rgb, depth, mask
 
@@ -257,7 +253,6 @@ if mode == 'render_train':
 
     forest = cxxLCHF_pybind.lchf_model_train(LCHF_linemod_feats, LCHF_infos)
     cxxLCHF_pybind.lchf_model_saveForest(forest, base_path)
-
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
@@ -307,7 +302,7 @@ if mode == 'test':
 
             rows = depth.shape[0]
             cols = depth.shape[1]
-            stride = 3
+            stride = 5
 
             # should be max_bbox * render_depth/max_scene_depth
             width = 50  # bigger is OK, top left corner should align obj
@@ -345,47 +340,66 @@ if mode == 'test':
             start_time = time.time()
             print('forest predict time: {}'.format(elapsed_time))
 
-            # voting isn't working well, and
-            # should meanshift the leaf first
-            num_x_bins = int(cols/20)
-            num_y_bins = int(rows/20)
+            steps = 10
+            num_x_bins = int(cols/steps)
+            num_y_bins = int(rows/steps)
             num_angle_bins = 10
+
+            print('x_bins: {}, y_bins: {}'.format(num_x_bins, num_y_bins))
 
             votes = np.zeros(shape=(num_x_bins, num_y_bins, num_angle_bins, num_angle_bins, num_angle_bins),
                              dtype=np.float32)
 
+            voted_ids = {}
+
             for scene_i in range(len(leaf_of_trees_of_scene)):
                 trees_of_scene = leaf_of_trees_of_scene[scene_i]
                 roi = rois[scene_i]
+
                 for tree_i in range(len(trees_of_scene)):
                     leaf_i = trees_of_scene[tree_i]
-                    leaf_map = leaf_feats_map[tree_i]
-                    predicted_ids = leaf_map[leaf_i]
-                    for id_ in predicted_ids:
-                        info = LCHF_infos[id_]
-                        offset = info.t
-                        offset_x = offset[0] * train_from_radius / roi[4]
-                        offset_y = offset[1] * train_from_radius / roi[4]
 
-                        x = int((roi[0] - offset_x) / 20)
-                        y = int((roi[1] - offset_y) / 20)
-                        theta0 = int(info.rpy[0] / 2 / 3.14 * num_angle_bins)
-                        theta1 = int(info.rpy[1] / 2 / 3.14 * num_angle_bins)
-                        theta2 = int(info.rpy[2] / 2 / 3.14 * num_angle_bins)
+                    # if leaf_i has predicted
+                    if (tree_i, leaf_i) in voted_ids:
+                        votes += voted_ids[(tree_i, leaf_i)]
+                    else:
+                        # leaf_i votes
+                        votes_local = np.zeros(
+                            shape=(num_x_bins, num_y_bins, num_angle_bins, num_angle_bins, num_angle_bins),
+                            dtype=np.float32)
 
-                        # votes[x-1:x+1, y-1:y+1, theta0-1:theta0+1, theta1-1:theta1+1, theta2-1:theta2+1] \
-                        #     += 1.0/len(predicted_ids)/len(trees_of_scene)
-                        votes[x, y, theta0, theta1, theta2] \
-                            += 1.0/len(predicted_ids)/len(trees_of_scene)
+                        leaf_map = leaf_feats_map[tree_i]
+                        predicted_ids = leaf_map[leaf_i]
+                        for id_ in predicted_ids:
+                            info = LCHF_infos[id_]
+                            offset = info.t
+                            offset_x = offset[0] * train_from_radius / roi[4]
+                            offset_y = offset[1] * train_from_radius / roi[4]
+
+                            x = int((roi[0] - offset_x) / steps)
+                            y = int((roi[1] - offset_y) / steps)
+                            theta0 = int(info.rpy[0] / 2 / 3.14 * num_angle_bins)
+                            theta1 = int(info.rpy[1] / 2 / 3.14 * num_angle_bins)
+                            theta2 = int(info.rpy[2] / 2 / 3.14 * num_angle_bins)
+
+                            # votes[x-1:x+1, y-1:y+1, theta0-1:theta0+1, theta1-1:theta1+1, theta2-1:theta2+1] \
+                            #     += 1.0/len(predicted_ids)/len(trees_of_scene)
+                            votes_local[x, y, theta0, theta1, theta2] \
+                                += 1.0 / len(predicted_ids) / len(trees_of_scene)
+                            votes += votes_local
+
+                            # cache
+                            voted_ids[(tree_i, leaf_i)] = votes_local
 
             votes_sort_idx = np.dstack(np.unravel_index(np.argsort(votes.ravel()), votes.shape))
 
-            top10 = 100
+            top10 = 10
+            if top10>votes_sort_idx.shape[1]:
+                top10 = votes_sort_idx.shape[1]
+
+            print('top {}'.format(top10))
             for i in range(1, top10):
-                if 19 > votes_sort_idx[0, -i, 0] > 1 and 19 > votes_sort_idx[0, -i, 1] > 1:
-                    cv2.circle(rgb, (votes_sort_idx[0, -i, 1]*20, votes_sort_idx[0, -i, 0]*20), 2, (0, 0, 255), -1)
-                    print('votes_sort_idx: {}, votes: {}'.format(votes_sort_idx[0, -i, :],
-                                                                 votes[tuple(votes_sort_idx[0, -i, :])]))
+                    cv2.circle(rgb, (votes_sort_idx[0, -i, 0]*steps, votes_sort_idx[0, -i, 1]*steps), 4, (0, 255-i*2, 0), -1)
 
             elapsed_time = time.time() - start_time
             print('voting time: {}'.format(elapsed_time))

@@ -719,28 +719,40 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
     float score = 0;
     auto& rgb_res = other.embedding.rgb_response;
 
-//    cv::Mat templ = cv::Mat::zeros(500, 500, CV_8UC1);
-//    cv::Mat templ2 = cv::Mat::zeros(500, 500, CV_8UC1);
-    for(auto element: embedding.rgb_embedding){
+    auto get_depth = [](const cv::Mat& depth, int y, int x){
+        int ker_size = 5;
+        int x_tl = x - ker_size/2;
+        if(x_tl<0) x_tl = 0;
+        int y_tl = y - ker_size/2;
+        if(y_tl<0) y_tl = 0;
 
-//        templ.at<uchar>(element.y+100, element.x+100) = 255;
+        int width = ker_size;
+        if(width>depth.cols-x_tl) width = depth.cols-x_tl;
+        int height = ker_size;
+        if(height>depth.rows-y_tl) height = depth.rows-y_tl;
+
+        cv::Rect roi(x_tl, y_tl, width, height);
+        int ave_depth = int(cv::sum(depth(roi))[0]/cv::countNonZero(depth(roi)));
+
+        return ave_depth;
+    };
+
+    for(auto element: embedding.rgb_embedding){
 
         if(other.embedding.center_dep>0 && embedding.center_dep>0){
             int normalize_x = element.x*embedding.center_dep/other.embedding.center_dep;
             int normalize_y = element.y*embedding.center_dep/other.embedding.center_dep;
-
-//            templ2.at<uchar>(normalize_y+100, normalize_x+100) = 255;
 
             if(element.y>=depth.rows || element.x>=depth.cols ||
                     normalize_y>=other.depth.rows || normalize_x>=other.depth.cols){
                 continue;
             }
 
-//            int z_1 = embedding.center_dep-get_depth(depth, element.y, element.x);
-//            int z_2 = other.embedding.center_dep-get_depth(other.depth, normalize_y,normalize_x);
+            int z_1 = embedding.center_dep-get_depth(depth, element.y, element.x);
+            int z_2 = other.embedding.center_dep-get_depth(other.depth, normalize_y,normalize_x);
 
-//            bool valid = std::abs(z_1-z_2) < embedding.z_check;
-//            if(valid)
+            bool valid = std::abs(z_1-z_2) < embedding.z_check;
+            if(valid)
             {
                 auto response = rgb_res[element.label];
                 score += response.at<uchar>(normalize_y,normalize_x);
@@ -748,11 +760,6 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
             count++;
         }
     }
-
-//    std::cout << embedding.rgb_embedding.size() << std::endl;
-//    cv::imshow("t1", templ);
-//    cv::imshow("t2", templ2);
-//    cv::waitKey(0);
 
     auto& dep_res = other.embedding.dep_response;
     for(auto element: embedding.depth_embedding){
@@ -765,11 +772,11 @@ float Linemod_feature::similarity(const Linemod_feature &other) const{
                 continue;
             }
 
-//            int z_1 = embedding.center_dep-get_depth(depth, element.y, element.x);
-//            int z_2 = other.embedding.center_dep-get_depth(other.depth, normalize_y,normalize_x);
+            int z_1 = embedding.center_dep-get_depth(depth, element.y, element.x);
+            int z_2 = other.embedding.center_dep-get_depth(other.depth, normalize_y,normalize_x);
 
-//            bool valid = std::abs(z_1-z_2) < embedding.z_check;
-//            if(valid)
+            bool valid = std::abs(z_1-z_2) < embedding.z_check;
+            if(valid)
             {
                 auto response = dep_res[element.label];
                 score += response.at<uchar>(normalize_y,normalize_x);

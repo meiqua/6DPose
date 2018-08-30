@@ -163,20 +163,36 @@ void API_test(){
     std::vector<std::vector<int>> rois;
     for(int x=0; x<cols-width-2*stride; x+=stride){
         for(int y=0; y<rows-height-2*stride; y+=stride){
-            std::vector<int> roi = {x, y, width, height, dep_x, dep_y};
+
+            int dep_value = depth.at<ushort>(y+dep_y, x+dep_x);
+            if(dep_value==0) continue;
+            std::vector<int> roi = {x, y, width, height, dep_value};
             rois.push_back(roi);
         }
     }
-
     auto scene_feats = lchf_model::get_feats_from_scene(rgb, depth, rois);
-
     auto leaf_of_trees_of_scene = lchf_model::predict(forest, feats, scene_feats);
+    auto leaf_feats_map = lchf_model::getLeaf_feats_map(forest);
 
-    auto first_one = leaf_of_trees_of_scene[0];
-    for(auto& leaf_of_trees: leaf_of_trees_of_scene){
-        if(leaf_of_trees!=first_one){
-            std::cout << "found it!" << std::endl;
-            first_one = leaf_of_trees;
+    std::map<int, double> bg_prob;
+    for(int scene_iter=0; scene_iter<leaf_of_trees_of_scene.size(); scene_iter++){
+        auto& trees_of_scene = leaf_of_trees_of_scene[scene_iter];
+        auto& roi = rois[scene_iter];
+        for(int tree_iter=0; tree_iter<trees_of_scene.size(); tree_iter++){
+            auto& leaf_iter = trees_of_scene[tree_iter];
+            auto& leaf_map = leaf_feats_map[tree_iter];
+            auto& predicted_ids = leaf_map[leaf_iter];
+
+            for(auto id: predicted_ids){
+                if(bg_prob.find(id) == bg_prob.end()){
+                    bg_prob[id] = 1.0/predicted_ids.size()
+                            /trees_of_scene.size()/leaf_of_trees_of_scene.size();
+                }else{
+                    bg_prob[id] += 1.0/predicted_ids.size()
+                            /trees_of_scene.size()/leaf_of_trees_of_scene.size();
+                }
+            }
+
         }
     }
 }
@@ -209,21 +225,21 @@ void simi_test(){
 //                std::cout << "\nself simi(should be 100): " << simi << std::endl;
 //            }
 
-            { // result is around 75, 55-95
-                cv::Mat rgb_2, depth_2;
-                pyrDown(rgb(bbox), rgb_2);
+//            { // result is around 75, 55-95
+//                cv::Mat rgb_2, depth_2;
+//                pyrDown(rgb(bbox), rgb_2);
 
-                imshow("rgb_2", rgb_2);
+//                imshow("rgb_2", rgb_2);
 
-                pyrDown(depth(bbox), depth_2);
-                depth_2 *= 2;
+//                pyrDown(depth(bbox), depth_2);
+//                depth_2 *= 2;
 
-                Linemod_feature f_2(rgb_2, depth_2);
-                f_2.constructResponse();
-                float simi = features[features.size()-1]
-                                        .similarity(f_2);
-                std::cout << "\ndiff depth simi: " << simi << std::endl;
-            }
+//                Linemod_feature f_2(rgb_2, depth_2);
+//                f_2.constructResponse();
+//                float simi = features[features.size()-1]
+//                                        .similarity(f_2);
+//                std::cout << "\ndiff depth simi: " << simi << std::endl;
+//            }
 
 //            if(features.size() > 1){
 //                float simi = features[features.size()-2]
@@ -235,7 +251,7 @@ void simi_test(){
     }
 }
 int main(){
-
+//    API_test();
     simi_test();
     //    google::protobuf::ShutdownProtobufLibrary();
     cout << "end" << endl;
