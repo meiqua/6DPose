@@ -2042,6 +2042,9 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                     if (templ.features.size() < 64)
                     {
                         cluster_counts2[i] = similarityLocal_64(lms[i], templ, similarities2[i], size, T, Point(x, y));
+                        for(auto& simi: similarities2[i]){
+                            simi.convertTo(simi, CV_16U);
+                        }
                     }
                     else if (templ.features.size() < 8192)
                     {
