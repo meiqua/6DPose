@@ -7,6 +7,27 @@
 using namespace std;
 using namespace cv;
 
+#include <chrono>
+class Timer
+{
+public:
+    Timer() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const {
+        return std::chrono::duration_cast<second_>
+            (clock_::now() - beg_).count(); }
+    void out(std::string message = ""){
+        double t = elapsed();
+        std::cout << message << "  elasped time:" << t << "s" << std::endl;
+        reset();
+    }
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    std::chrono::time_point<clock_> beg_;
+};
+
+
 void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                          Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
@@ -1277,11 +1298,14 @@ static void spread(const Mat &src, Mat &dst, int T)
 //CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 3, 4, 1, 4, 3, 4, 0, 4, 3, 4, 1, 4, 3, 4, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 0, 3, 4, 4, 3, 3, 4, 4, 1, 3, 4, 4, 3, 3, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 3, 3, 4, 4, 4, 4, 3, 3, 3, 3, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 0, 4, 3, 4, 1, 4, 3, 4, 0, 4, 3, 4, 1, 4, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 3, 4, 4, 3, 3, 4, 4, 1, 3, 4, 4, 3, 3, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 3, 3, 4, 4, 4, 4, 3, 3, 3, 3, 4, 4, 4, 4, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 0, 1, 1, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4};
 
 // 1,2-->0 3-->1
-CV_DECL_ALIGNED(16)
-static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+//CV_DECL_ALIGNED(16)
+//static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
 
 // 1,2-->0 3-->2
 //CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 0, 2, 4, 4, 2, 2, 4, 4, 0, 2, 4, 4, 2, 2, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 4, 2, 2, 4, 4, 0, 2, 4, 4, 2, 2, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4, 4, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4};
+
+// 1,2,3-->0
+CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4};
 
 /**
  * \brief Precompute response maps for a spread quantized image.
@@ -1430,12 +1454,11 @@ static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_me
     return memory + lm_index;
 }
 
-static std::vector<uint16_t> similarity(const std::vector<Mat> &linear_memories, const Template &templ,
+static void similarity(std::vector<uint16_t> &cluster_counts, const std::vector<Mat> &linear_memories, const Template &templ,
                                    std::vector<Mat> &dst_vec, Size size, int T)
 {
-
-    std::vector<uint16_t> cluster_counts(templ.clusters, 0);
     CV_Assert(templ.features.size() <= 8191);
+    std::fill(cluster_counts.begin(), cluster_counts.end(), 0);
 
     // Decimate input image size by factor of T
     int W = size.width / T;
@@ -1498,24 +1521,17 @@ static std::vector<uint16_t> similarity(const std::vector<Mat> &linear_memories,
         for (; j < template_positions; ++j)
             dst_ptr[j] = short(dst_ptr[j] + short(lm_ptr[j]));
     }
-    return cluster_counts;
 }
 
-static std::vector<uint16_t> similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
+static void similarityLocal(std::vector<uint16_t> &cluster_counts, const std::vector<Mat> &linear_memories, const Template &templ,
                                         std::vector<Mat> &dst_vec, Size size, int T, Point center)
 {
-    std::vector<uint16_t> cluster_counts(templ.clusters, 0);
     CV_Assert(templ.features.size() <= 8191);
-
+    std::fill(cluster_counts.begin(), cluster_counts.end(), 0);
     // Compute the similarity map in a 16x16 patch around center
     int W = size.width / T;
 
-    dst_vec.resize(templ.clusters);
-    for(int i=0; i<templ.clusters; i++){
-        dst_vec[i] = Mat::zeros(16, 16, CV_16U);
-    }
-
-
+    std::fill(dst_vec.begin(), dst_vec.end(), cv::Scalar::all(0));
     // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
     // center to get the top-left corner of the 16x16 patch.
     // NOTE: We make the offsets multiples of T to agree with results of the original code.
@@ -1571,7 +1587,6 @@ static std::vector<uint16_t> similarityLocal(const std::vector<Mat> &linear_memo
             }
         }
     }
-    return cluster_counts;
 }
 /****************************************************************************************\
 *                               High-level Detector API                                  *
@@ -1711,6 +1726,25 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                           const std::string &class_id,
                           const std::vector<TemplatePyramid> &template_pyramids) const
 {   
+    Timer timer;
+    std::vector<double> times(100, 0);
+
+    // pre-allocate to speed up, multi folds for multi-threads?
+    std::vector<std::vector<uint16_t>> cluster_counts(modalities.size(), std::vector<uint16_t>(clusters, 0));
+    std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size(), std::vector<uint16_t>(clusters, 0));
+
+    const int local_size = 16;
+    std::vector<std::vector<Mat>> similarities2(modalities.size());
+    for(auto& mat_v: similarities2){
+        for(int i=0; i<clusters; i++){
+            mat_v.push_back(cv::Mat(local_size, local_size, CV_16UC1));
+        }
+    }
+
+    Mat active_count2 = Mat::zeros(local_size, local_size, CV_8UC1);
+    Mat active_feat_num2 = Mat::zeros(local_size, local_size, CV_16UC1);
+    Mat active_score2 = Mat::zeros(local_size, local_size, CV_16UC1);
+
     for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id)
     {
         const TemplatePyramid &tp = template_pyramids[template_id];
@@ -1718,11 +1752,12 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
         /// @todo Factor this out into separate function
         const std::vector<LinearMemories> &lowest_lm = lm_pyramid.back();
 
+        timer.reset();
         std::vector<Match> candidates;
         {
             // Compute similarity maps for each modality at lowest pyramid level
             std::vector<std::vector<Mat>> similarities(modalities.size());
-            std::vector<std::vector<uint16_t>> cluster_counts(modalities.size());
+
             int total_count = 0;
 
             int lowest_start = static_cast<int>(tp.size() - modalities.size());
@@ -1732,7 +1767,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             {
                 const Template &templ = tp[lowest_start + i];
                 total_count += templ.clusters;
-                cluster_counts[i] = similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
+                similarity(cluster_counts[i], lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
             }
 
             Mat active_count = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_8UC1);
@@ -1761,41 +1796,91 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             }
 
             // Find initial matches
+            cv::Mat nms_candidates = cv::Mat(active_count.size(), CV_32FC1, cv::Scalar(0));
+            int nms_kernel_size = 5;
+
             for (int r = 0; r < active_count.rows; ++r)
             {
                 ushort *raw_score = active_score.ptr<ushort>(r);
                 ushort *active_feats = active_feat_num.ptr<ushort>(r);
                 uchar* active_parts = active_count.ptr<uchar>(r);
+
+                float* nms_row = nms_candidates.ptr<float>(r);
                 for (int c = 0; c < active_count.cols; ++c)
                 {
                     float score = 100.0f/4*raw_score[c]/active_feats[c];
                     if (active_parts[c] > int(total_count*active_ratio) && score>threshold)
                     {
+                        nms_row[c] = score;
+                    }
+                }
+            }
+            for (int r = nms_kernel_size/2; r < active_count.rows-nms_kernel_size/2; ++r)
+            {
+                float* nms_row = nms_candidates.ptr<float>(r);
+                for (int c = nms_kernel_size/2; c < active_count.cols-nms_kernel_size/2; ++c)
+                {
+                    float score = nms_row[c];
+                    if(score<=0) continue;
+
+                    bool is_max = true;
+                    for(int r_offset = -nms_kernel_size/2; r_offset <= nms_kernel_size/2; r_offset++){
+                        for(int c_offset = -nms_kernel_size/2; c_offset <= nms_kernel_size/2; c_offset++){
+                            if(r_offset == 0 && c_offset == 0) continue;
+
+                            if(score < nms_candidates.at<float>(r+r_offset, c+c_offset)){
+                                score = 0;
+                                is_max = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if(is_max){
+                        for(int r_offset = -nms_kernel_size/2; r_offset <= nms_kernel_size/2; r_offset++){
+                            for(int c_offset = -nms_kernel_size/2; c_offset <= nms_kernel_size/2; c_offset++){
+                                if(r_offset == 0 && c_offset == 0) continue;
+                                nms_candidates.at<float>(r+r_offset, c+c_offset) = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (int r = 0; r < active_count.rows; ++r)
+            {
+                float* nms_row = nms_candidates.ptr<float>(r);
+                for (int c = 0; c < active_count.cols; ++c){
+                    if(nms_row[c]>0){
                         int offset = lowest_T / 2 + (lowest_T % 2 - 1);
                         int x = c * lowest_T + offset;
                         int y = r * lowest_T + offset;
-                        candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
+                        candidates.push_back(Match(x, y, nms_row[c], class_id, static_cast<int>(template_id)));
                     }
                 }
             }
         }
 
+        times[0] += timer.elapsed();
+
+
+        timer.reset();
+
         // Locally refine each match by marching up the pyramid
         for (int l = pyramid_levels - 2; l >= 0; --l)
         {
+            const std::vector<LinearMemories> &lms = lm_pyramid[l];
+            int T = T_at_level[l];
+            int start = static_cast<int>(l * modalities.size());
+            Size size = sizes[l];
+            int border = 8 * T;
+            int offset = T / 2 + (T % 2 - 1);
+            int max_x = size.width - tp[start].width - border;
+            int max_y = size.height - tp[start].height - border;
+
+
             for (int m = 0; m < (int)candidates.size(); ++m)
             {
-                const std::vector<LinearMemories> &lms = lm_pyramid[l];
-                int T = T_at_level[l];
-                int start = static_cast<int>(l * modalities.size());
-                Size size = sizes[l];
-                int border = 8 * T;
-                int offset = T / 2 + (T % 2 - 1);
-                int max_x = size.width - tp[start].width - border;
-                int max_y = size.height - tp[start].height - border;
-
-                std::vector<std::vector<Mat>> similarities2(modalities.size());
-                std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size());
                 int total_count2 = 0;
 
                 Match &match2 = candidates[m];
@@ -1814,16 +1899,16 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 {
                     const Template &templ = tp[start + i];
                     total_count2 += templ.clusters;
-                    cluster_counts2[i] = similarityLocal(lms[i], templ, similarities2[i], size, T, Point(x, y));
+                    similarityLocal(cluster_counts2[i], lms[i], templ, similarities2[i], size, T, Point(x, y));
                 }
 
-                Mat active_count2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_8UC1);
-                Mat active_feat_num2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
-                Mat active_score2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
+                active_count2 = cv::Scalar::all(0);
+                active_feat_num2 = cv::Scalar::all(0);
+                active_score2 = cv::Scalar::all(0);
 
                 for (int i = 0; i < (int)modalities.size(); ++i)
                 {
-                    for(int j=0; j<similarities2[i].size(); j++){
+                    for(int j=0; j<tp[start + i].clusters; j++){
                         auto& simi = similarities2[i][j];
                         uint16_t feat_count = cluster_counts2[i][j];
 
@@ -1832,7 +1917,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 
                         active_count2 += active_mask/255;
 
-                        cv::Mat active_score_local = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
+                        cv::Mat active_score_local = Mat::zeros(local_size, local_size, CV_16UC1);
                         simi.copyTo(active_score_local, active_mask);
                         active_score2 += active_score_local;
 
@@ -1875,7 +1960,12 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             candidates.erase(new_end, candidates.end());
         }
         matches.insert(matches.end(), candidates.begin(), candidates.end());
+
+        times[1] += timer.elapsed();
     }
+
+    std::cout << times[0] << std::endl;
+    std::cout << times[1] << std::endl;
 }
 
 int Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
