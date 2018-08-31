@@ -161,14 +161,14 @@ void dataset_test(){
         vector<Mat> sources;
         sources.push_back(rgb);
         sources.push_back(depth);
-        auto detector = linemodLevelup::Detector();
+        auto detector = linemodLevelup::Detector(20,{4, 8});
 
         vector<string> classes;
         classes.push_back("06_template");
         detector.readClasses(classes, prefix + "%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        vector<linemodLevelup::Match> matches = detector.match(sources, 80, 0.6f, classes);
+        vector<linemodLevelup::Match> matches = detector.match(sources, 75, 0.6f, classes);
         auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
         cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 

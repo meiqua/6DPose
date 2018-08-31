@@ -1430,11 +1430,11 @@ static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_me
     return memory + lm_index;
 }
 
-static std::vector<int> similarity(const std::vector<Mat> &linear_memories, const Template &templ,
+static std::vector<uint16_t> similarity(const std::vector<Mat> &linear_memories, const Template &templ,
                                    std::vector<Mat> &dst_vec, Size size, int T)
 {
 
-    std::vector<int> cluster_counts(templ.clusters, 0);
+    std::vector<uint16_t> cluster_counts(templ.clusters, 0);
     CV_Assert(templ.features.size() <= 8191);
 
     // Decimate input image size by factor of T
@@ -1501,10 +1501,10 @@ static std::vector<int> similarity(const std::vector<Mat> &linear_memories, cons
     return cluster_counts;
 }
 
-static std::vector<int> similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
+static std::vector<uint16_t> similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
                                         std::vector<Mat> &dst_vec, Size size, int T, Point center)
 {
-    std::vector<int> cluster_counts(templ.clusters, 0);
+    std::vector<uint16_t> cluster_counts(templ.clusters, 0);
     CV_Assert(templ.features.size() <= 8191);
 
     // Compute the similarity map in a 16x16 patch around center
@@ -1718,97 +1718,74 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
         /// @todo Factor this out into separate function
         const std::vector<LinearMemories> &lowest_lm = lm_pyramid.back();
 
-        // Compute similarity maps for each modality at lowest pyramid level
-        std::vector<std::vector<Mat>> similarities(modalities.size());
-        std::vector<std::vector<int>> cluster_counts(modalities.size());
-        Mat active_count = cv::Mat();
-        Mat active_score = cv::Mat();
-        Mat active_feat_num = cv::Mat();
-        int total_count = 0;
-
-        int lowest_start = static_cast<int>(tp.size() - modalities.size());
-        int lowest_T = T_at_level.back();
-
-        for (int i = 0; i < (int)modalities.size(); ++i)
-        {
-            const Template &templ = tp[lowest_start + i];
-            total_count += templ.clusters;
-
-            cluster_counts[i] = similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
-
-            if(active_count.empty()){
-                active_count = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
-                active_score = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_32FC1);
-                active_feat_num = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
-            }
-
-//            for(int j=0; j<similarities[i].size(); j++){
-//                auto& simi = similarities[i][j];
-//                int feat_count = cluster_counts[i][j];
-//                for (int r = 0; r < simi.rows; ++r)
-//                {
-//                    ushort *row = simi.ptr<ushort>(r);
-//                    for (int c = 0; c < simi.cols; ++c)
-//                    {
-//                        int raw_score = row[c];
-//                        float score = (raw_score * 100.f) / (4 * feat_count) + 0.5f;
-//                        if (score > threshold)
-//                        {
-//                            active_count.at<ushort>(r,c) += 1;
-//                            active_score.at<float>(r,c) += score*feat_count;
-//                            active_feat_num.at<ushort>(r,c) += feat_count;
-//                        }
-//                    }
-//                }
-//            }
-        }
-
-        cv::Mat total_simi(similarities[0][0].size(), CV_16UC1, cv::Scalar(0));
-        for(auto& simis: similarities){
-            for(auto& simi: simis){
-                total_simi += simi;
-            }
-        }
-        int num_feats = 0;
-        for(auto& counts: cluster_counts){
-            for(auto& count: counts){
-                num_feats += count;
-            }
-        }
-
-
-        // Find initial matches
         std::vector<Match> candidates;
-//        for (int r = 0; r < active_count.rows; ++r)
-//        {
-//            ushort *row = active_count.ptr<ushort>(r);
-//            for (int c = 0; c < active_count.cols; ++c)
-//            {
-//                int count = row[c];
-//                if (count > int(total_count*active_ratio))
-//                {
-//                    int offset = lowest_T / 2 + (lowest_T % 2 - 1);
-//                    int x = c * lowest_T + offset;
-//                    int y = r * lowest_T + offset;
-//                    float score = active_score.at<float>(r,c)/active_feat_num.at<ushort>(r,c);
-//                    candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
-//                }
-//            }
-//        }
-
-        for (int r = 0; r < total_simi.rows; ++r)
         {
-            ushort *row = total_simi.ptr<ushort>(r);
-            for (int c = 0; c < total_simi.cols; ++c)
+            // Compute similarity maps for each modality at lowest pyramid level
+            std::vector<std::vector<Mat>> similarities(modalities.size());
+            std::vector<std::vector<uint16_t>> cluster_counts(modalities.size());
+            int total_count = 0;
+
+            int lowest_start = static_cast<int>(tp.size() - modalities.size());
+            int lowest_T = T_at_level.back();
+
+            for (int i = 0; i < (int)modalities.size(); ++i)
             {
-                int raw_score = row[c];
-                float score = (raw_score * 100.f) / (4 * num_feats) + 0.5f;
-                if (score > threshold)
+                const Template &templ = tp[lowest_start + i];
+                total_count += templ.clusters;
+                cluster_counts[i] = similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
+            }
+
+            Mat active_count = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_8UC1);
+            Mat active_score = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
+            Mat active_feat_num = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
+
+            int feat_num = 0;
+
+            for (int i = 0; i < (int)modalities.size(); ++i)
+            {
+                for(int j=0; j<similarities[i].size(); j++){
+                    auto& simi = similarities[i][j];
+                    uint16_t feat_count = cluster_counts[i][j];
+
+                    uint16_t raw_thresh = uint16_t((threshold - 0.5f)*(4 * feat_count)/100.0f);
+                    cv::Mat active_mask = simi > raw_thresh;
+
+                    active_mask = simi >= 0;
+
+                    active_count += active_mask/255;
+
+                    cv::Mat active_score_local = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
+                    simi.copyTo(active_score_local, active_mask);
+//                    active_score += active_score_local;
+
+                    active_score += simi;
+
+                    cv::Mat active_unit;
+                    active_mask.convertTo(active_unit, CV_16UC1);
+//                    active_feat_num += active_unit/255*feat_count;
+
+                    feat_num += feat_count;
+                }
+            }
+
+            // Find initial matches
+            for (int r = 0; r < active_count.rows; ++r)
+            {
+                ushort *raw_score = active_score.ptr<ushort>(r);
+                ushort *active_feats = active_feat_num.ptr<ushort>(r);
+                uchar* active_parts = active_count.ptr<uchar>(r);
+                for (int c = 0; c < active_count.cols; ++c)
                 {
-                    int offset = lowest_T / 2 + (lowest_T % 2 - 1);
-                    int x = c * lowest_T + offset;
-                    int y = r * lowest_T + offset;
-                    candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
+//                    float score = 100.0f/4*raw_score[c]/active_feats[c]+0.5f;
+                    float score = 100.0f/4*raw_score[c]/feat_num+0.5f;
+//                    if (active_parts[c] > int(total_count*active_ratio) && score>threshold)
+                    if(score>threshold)
+                    {
+                        int offset = lowest_T / 2 + (lowest_T % 2 - 1);
+                        int x = c * lowest_T + offset;
+                        int y = r * lowest_T + offset;
+                        candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
+                    }
                 }
             }
         }
@@ -1826,10 +1803,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             int max_y = size.height - tp[start].height - border;
 
             std::vector<std::vector<Mat>> similarities2(modalities.size());
-            std::vector<std::vector<int>> cluster_counts2(modalities.size());
-            Mat active_count2 = cv::Mat();
-            Mat active_score2 = cv::Mat();
-            Mat active_feat_num2 = cv::Mat();
+            std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size());
             int total_count2 = 0;
 
             for (int m = 0; m < (int)candidates.size(); ++m)
@@ -1850,77 +1824,56 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 {
                     const Template &templ = tp[start + i];
                     total_count2 += templ.clusters;
-
                     cluster_counts2[i] = similarityLocal(lms[i], templ, similarities2[i], size, T, Point(x, y));
-
-                    if(active_count2.empty()){
-                        active_count2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
-                        active_feat_num2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
-                        active_score2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_32FC1);
-                    }
-
-//                    for(int j=0; j<similarities2[i].size(); j++){
-//                        auto& simi = similarities2[i][j];
-//                        int feat_count = cluster_counts2[i][j];
-//                        for (int r = 0; r < simi.rows; ++r)
-//                        {
-//                            ushort *row = simi.ptr<ushort>(r);
-//                            for (int c = 0; c < simi.cols; ++c)
-//                            {
-//                                int raw_score = row[c];
-//                                float score = (raw_score * 100.f) / (4 * feat_count) + 0.5f;
-//                                if (score > threshold)
-//                                {
-//                                    active_count2.at<ushort>(r,c) += 1;
-//                                    active_score2.at<float>(r,c) += score*feat_count;
-//                                    active_feat_num2.at<ushort>(r,c) += feat_count;
-//                                }
-//                            }
-//                        }
-//                    }
                 }
 
-                cv::Mat total_simi2(similarities2[0][0].size(), CV_16UC1, cv::Scalar(0));
-                for(auto& simis: similarities2){
-                    for(auto& simi: simis){
-                        total_simi2 += simi;
-                    }
-                }
-                int num_feats2 = 0;
-                for(auto& counts: cluster_counts2){
-                    for(auto& count: counts){
-                        num_feats2 += count;
+                Mat active_count2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_8UC1);
+                Mat active_feat_num2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
+                Mat active_score2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
+
+                int feat_num2 = 0;
+
+                for (int i = 0; i < (int)modalities.size(); ++i)
+                {
+                    for(int j=0; j<similarities2[i].size(); j++){
+                        auto& simi = similarities2[i][j];
+                        uint16_t feat_count = cluster_counts2[i][j];
+
+                        uint16_t raw_thresh = uint16_t((threshold - 0.5f)*(4 * feat_count)/100.0f);
+                        cv::Mat active_mask = simi > raw_thresh;
+
+                        active_mask = simi >= 0;
+
+                        active_count2 += active_mask/255;
+
+                        cv::Mat active_score_local = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
+                        simi.copyTo(active_score_local, active_mask);
+//                        active_score2 += active_score_local;
+
+                        active_score2 += simi;
+
+                        cv::Mat active_unit;
+                        active_mask.convertTo(active_unit, CV_16UC1);
+//                        active_feat_num2 += active_unit/255*feat_count;
+
+                        feat_num2 += feat_count;
                     }
                 }
 
                 // Find best local adjustment
-//                float best_score = 0;
-//                int best_r = -1, best_c = -1;
-//                for (int r = 0; r < active_score2.rows; ++r)
-//                {
-//                    float *row = active_score2.ptr<float>(r);
-//                    for (int c = 0; c < active_score2.cols; ++c)
-//                    {
-//                        int feat_num = active_feat_num2.at<ushort>(r,c);
-//                        float score = row[c]/feat_num;
-//                        int count = active_count2.at<ushort>(r,c);
-//                        if (score > best_score && count>(total_count2*active_ratio))
-//                        {
-//                            best_score = score;
-//                            best_r = r;
-//                            best_c = c;
-//                        }
-//                    }
-//                }
-
                 float best_score = 0;
                 int best_r = -1, best_c = -1;
-                for (int r = 0; r < total_simi2.rows; ++r)
+                for (int r = 0; r < active_score2.rows; ++r)
                 {
-                    ushort *row = total_simi2.ptr<ushort>(r);
-                    for (int c = 0; c < total_simi2.cols; ++c)
+                    ushort *raw_score = active_score2.ptr<ushort>(r);
+                    ushort *active_feats = active_feat_num2.ptr<ushort>(r);
+                    uchar* active_parts = active_count2.ptr<uchar>(r);
+                    for (int c = 0; c < active_score2.cols; ++c)
                     {
-                        float score = (row[c] * 100.f) / (4 * num_feats2) + 0.5f;
+//                        float score = 100.0f/4*raw_score[c]/active_feats[c]+0.5f;
+
+                       float score = 100.0f/4*raw_score[c]/feat_num2+0.5f;
+//                        if (score > best_score && active_parts[c]>(total_count2*active_ratio))
                         if (score > best_score)
                         {
                             best_score = score;
