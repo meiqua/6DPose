@@ -1710,7 +1710,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                           float threshold, float active_ratio, std::vector<Match> &matches,
                           const std::string &class_id,
                           const std::vector<TemplatePyramid> &template_pyramids) const
-{
+{   
     for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id)
     {
         const TemplatePyramid &tp = template_pyramids[template_id];

@@ -34,7 +34,7 @@ dataset = 'hinterstoisser'
 
 # set ./params/dataset_params common_base_path correctly
 dp = get_dataset_params(dataset)
-detector = linemodLevelup_pybind.Detector(20, [4, 8], 16)
+detector = linemodLevelup_pybind.Detector(16, [4, 8], 16)
 
 obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
@@ -48,8 +48,8 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
@@ -287,7 +287,7 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
             # only search for one obj
-            matches = detector.match([rgb, depth], 65.0, 0.6, match_ids, masks=[])
+            matches = detector.match([rgb, depth], 85.0, 0.6, match_ids, masks=[])
             # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
             elapsed_time = time.time() - start_time
 
