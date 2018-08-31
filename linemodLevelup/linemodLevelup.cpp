@@ -427,7 +427,7 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
             i = 0;
             distance -= 1.0f;
             distance_sq = distance * distance;
-            if(distance<3){
+            if(distance<5){
             // we don't want two features too close
                 break;
             }
@@ -1739,32 +1739,24 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             Mat active_score = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
             Mat active_feat_num = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
 
-            int feat_num = 0;
-
             for (int i = 0; i < (int)modalities.size(); ++i)
             {
                 for(int j=0; j<similarities[i].size(); j++){
                     auto& simi = similarities[i][j];
                     uint16_t feat_count = cluster_counts[i][j];
 
-                    uint16_t raw_thresh = uint16_t((threshold - 0.5f)*(4 * feat_count)/100.0f);
+                    uint16_t raw_thresh = uint16_t((threshold)*(4 * feat_count)/100.0f);
                     cv::Mat active_mask = simi > raw_thresh;
-
-                    active_mask = simi >= 0;
 
                     active_count += active_mask/255;
 
                     cv::Mat active_score_local = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
                     simi.copyTo(active_score_local, active_mask);
-//                    active_score += active_score_local;
-
-                    active_score += simi;
+                    active_score += active_score_local;
 
                     cv::Mat active_unit;
                     active_mask.convertTo(active_unit, CV_16UC1);
-//                    active_feat_num += active_unit/255*feat_count;
-
-                    feat_num += feat_count;
+                    active_feat_num += active_unit/255*feat_count;
                 }
             }
 
@@ -1776,10 +1768,8 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 uchar* active_parts = active_count.ptr<uchar>(r);
                 for (int c = 0; c < active_count.cols; ++c)
                 {
-//                    float score = 100.0f/4*raw_score[c]/active_feats[c]+0.5f;
-                    float score = 100.0f/4*raw_score[c]/feat_num+0.5f;
-//                    if (active_parts[c] > int(total_count*active_ratio) && score>threshold)
-                    if(score>threshold)
+                    float score = 100.0f/4*raw_score[c]/active_feats[c];
+                    if (active_parts[c] > int(total_count*active_ratio) && score>threshold)
                     {
                         int offset = lowest_T / 2 + (lowest_T % 2 - 1);
                         int x = c * lowest_T + offset;
@@ -1793,21 +1783,21 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
         // Locally refine each match by marching up the pyramid
         for (int l = pyramid_levels - 2; l >= 0; --l)
         {
-            const std::vector<LinearMemories> &lms = lm_pyramid[l];
-            int T = T_at_level[l];
-            int start = static_cast<int>(l * modalities.size());
-            Size size = sizes[l];
-            int border = 8 * T;
-            int offset = T / 2 + (T % 2 - 1);
-            int max_x = size.width - tp[start].width - border;
-            int max_y = size.height - tp[start].height - border;
-
-            std::vector<std::vector<Mat>> similarities2(modalities.size());
-            std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size());
-            int total_count2 = 0;
-
             for (int m = 0; m < (int)candidates.size(); ++m)
             {
+                const std::vector<LinearMemories> &lms = lm_pyramid[l];
+                int T = T_at_level[l];
+                int start = static_cast<int>(l * modalities.size());
+                Size size = sizes[l];
+                int border = 8 * T;
+                int offset = T / 2 + (T % 2 - 1);
+                int max_x = size.width - tp[start].width - border;
+                int max_y = size.height - tp[start].height - border;
+
+                std::vector<std::vector<Mat>> similarities2(modalities.size());
+                std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size());
+                int total_count2 = 0;
+
                 Match &match2 = candidates[m];
                 int x = match2.x * 2 + 1; /// @todo Support other pyramid distance
                 int y = match2.y * 2 + 1;
@@ -1831,32 +1821,24 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 Mat active_feat_num2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
                 Mat active_score2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
 
-                int feat_num2 = 0;
-
                 for (int i = 0; i < (int)modalities.size(); ++i)
                 {
                     for(int j=0; j<similarities2[i].size(); j++){
                         auto& simi = similarities2[i][j];
                         uint16_t feat_count = cluster_counts2[i][j];
 
-                        uint16_t raw_thresh = uint16_t((threshold - 0.5f)*(4 * feat_count)/100.0f);
+                        uint16_t raw_thresh = uint16_t((threshold)*(4 * feat_count)/100.0f);
                         cv::Mat active_mask = simi > raw_thresh;
-
-                        active_mask = simi >= 0;
 
                         active_count2 += active_mask/255;
 
                         cv::Mat active_score_local = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
                         simi.copyTo(active_score_local, active_mask);
-//                        active_score2 += active_score_local;
-
-                        active_score2 += simi;
+                        active_score2 += active_score_local;
 
                         cv::Mat active_unit;
                         active_mask.convertTo(active_unit, CV_16UC1);
-//                        active_feat_num2 += active_unit/255*feat_count;
-
-                        feat_num2 += feat_count;
+                        active_feat_num2 += active_unit/255*feat_count;
                     }
                 }
 
@@ -1870,11 +1852,9 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                     uchar* active_parts = active_count2.ptr<uchar>(r);
                     for (int c = 0; c < active_score2.cols; ++c)
                     {
-//                        float score = 100.0f/4*raw_score[c]/active_feats[c]+0.5f;
+                        float score = 100.0f/4*raw_score[c]/active_feats[c];
 
-                       float score = 100.0f/4*raw_score[c]/feat_num2+0.5f;
-//                        if (score > best_score && active_parts[c]>(total_count2*active_ratio))
-                        if (score > best_score)
+                        if (score > best_score && active_parts[c]>(total_count2*active_ratio))
                         {
                             best_score = score;
                             best_r = r;
