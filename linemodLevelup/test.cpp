@@ -115,7 +115,7 @@ void detect_test(){
     detector.readClasses(classes, prefix + "%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    vector<linemodLevelup::Match> matches = detector.match(sources, 70, 0.8f, classes);
+    vector<linemodLevelup::Match> matches = detector.match(sources, 70, 0.6f, classes);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
     cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 

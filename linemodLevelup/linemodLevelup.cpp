@@ -1430,24 +1430,12 @@ static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_me
     return memory + lm_index;
 }
 
-/**
- * \brief Compute similarity measure for a given template at each sampled image location.
- *
- * Uses linear memories to compute the similarity measure as described in Fig. 7.
- *
- * \param[in]  linear_memories Vector of 8 linear memories, one for each label.
- * \param[in]  templ           Template to match against.
- * \param[out] dst             Destination 8-bit similarity image of size (W/T, H/T).
- * \param      size            Size (W, H) of the original input image.
- * \param      T               Sampling step.
- */
 static std::vector<int> similarity(const std::vector<Mat> &linear_memories, const Template &templ,
                                    std::vector<Mat> &dst_vec, Size size, int T)
 {
 
     std::vector<int> cluster_counts(templ.clusters, 0);
     CV_Assert(templ.features.size() <= 8191);
-    /// @todo Handle more than 255/MAX_RESPONSE features!!
 
     // Decimate input image size by factor of T
     int W = size.width / T;
@@ -1461,14 +1449,9 @@ static std::vector<int> similarity(const std::vector<Mat> &linear_memories, cons
     int span_x = W - wf;
     int span_y = H - hf;
 
-    // Compute number of contiguous (in memory) pixels to check when sliding feature over
-    // image. This allows template to wrap around left/right border incorrectly, so any
-    // wrapped template matches must be filtered out!
     int template_positions = span_y * W + span_x + 1; // why add 1?
     //int template_positions = (span_y - 1) * W + span_x; // More correct?
 
-    /// @todo In old code, dst is buffer of size m_U. Could make it something like
-    /// (span_x)x(span_y) instead?
     dst_vec.resize(templ.clusters);
     for(int i=0; i<templ.clusters; i++){
         dst_vec[i] = Mat::zeros(H, W, CV_16U);
@@ -1518,16 +1501,6 @@ static std::vector<int> similarity(const std::vector<Mat> &linear_memories, cons
     return cluster_counts;
 }
 
-/**
- * \brief Compute similarity measure for a given template in a local region.
- *
- * \param[in]  linear_memories Vector of 8 linear memories, one for each label.
- * \param[in]  templ           Template to match against.
- * \param[out] dst             Destination 8-bit similarity image, 16x16.
- * \param      size            Size (W, H) of the original input image.
- * \param      T               Sampling step.
- * \param      center          Center of the local region.
- */
 static std::vector<int> similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
                                         std::vector<Mat> &dst_vec, Size size, int T, Point center)
 {
@@ -1600,188 +1573,6 @@ static std::vector<int> similarityLocal(const std::vector<Mat> &linear_memories,
     }
     return cluster_counts;
 }
-
-static std::vector<int> similarity_64(const std::vector<Mat> &linear_memories, const Template &templ,
-                                      std::vector<Mat> &dst_vec, Size size, int T)
-{
-    std::vector<int> cluster_counts(templ.clusters, 0);
-    CV_Assert(templ.features.size() <= 63);
-    /// @todo Handle more than 255/MAX_RESPONSE features!!
-
-    // Decimate input image size by factor of T
-    int W = size.width / T;
-    int H = size.height / T;
-
-    // Feature dimensions, decimated by factor T and rounded up
-    int wf = (templ.width - 1) / T + 1;
-    int hf = (templ.height - 1) / T + 1;
-
-    // Span is the range over which we can shift the template around the input image
-    int span_x = W - wf;
-    int span_y = H - hf;
-
-    // Compute number of contiguous (in memory) pixels to check when sliding feature over
-    // image. This allows template to wrap around left/right border incorrectly, so any
-    // wrapped template matches must be filtered out!
-    int template_positions = span_y * W + span_x + 1; // why add 1?
-    //int template_positions = (span_y - 1) * W + span_x; // More correct?
-
-    /// @todo In old code, dst is buffer of size m_U. Could make it something like
-    /// (span_x)x(span_y) instead?
-
-    dst_vec.resize(templ.clusters);
-    for(int i=0; i<templ.clusters; i++){
-        dst_vec[i] = Mat::zeros(H, W, CV_8U);
-    }
-
-#if CV_SSE2
-    volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
-#if CV_SSE3
-    volatile bool haveSSE3 = checkHardwareSupport(CV_CPU_SSE3);
-#endif
-#endif
-
-    // Compute the similarity measure for this template by accumulating the contribution of
-    // each feature
-    for (int i = 0; i < (int)templ.features.size(); ++i)
-    {
-        // Add the linear memory at the appropriate offset computed from the location of
-        // the feature in the template
-        Feature f = templ.features[i];
-        cluster_counts[f.cluster] += 1;
-        uchar *dst_ptr = dst_vec[f.cluster].ptr<uchar>();
-        // Discard feature if out of bounds
-        /// @todo Shouldn't actually see x or y < 0 here?
-        if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
-            continue;
-        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
-
-        int j = 0;
-
-#if CV_SSE2
-#if CV_SSE3
-        if (haveSSE3)
-        {
-            // LDDQU may be more efficient than MOVDQU for unaligned load of next 16 responses
-            for (; j < template_positions - 15; j += 16)
-            {
-                __m128i responses = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(lm_ptr + j));
-                __m128i *dst_ptr_sse = reinterpret_cast<__m128i *>(dst_ptr + j);
-                *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
-            }
-        }
-        else
-#endif
-            if (haveSSE2)
-            {
-                // Fall back to MOVDQU
-                for (; j < template_positions - 15; j += 16)
-                {
-                    __m128i responses = _mm_loadu_si128(reinterpret_cast<const __m128i *>(lm_ptr + j));
-                    __m128i *dst_ptr_sse = reinterpret_cast<__m128i *>(dst_ptr + j);
-                    *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
-                }
-            }
-#endif
-        for (; j < template_positions; ++j)
-            dst_ptr[j] = uchar(dst_ptr[j] + lm_ptr[j]);
-    }
-    return cluster_counts;
-}
-
-/**
- * \brief Compute similarity measure for a given template in a local region.
- *
- * \param[in]  linear_memories Vector of 8 linear memories, one for each label.
- * \param[in]  templ           Template to match against.
- * \param[out] dst             Destination 8-bit similarity image, 16x16.
- * \param      size            Size (W, H) of the original input image.
- * \param      T               Sampling step.
- * \param      center          Center of the local region.
- */
-static std::vector<int> similarityLocal_64(const std::vector<Mat> &linear_memories, const Template &templ,
-                                           std::vector<Mat> &dst_vec, Size size, int T, Point center)
-{
-    std::vector<int> cluster_counts(templ.clusters, 0);
-    CV_Assert(templ.features.size() <= 63);
-
-    // Compute the similarity map in a 16x16 patch around center
-    int W = size.width / T;
-
-    dst_vec.resize(templ.clusters);
-    for(int i=0; i<templ.clusters; i++){
-        dst_vec[i] = Mat::zeros(16, 16, CV_8U);
-    }
-
-    // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
-    // center to get the top-left corner of the 16x16 patch.
-    // NOTE: We make the offsets multiples of T to agree with results of the original code.
-    int offset_x = (center.x / T - 8) * T;
-    int offset_y = (center.y / T - 8) * T;
-
-#if CV_SSE2
-    volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
-#if CV_SSE3
-    volatile bool haveSSE3 = checkHardwareSupport(CV_CPU_SSE3);
-#endif
-#endif
-
-    for (int i = 0; i < (int)templ.features.size(); ++i)
-    {
-        Feature f = templ.features[i];
-        cluster_counts[f.cluster] += 1;
-        __m128i *dst_ptr_sse = dst_vec[f.cluster].ptr<__m128i>();
-
-        f.x += offset_x;
-        f.y += offset_y;
-        // Discard feature if out of bounds, possibly due to applying the offset
-        if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
-            continue;
-
-        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
-
-        // Process whole row at a time if vectorization possible
-#if CV_SSE2
-#if CV_SSE3
-        if (haveSSE3)
-        {
-            // LDDQU may be more efficient than MOVDQU for unaligned load of 16 responses from current row
-            for (int row = 0; row < 16; ++row)
-            {
-                __m128i aligned = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(lm_ptr));
-                dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
-                lm_ptr += W; // Step to next row
-            }
-        }
-        else
-#endif
-            if (haveSSE2)
-            {
-                // Fall back to MOVDQU
-                for (int row = 0; row < 16; ++row)
-                {
-                    __m128i aligned = _mm_loadu_si128(reinterpret_cast<const __m128i *>(lm_ptr));
-                    dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
-                    lm_ptr += W; // Step to next row
-                }
-            }
-            else
-#endif
-            {
-                cluster_counts[f.cluster] += 1;
-                uchar *dst_ptr = dst_vec[f.cluster].ptr<uchar>();
-                for (int row = 0; row < 16; ++row)
-                {
-                    for (int col = 0; col < 16; ++col)
-                        dst_ptr[col] = uchar(dst_ptr[col] + lm_ptr[col]);
-                    dst_ptr += 16;
-                    lm_ptr += W;
-                }
-            }
-    }
-    return cluster_counts;
-}
-
 /****************************************************************************************\
 *                               High-level Detector API                                  *
 \****************************************************************************************/
@@ -1943,17 +1734,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             const Template &templ = tp[lowest_start + i];
             total_count += templ.clusters;
 
-            if (templ.features.size() < 64)
-            {
-                cluster_counts[i] = similarity_64(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
-                for(auto& simi: similarities[i]){
-                    simi.convertTo(simi, CV_16U);
-                }
-            }
-            else if (templ.features.size() < 8192)
-            {
-                cluster_counts[i] = similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
-            }
+            cluster_counts[i] = similarity(lowest_lm[i], templ, similarities[i], sizes.back(), lowest_T);
 
             if(active_count.empty()){
                 active_count = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
@@ -1961,41 +1742,72 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 active_feat_num = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
             }
 
-            for(int j=0; j<similarities[i].size(); j++){
-                auto& simi = similarities[i][j];
-                int feat_count = cluster_counts[i][j];
-                for (int r = 0; r < simi.rows; ++r)
-                {
-                    ushort *row = simi.ptr<ushort>(r);
-                    for (int c = 0; c < simi.cols; ++c)
-                    {
-                        int raw_score = row[c];
-                        float score = (raw_score * 100.f) / (4 * feat_count) + 0.5f;
-                        if (score > threshold)
-                        {
-                            active_count.at<ushort>(r,c) += 1;
-                            active_score.at<float>(r,c) += score*feat_count;
-                            active_feat_num.at<ushort>(r,c) += feat_count;
-                        }
-                    }
-                }
+//            for(int j=0; j<similarities[i].size(); j++){
+//                auto& simi = similarities[i][j];
+//                int feat_count = cluster_counts[i][j];
+//                for (int r = 0; r < simi.rows; ++r)
+//                {
+//                    ushort *row = simi.ptr<ushort>(r);
+//                    for (int c = 0; c < simi.cols; ++c)
+//                    {
+//                        int raw_score = row[c];
+//                        float score = (raw_score * 100.f) / (4 * feat_count) + 0.5f;
+//                        if (score > threshold)
+//                        {
+//                            active_count.at<ushort>(r,c) += 1;
+//                            active_score.at<float>(r,c) += score*feat_count;
+//                            active_feat_num.at<ushort>(r,c) += feat_count;
+//                        }
+//                    }
+//                }
+//            }
+        }
+
+        cv::Mat total_simi(similarities[0][0].size(), CV_16UC1, cv::Scalar(0));
+        for(auto& simis: similarities){
+            for(auto& simi: simis){
+                total_simi += simi;
+            }
+        }
+        int num_feats = 0;
+        for(auto& counts: cluster_counts){
+            for(auto& count: counts){
+                num_feats += count;
             }
         }
 
+
         // Find initial matches
         std::vector<Match> candidates;
-        for (int r = 0; r < active_count.rows; ++r)
+//        for (int r = 0; r < active_count.rows; ++r)
+//        {
+//            ushort *row = active_count.ptr<ushort>(r);
+//            for (int c = 0; c < active_count.cols; ++c)
+//            {
+//                int count = row[c];
+//                if (count > int(total_count*active_ratio))
+//                {
+//                    int offset = lowest_T / 2 + (lowest_T % 2 - 1);
+//                    int x = c * lowest_T + offset;
+//                    int y = r * lowest_T + offset;
+//                    float score = active_score.at<float>(r,c)/active_feat_num.at<ushort>(r,c);
+//                    candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
+//                }
+//            }
+//        }
+
+        for (int r = 0; r < total_simi.rows; ++r)
         {
-            ushort *row = active_count.ptr<ushort>(r);
-            for (int c = 0; c < active_count.cols; ++c)
+            ushort *row = total_simi.ptr<ushort>(r);
+            for (int c = 0; c < total_simi.cols; ++c)
             {
-                int count = row[c];
-                if (count > int(total_count*active_ratio))
+                int raw_score = row[c];
+                float score = (raw_score * 100.f) / (4 * num_feats) + 0.5f;
+                if (score > threshold)
                 {
                     int offset = lowest_T / 2 + (lowest_T % 2 - 1);
                     int x = c * lowest_T + offset;
                     int y = r * lowest_T + offset;
-                    float score = active_score.at<float>(r,c)/active_feat_num.at<ushort>(r,c);
                     candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
                 }
             }
@@ -2039,17 +1851,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                     const Template &templ = tp[start + i];
                     total_count2 += templ.clusters;
 
-                    if (templ.features.size() < 64)
-                    {
-                        cluster_counts2[i] = similarityLocal_64(lms[i], templ, similarities2[i], size, T, Point(x, y));
-                        for(auto& simi: similarities2[i]){
-                            simi.convertTo(simi, CV_16U);
-                        }
-                    }
-                    else if (templ.features.size() < 8192)
-                    {
-                        cluster_counts2[i] = similarityLocal(lms[i], templ, similarities2[i], size, T, Point(x, y));
-                    }
+                    cluster_counts2[i] = similarityLocal(lms[i], templ, similarities2[i], size, T, Point(x, y));
 
                     if(active_count2.empty()){
                         active_count2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_16UC1);
@@ -2057,39 +1859,69 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                         active_score2 = Mat::zeros(similarities2[0][0].rows, similarities2[0][0].cols, CV_32FC1);
                     }
 
-                    for(int j=0; j<similarities2[i].size(); j++){
-                        auto& simi = similarities2[i][j];
-                        int feat_count = cluster_counts2[i][j];
-                        for (int r = 0; r < simi.rows; ++r)
-                        {
-                            ushort *row = simi.ptr<ushort>(r);
-                            for (int c = 0; c < simi.cols; ++c)
-                            {
-                                int raw_score = row[c];
-                                float score = (raw_score * 100.f) / (4 * feat_count) + 0.5f;
-                                if (score > threshold)
-                                {
-                                    active_count2.at<ushort>(r,c) += 1;
-                                    active_score2.at<float>(r,c) += score*feat_count;
-                                    active_feat_num2.at<ushort>(r,c) += feat_count;
-                                }
-                            }
-                        }
+//                    for(int j=0; j<similarities2[i].size(); j++){
+//                        auto& simi = similarities2[i][j];
+//                        int feat_count = cluster_counts2[i][j];
+//                        for (int r = 0; r < simi.rows; ++r)
+//                        {
+//                            ushort *row = simi.ptr<ushort>(r);
+//                            for (int c = 0; c < simi.cols; ++c)
+//                            {
+//                                int raw_score = row[c];
+//                                float score = (raw_score * 100.f) / (4 * feat_count) + 0.5f;
+//                                if (score > threshold)
+//                                {
+//                                    active_count2.at<ushort>(r,c) += 1;
+//                                    active_score2.at<float>(r,c) += score*feat_count;
+//                                    active_feat_num2.at<ushort>(r,c) += feat_count;
+//                                }
+//                            }
+//                        }
+//                    }
+                }
+
+                cv::Mat total_simi2(similarities2[0][0].size(), CV_16UC1, cv::Scalar(0));
+                for(auto& simis: similarities2){
+                    for(auto& simi: simis){
+                        total_simi2 += simi;
+                    }
+                }
+                int num_feats2 = 0;
+                for(auto& counts: cluster_counts2){
+                    for(auto& count: counts){
+                        num_feats2 += count;
                     }
                 }
 
                 // Find best local adjustment
+//                float best_score = 0;
+//                int best_r = -1, best_c = -1;
+//                for (int r = 0; r < active_score2.rows; ++r)
+//                {
+//                    float *row = active_score2.ptr<float>(r);
+//                    for (int c = 0; c < active_score2.cols; ++c)
+//                    {
+//                        int feat_num = active_feat_num2.at<ushort>(r,c);
+//                        float score = row[c]/feat_num;
+//                        int count = active_count2.at<ushort>(r,c);
+//                        if (score > best_score && count>(total_count2*active_ratio))
+//                        {
+//                            best_score = score;
+//                            best_r = r;
+//                            best_c = c;
+//                        }
+//                    }
+//                }
+
                 float best_score = 0;
                 int best_r = -1, best_c = -1;
-                for (int r = 0; r < active_score2.rows; ++r)
+                for (int r = 0; r < total_simi2.rows; ++r)
                 {
-                    float *row = active_score2.ptr<float>(r);
-                    for (int c = 0; c < active_score2.cols; ++c)
+                    ushort *row = total_simi2.ptr<ushort>(r);
+                    for (int c = 0; c < total_simi2.cols; ++c)
                     {
-                        int feat_num = active_feat_num2.at<ushort>(r,c);
-                        float score = row[c]/feat_num;
-                        int count = active_count2.at<ushort>(r,c);
-                        if (score > best_score && count>(total_count2*active_ratio))
+                        float score = (row[c] * 100.f) / (4 * num_feats2) + 0.5f;
+                        if (score > best_score)
                         {
                             best_score = score;
                             best_r = r;
