@@ -245,7 +245,7 @@ if mode == 'render_train':
 
                 mask = (depth > 0).astype(np.uint8) * 255
 
-                visual = False
+                visual = True
                 if visual:
                     cv2.namedWindow('rgb')
                     cv2.imshow('rgb', rgb)
@@ -316,7 +316,7 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
             # only search for one obj
-            matches = detector.match([rgb, depth], 75.0, 0.6, match_ids, masks=[])
+            matches = detector.match([rgb, depth], 65.0, 0.6, match_ids, masks=[])
             # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
             elapsed_time = time.time() - start_time
 
