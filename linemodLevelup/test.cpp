@@ -165,7 +165,7 @@ void dataset_test(){
 
         vector<string> classes;
         classes.push_back("06_template");
-        detector.readClasses(classes, prefix + "/allScales/%s.yaml");
+        detector.readClasses(classes, prefix + "%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
         vector<linemodLevelup::Match> matches = detector.match(sources, 80, 0.6f, classes);
@@ -199,7 +199,7 @@ void dataset_test(){
         }
         imshow("rgb", draw);
 
-        waitKey(2000);
+        waitKey(0);
 //        imwrite(prefix+"scaleTest/" +i_str+ ".png", draw);
     }
     cout << "dataset_test end line" << endl;
@@ -208,7 +208,7 @@ void dataset_test(){
 int main(){
 
 //    train_test();
-    detect_test();
-//dataset_test();
+//    detect_test();
+    dataset_test();
     return 0;
 }
