@@ -77,6 +77,17 @@ scene_ids_curr = range(1, dp['scene_count'] + 1)
 if scene_ids:
     scene_ids_curr = set(scene_ids_curr).intersection(scene_ids)
 
+# mm
+dep_range = 200  # max depth range of objects
+dep_anchors = []  # depth to apply templates
+dep_min = 600  # min depth of scene
+dep_max = 1400  # max depth of scene
+dep_anchor_step = 1.1  # depth scale
+current_dep = dep_min
+while current_dep < dep_max:
+    dep_anchors.append(int(current_dep))
+    current_dep = current_dep*dep_anchor_step
+
 # mode = 'render_train'
 mode = 'test'
 
@@ -171,7 +182,6 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         templateInfo = dict()
 
-        radii = [1000]
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
         min_n_views = 100
@@ -192,7 +202,7 @@ if mode == 'render_train':
             model_texture = None
 
         im_id = 0
-        for radius in radii:
+        for radius in dep_anchors:
             # Sample views
             views, views_level = view_sampler.sample_views(min_n_views, radius,
                                                            azimuth_range, elev_range,
@@ -255,7 +265,7 @@ if mode == 'render_train':
                     cv2.imshow('mask', mask)
                     cv2.waitKey(0)
 
-                success = detector.addTemplate([rgb, depth], '{:02d}_template'.format(obj_id), mask)
+                success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask)
                 print('success {}'.format(success))
                 del rgb, depth, mask
 
@@ -273,7 +283,8 @@ if mode == 'test':
     template_read_classes = []
     templateInfo = dict()
     for obj_id in obj_ids_curr:
-        template_read_classes.append('{:02d}_template'.format(obj_id))
+        for radius in dep_anchors:
+            template_read_classes.append('{:02d}_template_{}'.format(obj_id, radius))
     detector.readClasses(template_read_classes, template_saved_to)
 
     # Whether to consider only the specified subset of images
@@ -316,7 +327,7 @@ if mode == 'test':
             match_ids.append('{:02d}_template'.format(scene_id))
             start_time = time.time()
             # only search for one obj
-            matches = detector.match([rgb, depth], 65.0, 0.6, match_ids, masks=[])
+            matches = detector.match([rgb, depth], 65.0, 0.5, match_ids, masks=[])
             # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
             elapsed_time = time.time() - start_time
 
@@ -337,14 +348,15 @@ if mode == 'test':
 
             render_rgb = rgb
             color_list = list()
-            color_list.append([0, 1, 0])
             color_list.append([1, 0, 0])
+            color_list.append([0, 1, 0])
             color_list.append([0, 0, 1])
-            color_list.append([1, 0, 1])
+
             color_list.append([0, 1, 1])
+            color_list.append([1, 0, 1])
             color_list.append([1, 1, 0])
 
-            top5 = 3
+            top5 = 5
             if top5 > len(idx):
                 top5 = len(idx)
             for i in range(top5):

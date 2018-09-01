@@ -4,6 +4,7 @@
 #include "linemod_icp.h"
 #include <opencv2/dnn.hpp>
 #include <assert.h>
+#include <queue>
 using namespace std;
 using namespace cv;
 
@@ -639,8 +640,6 @@ public:
 
     virtual void pyrDown();
 
-    void getDepth(Mat &depth) { this->depth = depth.clone(); }
-
 protected:
     /// Recalculate angle and magnitude images
     void update();
@@ -651,7 +650,6 @@ protected:
     int pyramid_level;
     Mat angle;
     Mat magnitude;
-    Mat depth;
 
     float weak_threshold;
     size_t num_features;
@@ -687,10 +685,6 @@ void ColorGradientPyramid::pyrDown()
     Mat next_src;
     cv::pyrDown(src, next_src, size);
     src = next_src;
-
-    Mat next_depth;
-    cv::pyrDown(depth, next_depth, size);
-    depth = next_depth;
 
     if (!mask.empty())
     {
@@ -819,8 +813,6 @@ Ptr<QuantizedPyramid> ColorGradient::processImpl(const std::vector<cv::Mat> &src
 {
 
     auto pd = makePtr<ColorGradientPyramid>(src[0], mask, weak_threshold, num_features, strong_threshold);
-    auto depth = src[1];
-    pd->getDepth(depth);
     return pd;
 }
 
@@ -984,14 +976,11 @@ public:
 
     virtual void pyrDown();
 
-    void getDepth(Mat &depth) { this->depth = depth.clone(); }
-
 protected:
     Mat mask;
 
     int pyramid_level;
     Mat normal;
-    Mat depth;
 
     size_t num_features;
     int extract_threshold;
@@ -1020,10 +1009,6 @@ void DepthNormalPyramid::pyrDown()
     Size size(normal.cols / 2, normal.rows / 2);
     resize(normal, next_normal, size, 0.0, 0.0, INTER_NEAREST);
     normal = next_normal;
-
-    Mat next_depth;
-    cv::pyrDown(depth, next_depth, size);
-    depth = next_depth;
 
     if (!mask.empty())
     {
@@ -1156,8 +1141,6 @@ Ptr<QuantizedPyramid> DepthNormal::processImpl(const std::vector<cv::Mat> &src,
 {
     auto pd = makePtr<DepthNormalPyramid>(src[1], mask, distance_threshold, difference_threshold,
             num_features, extract_threshold);
-    auto depth = src[1];
-    pd->getDepth(depth);
     return pd;
 }
 
@@ -1635,83 +1618,282 @@ Detector::Detector(const std::vector<Ptr<Modality>> &_modalities,
 {
 }
 
+static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const std::vector<int>& dep_anchors,
+                                                     const int dep_range, std::vector<int>& dep_templs){
+    dep_templs.clear();
+
+
+    const int cell_size = 8;
+    const int seed_stride = 3;
+    assert(depth.rows%cell_size==0 && depth.cols%cell_size==0 && "depth rows&cols should be 8n");
+
+    cv::Mat cell_depth = cv::Mat(depth.rows/cell_size, depth.cols/cell_size, depth.type(), cv::Scalar(0));
+    for(int r=0; r<cell_depth.rows; r++){
+        for(int c=0; c<cell_depth.cols; c++){
+            cv::Rect roi = cv::Rect(c*cell_size, r*cell_size, cell_size, cell_size);
+            cell_depth.at<uint16_t>(r, c) = uint16_t(cv::sum(depth(roi))[0]/cell_size/cell_size);
+        }
+    }
+
+    std::vector<cv::Mat> masks_seeds;
+    std::vector<int> seeds_avg_dep;
+    for(int r=1; r<cell_depth.rows-1; r+=seed_stride){
+        for(int c=1; c<cell_depth.cols-1; c+=seed_stride){
+            cv::Mat masks_seed = cv::Mat(cell_depth.size(), CV_8UC1, cv::Scalar(0));
+            masks_seed.at<uchar>(r, c) = 255;
+            int total_dep = 0;
+            int total_dep_count = 0;
+
+            {  // bread first extend
+                const int cols = cell_depth.cols;
+                const int rows = cell_depth.rows;
+                auto rc2id = [cols](int r, int c){return (r*cols+c);};
+                auto id2rc = [cols](int id, int& r, int& c){r = id/cols; c=id%cols;};
+                auto valid_check = [rows, cols](int r, int c, const cv::Mat& mask){
+                    if(r>=0 && r<rows && c>=0 && c<cols){
+                        if(mask.at<uchar>(r,c)==0){
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+
+                std::queue<int> bfs_queue;
+                bfs_queue.push(rc2id(r,c));
+                int current_min = cell_depth.at<uint16_t>(r,c);
+                int current_max = current_min;
+                while (!bfs_queue.empty()) {
+                    int front_r, front_c;
+                    id2rc(bfs_queue.front(), front_r, front_c);
+
+                    for(int offset_r=-1; offset_r<=1; offset_r++){
+                        for(int offset_c=-1; offset_c<=1; offset_c++){
+                            if(offset_r==0 && offset_c==0) continue;
+                            int next_r = front_r + offset_r;
+                            int next_c = front_c + offset_c;
+
+                            if(!valid_check(next_r, next_c, masks_seed)) continue;
+
+                            int depth_to_add = cell_depth.at<uint16_t>(next_r, next_c);
+                            int local_min = current_min;
+                            int local_max = current_max;
+                            if(depth_to_add>local_max) local_max = depth_to_add;
+                            if(depth_to_add<local_min) local_min = depth_to_add;
+
+                            if(local_max-local_min<dep_range){
+                                current_max = local_max;
+                                current_min = local_min;
+                                masks_seed.at<uchar>(next_r, next_c) = 255;
+                                total_dep += depth_to_add;
+                                total_dep_count++;
+                                bfs_queue.push(rc2id(next_r, next_c));
+                            }
+                        }
+                    }
+                    bfs_queue.pop();
+                }
+            }
+
+            seeds_avg_dep.push_back(total_dep/total_dep_count);
+
+            cv::dilate(masks_seed, masks_seed, cv::Mat());
+            masks_seeds.push_back(masks_seed);
+        }
+    }
+
+    int min_anchor=*std::min_element(dep_anchors.begin(), dep_anchors.end());
+    int max_anchor=*std::max_element(dep_anchors.begin(), dep_anchors.end());
+    auto find_closest_dep_idx = [&dep_anchors, min_anchor, max_anchor](int ave_dep){
+        if(ave_dep<min_anchor || ave_dep>max_anchor){
+            return -1;
+        }
+
+        int cloest_dep_idx = 0;
+        int min_dist = std::numeric_limits<int>::max();
+        for(int i=0; i<dep_anchors.size(); i++){
+            auto& dep = dep_anchors[i];
+            int dist = std::abs(dep-ave_dep);
+            if(dist<min_dist){
+                min_dist = dist;
+                cloest_dep_idx = i;
+            }
+        }
+        return cloest_dep_idx;
+    };
+
+    std::vector<cv::Mat> masks(dep_anchors.size());
+    for(size_t i=0; i<seeds_avg_dep.size(); i++){
+        int ave_dep = seeds_avg_dep[i];
+        int closest_anchor_idx = find_closest_dep_idx(ave_dep);
+        if(closest_anchor_idx<0) continue;
+
+        auto& mask = masks[closest_anchor_idx];
+        if(mask.empty()) mask = cv::Mat(masks_seeds[i].size(), CV_8UC1, cv::Scalar(0));
+
+        cv::bitwise_or(mask, masks_seeds[i], mask);
+    }
+
+    std::vector<cv::Mat> masks_final;
+    for(int mask_iter=0; mask_iter<masks.size(); mask_iter++){
+        cv::Mat cell_mask = masks[mask_iter];
+        if(cell_mask.empty()) continue;
+        int dep_anchor = dep_anchors[mask_iter];
+
+        cv::Mat mask;
+        cv::resize(cell_mask, mask, {cell_mask.cols*cell_size, cell_mask.rows*cell_size}, 0, 0, cv::INTER_NEAREST);
+
+        cv::Mat labels, stats, centroids;
+        cv::connectedComponents(mask, labels, 8, CV_16UC1);
+
+        int max_label = 0;
+        for(int r=0; r<labels.rows; r++){
+            uint16_t* label_row = labels.ptr<uint16_t>(r);
+            for(int c=0; c<labels.cols; c++){
+                int label = label_row[c];
+                if(label>max_label){
+                    max_label = label;
+                }
+            }
+        }
+        assert(max_label>0 && "What? it's impossible.");
+
+        for(int i=1; i<=max_label; i++){
+            cv::Mat connected_mask = (labels == i);
+            masks_final.push_back(connected_mask);
+            dep_templs.push_back(dep_anchor);
+        }
+    }
+
+    return masks_final;
+}
+
 std::vector<Match> Detector::match(const std::vector<Mat> &sources, float threshold, float active_ratio,
-                                   const std::vector<std::string> &class_ids, const std::vector<Mat> &masks) const
+                                   const std::vector<std::string> &class_ids,
+                                   const std::vector<int>& dep_anchors, const int dep_range,
+                                   const std::vector<Mat> &masks) const
 {
-    std::vector<Match> matches;
+    std::vector<Match> matches_final;
 
     CV_Assert(sources.size() == modalities.size());
-    // Initialize each modality with our sources
-    std::vector<Ptr<QuantizedPyramid>> quantizers;
-    for (int i = 0; i < (int)modalities.size(); ++i)
-    {
-        Mat mask, source;
-        source = sources[i];
-        if (!masks.empty())
-        {
-            CV_Assert(masks.size() == modalities.size());
-            mask = masks[i];
+
+    auto find_matches = [&](const std::vector<Mat> &sources, const std::vector<std::string> &class_ids,
+            const std::vector<Mat> &masks_ori){
+        std::vector<Match> matches;
+        std::vector<Ptr<QuantizedPyramid>> quantizers;
+
+        std::vector<Mat> masks = masks_ori;
+        if(masks.size() == 1 && modalities.size() > 1){
+            for (int i = 1; i < (int)modalities.size(); ++i){
+                masks.push_back(masks[0]);
+            }
         }
-        CV_Assert(mask.empty() || mask.size() == source.size());
-        quantizers.push_back(modalities[i]->process(sources, mask));
-    }
-    // pyramid level -> modality -> quantization
-    LinearMemoryPyramid lm_pyramid(pyramid_levels,
-                                   std::vector<LinearMemories>(modalities.size(), LinearMemories(8)));
 
-    // For each pyramid level, precompute linear memories for each modality
-    std::vector<Size> sizes;
-    for (int l = 0; l < pyramid_levels; ++l)
-    {
-        int T = T_at_level[l];
-        std::vector<LinearMemories> &lm_level = lm_pyramid[l];
-
-        if (l > 0)
+        for (int i = 0; i < (int)modalities.size(); ++i)
         {
+            Mat mask, source;
+            source = sources[i];
+            if (!masks.empty())
+            {
+                CV_Assert(masks.size() == modalities.size());
+                mask = masks[i];
+            }
+            CV_Assert(mask.empty() || mask.size() == source.size());
+            quantizers.push_back(modalities[i]->process(sources, mask));
+        }
+        // pyramid level -> modality -> quantization
+        LinearMemoryPyramid lm_pyramid(pyramid_levels,
+                                       std::vector<LinearMemories>(modalities.size(), LinearMemories(8)));
+
+        // For each pyramid level, precompute linear memories for each modality
+        std::vector<Size> sizes;
+        for (int l = 0; l < pyramid_levels; ++l)
+        {
+            int T = T_at_level[l];
+            std::vector<LinearMemories> &lm_level = lm_pyramid[l];
+
+            if (l > 0)
+            {
+                for (int i = 0; i < (int)quantizers.size(); ++i)
+                    quantizers[i]->pyrDown();
+            }
+
+            Mat quantized, spread_quantized;
+            std::vector<Mat> response_maps;
             for (int i = 0; i < (int)quantizers.size(); ++i)
-                quantizers[i]->pyrDown();
+            {
+                quantizers[i]->quantize(quantized);
+                spread(quantized, spread_quantized, T);
+                computeResponseMaps(spread_quantized, response_maps);
+
+                LinearMemories &memories = lm_level[i];
+                for (int j = 0; j < 8; ++j)
+                    linearize(response_maps[j], memories[j], T);
+            }
+            sizes.push_back(quantized.size());
         }
 
-        Mat quantized, spread_quantized;
-        std::vector<Mat> response_maps;
-        for (int i = 0; i < (int)quantizers.size(); ++i)
+        if (class_ids.empty())
         {
-            quantizers[i]->quantize(quantized);
-            spread(quantized, spread_quantized, T);
-            computeResponseMaps(spread_quantized, response_maps);
-
-            LinearMemories &memories = lm_level[i];
-            for (int j = 0; j < 8; ++j)
-                linearize(response_maps[j], memories[j], T);
-        }
-
-        sizes.push_back(quantized.size());
-        // depth is same for different modality
-    }
-    if (class_ids.empty())
-    {
-        // Match all templates
-        TemplatesMap::const_iterator it = class_templates.begin(), itend = class_templates.end();
-        for (; it != itend; ++it)
-            matchClass(lm_pyramid, sizes, threshold, active_ratio, matches, it->first, it->second);
-    }
-    else
-    {
-        // Match only templates for the requested class IDs
-        for (int i = 0; i < (int)class_ids.size(); ++i)
-        {
-            TemplatesMap::const_iterator it = class_templates.find(class_ids[i]);
-            if (it != class_templates.end())
+            // Match all templates
+            TemplatesMap::const_iterator it = class_templates.begin(), itend = class_templates.end();
+            for (; it != itend; ++it)
                 matchClass(lm_pyramid, sizes, threshold, active_ratio, matches, it->first, it->second);
         }
+        else
+        {
+            // Match only templates for the requested class IDs
+            for (int i = 0; i < (int)class_ids.size(); ++i)
+            {
+                TemplatesMap::const_iterator it = class_templates.find(class_ids[i]);
+                if (it != class_templates.end())
+                    matchClass(lm_pyramid, sizes, threshold, active_ratio, matches, it->first, it->second);
+            }
+        }
+
+        // Sort matches by similarity, and prune any duplicates introduced by pyramid refinement
+        std::sort(matches.begin(), matches.end());
+        std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
+        matches.erase(new_end, matches.end());
+        return matches;
+    };
+
+    if(dep_anchors.empty()){
+        // Initialize each modality with our sources
+        matches_final = find_matches(sources, class_ids, masks);
+    }else{
+        std::vector<int> dep_templs;
+        auto mask_vec = crop_to_same_depth_parts(sources[1], dep_anchors, dep_range, dep_templs);
+        for(size_t i=0; i<mask_vec.size(); i++){
+            cv::Mat mask = mask_vec[i];
+            int dep_templ = dep_templs[i];
+
+            cv::Rect bbox;
+            {
+                cv::Mat Points;
+                cv::findNonZero(mask,Points);
+                bbox=cv::boundingRect(Points);
+            }
+
+            std::vector<Mat> srcs_part, masks_part;
+            for(const auto& src: sources){
+                srcs_part.push_back(src(bbox).clone());
+                masks_part.push_back(mask(bbox).clone());
+            }
+
+            std::vector<std::string> class_ids_with_dep;
+            for(const auto& class_id: class_ids){
+                class_ids_with_dep.push_back(class_id + "_" + std::to_string(dep_templ));
+            }
+
+            auto matches = find_matches(srcs_part, class_ids_with_dep ,masks_part);
+            for(auto& match: matches){
+                match.x += bbox.x;
+                match.y += bbox.y;
+            }
+            matches_final.insert(matches_final.end(), matches.begin(), matches.end());
+        }
     }
-
-    // Sort matches by similarity, and prune any duplicates introduced by pyramid refinement
-    std::sort(matches.begin(), matches.end());
-    std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
-    matches.erase(new_end, matches.end());
-
-    return matches;
+    return matches_final;
 }
 
 // Used to filter out weak matches
@@ -1722,7 +1904,7 @@ struct MatchPredicate
     float threshold;
 };
 
-cv::Mat add_16u_8u(cv::Mat& simi_sum, const cv::Mat& simi, const cv::Mat& mask){
+static cv::Mat add_16u_8u(cv::Mat& simi_sum, const cv::Mat& simi, const cv::Mat& mask){
     cv::Mat active_score_local;
     simi.copyTo(active_score_local, mask);
     active_score_local.convertTo(active_score_local, CV_16UC1);

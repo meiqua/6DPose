@@ -287,6 +287,7 @@ public:
 
   std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold, float active_ratio = 0.6,
              const std::vector<std::string>& class_ids = std::vector<std::string>(),
+                           const std::vector<int>& dep_anchors = std::vector<int>(), const int dep_range = 200,
                            const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
 
   int addTemplate(const std::vector<cv::Mat>& sources, const std::string& class_id,
