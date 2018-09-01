@@ -320,6 +320,8 @@ if mode == 'test':
             # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
             elapsed_time = time.time() - start_time
 
+            print('matching time: {}'.format(elapsed_time))
+
             render_K = aTemplateInfo[0]['cam_K']
 
             dets = np.zeros(shape=(len(matches), 5))

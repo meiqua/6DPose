@@ -115,7 +115,7 @@ void detect_test(){
     detector.readClasses(classes, prefix + "%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    vector<linemodLevelup::Match> matches = detector.match(sources, 70, 0.6f, classes);
+    vector<linemodLevelup::Match> matches = detector.match(sources, 65, 0.6f, classes);
     auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
     cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 
@@ -137,7 +137,7 @@ void detect_test(){
     for(auto idx : idxs){
         auto match = matches[idx];
         int r = 40;
-        cout << "x: " << match.x << "\ty: " << match.y
+        cout << "x: " << match.x << "\ty: " << match.y << "\tid: " << match.template_id
              << "\tsimilarity: "<< match.similarity <<endl;
         cv::circle(draw, cv::Point(match.x+r,match.y+r), r, cv::Scalar(255, 0 ,255), 2);
         cv::putText(draw, to_string(int(round(match.similarity))),
@@ -168,7 +168,7 @@ void dataset_test(){
         detector.readClasses(classes, prefix + "%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        vector<linemodLevelup::Match> matches = detector.match(sources, 65, 0.6f, classes);
+        vector<linemodLevelup::Match> matches = detector.match(sources, 66, 0.6f, classes);
         auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
         cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 

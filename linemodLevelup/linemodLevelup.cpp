@@ -7,27 +7,6 @@
 using namespace std;
 using namespace cv;
 
-#include <chrono>
-class Timer
-{
-public:
-    Timer() : beg_(clock_::now()) {}
-    void reset() { beg_ = clock_::now(); }
-    double elapsed() const {
-        return std::chrono::duration_cast<second_>
-            (clock_::now() - beg_).count(); }
-    void out(std::string message = ""){
-        double t = elapsed();
-        std::cout << message << "  elasped time:" << t << "s" << std::endl;
-        reset();
-    }
-private:
-    typedef std::chrono::high_resolution_clock clock_;
-    typedef std::chrono::duration<double, std::ratio<1> > second_;
-    std::chrono::time_point<clock_> beg_;
-};
-
-
 void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                          Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
@@ -315,7 +294,7 @@ static Rect cropTemplates(std::vector<Template> &templates, int clusters)
 
         // select K init samples
         int steps = int(templ.features.size())/templ.clusters;
-//        if(int(templ.features.size())%templ.clusters>0) steps++;
+        //        if(int(templ.features.size())%templ.clusters>0) steps++;
         for(int j=0; j<templ.clusters; j++){
             std::vector<int> center;
             center.push_back(templ.features[j*steps].x);
@@ -378,6 +357,9 @@ static Rect cropTemplates(std::vector<Template> &templates, int clusters)
         }
         for(int j=0; j<templ.clusters; j++){
             auto& one_means = k_means_cluster[j];
+
+            assert(one_means.size() < 64 && "too many features for one cluster");
+
             for(auto idx: one_means){
                 templ.features[idx].cluster = j;
             }
@@ -427,7 +409,7 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
     features.clear();
     float distance_sq = distance * distance;
     int i = 0;
-//    while (features.size() < num_features)
+    //    while (features.size() < num_features)
     while (true) // not limited to num features
     {
         Candidate c = candidates[i];
@@ -449,7 +431,7 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
             distance -= 1.0f;
             distance_sq = distance * distance;
             if(distance<5){
-            // we don't want two features too close
+                // we don't want two features too close
                 break;
             }
         }
@@ -1299,13 +1281,13 @@ static void spread(const Mat &src, Mat &dst, int T)
 
 // 1,2-->0 3-->1
 //CV_DECL_ALIGNED(16)
-//static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
 
 // 1,2-->0 3-->2
 //CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 0, 2, 4, 4, 2, 2, 4, 4, 0, 2, 4, 4, 2, 2, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 4, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 4, 2, 2, 4, 4, 0, 2, 4, 4, 2, 2, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4, 4, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4};
 
 // 1,2,3-->0
-CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4};
+//CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4};
 
 /**
  * \brief Precompute response maps for a spread quantized image.
@@ -1455,14 +1437,18 @@ static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_me
 }
 
 static void similarity(std::vector<uint16_t> &cluster_counts, const std::vector<Mat> &linear_memories, const Template &templ,
-                                   std::vector<Mat> &dst_vec, Size size, int T)
+                       std::vector<Mat> &dst_vec, Size size, int T)
 {
-    CV_Assert(templ.features.size() <= 8191);
-    std::fill(cluster_counts.begin(), cluster_counts.end(), 0);
-
     // Decimate input image size by factor of T
     int W = size.width / T;
     int H = size.height / T;
+
+    dst_vec.resize(templ.clusters);
+    for(int i=0; i<templ.clusters; i++){
+        dst_vec[i] = Mat::zeros(H, W, CV_8U);
+    }
+    cluster_counts.resize(templ.clusters);
+    std::fill(cluster_counts.begin(), cluster_counts.end(), 0);
 
     // Feature dimensions, decimated by factor T and rounded up
     int wf = (templ.width - 1) / T + 1;
@@ -1474,11 +1460,6 @@ static void similarity(std::vector<uint16_t> &cluster_counts, const std::vector<
 
     int template_positions = span_y * W + span_x + 1; // why add 1?
     //int template_positions = (span_y - 1) * W + span_x; // More correct?
-
-    dst_vec.resize(templ.clusters);
-    for(int i=0; i<templ.clusters; i++){
-        dst_vec[i] = Mat::zeros(H, W, CV_16U);
-    }
 
 #if CV_SSE2
     volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
@@ -1493,48 +1474,59 @@ static void similarity(std::vector<uint16_t> &cluster_counts, const std::vector<
         Feature f = templ.features[i];
 
         cluster_counts[f.cluster] += 1;
-        short *dst_ptr = dst_vec[f.cluster].ptr<short>();
+        uchar *dst_ptr = dst_vec[f.cluster].ptr<uchar>();
 
         // Discard feature if out of bounds
         /// @todo Shouldn't actually see x or y < 0 here?
         if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
             continue;
-        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+        const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
 
         // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
         int j = 0;
         // Process responses 16 at a time if vectorization possible
 #if CV_SSE2
-        if (haveSSE2)
+#if CV_SSE3
+        if (haveSSE3)
         {
-            __m128i const zero = _mm_setzero_si128();
-            // Fall back to MOVDQU
-            for (; j < template_positions - 7; j += 8)
+            // LDDQU may be more efficient than MOVDQU for unaligned load of next 16 responses
+            for ( ; j < template_positions - 15; j += 16)
             {
-                __m128i responses = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(lm_ptr + j));
-                __m128i *dst_ptr_sse = reinterpret_cast<__m128i *>(dst_ptr + j);
-                responses = _mm_unpacklo_epi8(responses, zero);
-                *dst_ptr_sse = _mm_add_epi16(*dst_ptr_sse, responses);
+                __m128i responses = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lm_ptr + j));
+                __m128i* dst_ptr_sse = reinterpret_cast<__m128i*>(dst_ptr + j);
+                *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
             }
         }
+        else
 #endif
-        for (; j < template_positions; ++j)
-            dst_ptr[j] = short(dst_ptr[j] + short(lm_ptr[j]));
+            if (haveSSE2)
+            {
+                // Fall back to MOVDQU
+                for ( ; j < template_positions - 15; j += 16)
+                {
+                    __m128i responses = _mm_loadu_si128(reinterpret_cast<const __m128i*>(lm_ptr + j));
+                    __m128i* dst_ptr_sse = reinterpret_cast<__m128i*>(dst_ptr + j);
+                    *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
+                }
+            }
+#endif
+        for ( ; j < template_positions; ++j)
+            dst_ptr[j] = uchar(dst_ptr[j] + lm_ptr[j]);
     }
 }
 
 static void similarityLocal(std::vector<uint16_t> &cluster_counts, const std::vector<Mat> &linear_memories, const Template &templ,
-                                        std::vector<Mat> &dst_vec, Size size, int T, Point center)
+                            std::vector<Mat> &dst_vec, Size size, int T, Point center)
 {
-    CV_Assert(templ.features.size() <= 8191);
-    std::fill(cluster_counts.begin(), cluster_counts.end(), 0);
-    // Compute the similarity map in a 16x16 patch around center
     int W = size.width / T;
 
-    std::fill(dst_vec.begin(), dst_vec.end(), cv::Scalar::all(0));
-    // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
-    // center to get the top-left corner of the 16x16 patch.
-    // NOTE: We make the offsets multiples of T to agree with results of the original code.
+    dst_vec.resize(templ.clusters);
+    for(int i=0; i<templ.clusters; i++){
+        dst_vec[i] = Mat::zeros(16, 16, CV_8U);
+    }
+    cluster_counts.resize(templ.clusters);
+    std::fill(cluster_counts.begin(), cluster_counts.end(), 0);
+
     int offset_x = (center.x / T - 8) * T;
     int offset_y = (center.y / T - 8) * T;
 
@@ -1555,39 +1547,49 @@ static void similarityLocal(std::vector<uint16_t> &cluster_counts, const std::ve
         if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
             continue;
 
-        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+        const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
 
         // Process whole row at a time if vectorization possible
 #if CV_SSE2
-        if (haveSSE2)
+#if CV_SSE3
+        if (haveSSE3)
         {
-            __m128i const zero = _mm_setzero_si128();
+            // LDDQU may be more efficient than MOVDQU for unaligned load of 16 responses from current row
             for (int row = 0; row < 16; ++row)
             {
-                __m128i aligned_low = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(lm_ptr));
-                __m128i aligned_high = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(lm_ptr + 8));
-                aligned_low = _mm_unpacklo_epi8(aligned_low, zero);
-                aligned_high = _mm_unpacklo_epi8(aligned_high, zero);
-                dst_ptr_sse[2 * row] = _mm_add_epi16(dst_ptr_sse[2 * row], aligned_low);
-                dst_ptr_sse[2 * row + 1] = _mm_add_epi16(dst_ptr_sse[2 * row + 1], aligned_high);
+                __m128i aligned = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lm_ptr));
+                dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
                 lm_ptr += W; // Step to next row
             }
         }
         else
 #endif
-        {
-            cluster_counts[f.cluster] += 1;
-            short *dst_ptr = dst_vec[f.cluster].ptr<short>();
-            for (int row = 0; row < 16; ++row)
+            if (haveSSE2)
             {
-                for (int col = 0; col < 16; ++col)
-                    dst_ptr[col] = short(dst_ptr[col] + short(lm_ptr[col]));
-                dst_ptr += 16;
-                lm_ptr += W;
+                // Fall back to MOVDQU
+                for (int row = 0; row < 16; ++row)
+                {
+                    __m128i aligned = _mm_loadu_si128(reinterpret_cast<const __m128i*>(lm_ptr));
+                    dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
+                    lm_ptr += W; // Step to next row
+                }
             }
-        }
+            else
+#endif
+            {
+                uchar* dst_ptr = dst_vec[f.cluster].ptr<uchar>();
+                for (int row = 0; row < 16; ++row)
+                {
+                    for (int col = 0; col < 16; ++col)
+                        dst_ptr[col] = uchar(dst_ptr[col] + lm_ptr[col]);
+                    dst_ptr += 16;
+                    lm_ptr += W;
+                }
+            }
     }
+
 }
+
 /****************************************************************************************\
 *                               High-level Detector API                                  *
 \****************************************************************************************/
@@ -1720,40 +1722,30 @@ struct MatchPredicate
     float threshold;
 };
 
+cv::Mat add_16u_8u(cv::Mat& simi_sum, const cv::Mat& simi, const cv::Mat& mask){
+    cv::Mat active_score_local;
+    simi.copyTo(active_score_local, mask);
+    active_score_local.convertTo(active_score_local, CV_16UC1);
+    simi_sum += active_score_local;
+    return simi_sum;
+};
+
 void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                           const std::vector<Size> &sizes,
                           float threshold, float active_ratio, std::vector<Match> &matches,
                           const std::string &class_id,
                           const std::vector<TemplatePyramid> &template_pyramids) const
-{   
-    Timer timer;
-    std::vector<double> times(100, 0);
-
+{
+    #pragma omp parallel for
     for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id)
     {
-        // pre-allocate to speed up
-        std::vector<std::vector<uint16_t>> cluster_counts(modalities.size(), std::vector<uint16_t>(clusters, 0));
-        std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size(), std::vector<uint16_t>(clusters, 0));
-
-        const int local_size = 16;
-        std::vector<std::vector<Mat>> similarities2(modalities.size());
-        for(auto& mat_v: similarities2){
-            for(int i=0; i<clusters; i++){
-                mat_v.push_back(cv::Mat(local_size, local_size, CV_16UC1));
-            }
-        }
-
         const TemplatePyramid &tp = template_pyramids[template_id];
-        // First match over the whole image at the lowest pyramid level
-        /// @todo Factor this out into separate function
         const std::vector<LinearMemories> &lowest_lm = lm_pyramid.back();
 
-        timer.reset();
         std::vector<Match> candidates;
-        {
-            // Compute similarity maps for each modality at lowest pyramid level
+        { // Compute similarity maps for each modality at lowest pyramid level
             std::vector<std::vector<Mat>> similarities(modalities.size());
-
+            std::vector<std::vector<uint16_t>> cluster_counts(modalities.size());
 
             int lowest_start = static_cast<int>(tp.size() - modalities.size());
             int lowest_T = T_at_level.back();
@@ -1776,16 +1768,15 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 
                 for(int j=0; j<similarities[i].size(); j++){
                     auto& simi = similarities[i][j];
-                    uint16_t feat_count = cluster_counts[i][j];
+                    int feat_count = cluster_counts[i][j];
 
-                    uint16_t raw_thresh = uint16_t((threshold)*(4 * feat_count)/100.0f);
+                    int raw_thresh = int((threshold)*(4 * feat_count)/100.0f);
+
                     cv::Mat active_mask = simi > raw_thresh;
 
                     active_count_1mod += active_mask/255;
 
-                    cv::Mat active_score_local = Mat::zeros(similarities[0][0].rows, similarities[0][0].cols, CV_16UC1);
-                    simi.copyTo(active_score_local, active_mask);
-                    active_score_1mod += active_score_local;
+                    add_16u_8u(active_score_1mod, simi, active_mask);
 
                     cv::Mat active_unit;
                     active_mask.convertTo(active_unit, CV_16UC1);
@@ -1805,7 +1796,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                         if (active_parts[c] > int(total_counts[i]*active_ratio) && score>threshold)
                         {
                             if(score < nms_row[c])
-                            nms_row[c] = score;
+                                nms_row[c] = score;
                         }else{
                             nms_row[c] = 0;
                         }
@@ -1861,11 +1852,6 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             }
         }
 
-        times[0] += timer.elapsed();
-
-
-        timer.reset();
-
         // Locally refine each match by marching up the pyramid
         for (int l = pyramid_levels - 2; l >= 0; --l)
         {
@@ -1878,6 +1864,9 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             int max_x = size.width - tp[start].width - border;
             int max_y = size.height - tp[start].height - border;
 
+            const int local_size = 16;
+            std::vector<std::vector<Mat>> similarities2(modalities.size());
+            std::vector<std::vector<uint16_t>> cluster_counts2(modalities.size());
 
             for (int m = 0; m < (int)candidates.size(); ++m)
             {
@@ -1920,9 +1909,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 
                         active_count2 += active_mask/255;
 
-                        cv::Mat active_score_local = Mat::zeros(local_size, local_size, CV_16UC1);
-                        simi.copyTo(active_score_local, active_mask);
-                        active_score2 += active_score_local;
+                        add_16u_8u(active_score2, simi, active_mask);
 
                         cv::Mat active_unit;
                         active_mask.convertTo(active_unit, CV_16UC1);
@@ -1938,13 +1925,11 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                         float* score_2mod_row = score_2mod[i].ptr<float>(r);
                         for (int c = 0; c < local_size; ++c)
                         {
-                            float score = 100.0f/4*
-                                    active_score2_row[c]
-                                    /active_feat_num2_row[c];
-
                             if (active_count2_row[c]>(total_counts2[i]*active_ratio))
                             {
-                                score_2mod_row[c] = score;
+                                score_2mod_row[c] = 100.0f/4*
+                                        active_score2_row[c]
+                                        /active_feat_num2_row[c];
                             }
                         }
                     }
@@ -1979,13 +1964,12 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                                                                   MatchPredicate(threshold));
             candidates.erase(new_end, candidates.end());
         }
-        matches.insert(matches.end(), candidates.begin(), candidates.end());
 
-        times[1] += timer.elapsed();
+        #pragma omp critical
+        {
+            matches.insert(matches.end(), candidates.begin(), candidates.end());
+        }
     }
-
-    std::cout << times[0] << std::endl;
-    std::cout << times[1] << std::endl;
 }
 
 int Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
