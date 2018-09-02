@@ -458,18 +458,6 @@ Ptr<Modality> Modality::create(const std::string &modality_type)
 void hysteresisGradient(Mat &magnitude, Mat &angle,
                         Mat &ap_tmp, float threshold);
 
-/**
- * \brief Compute quantized orientation image from color image.
- *
- * Implements section 2.2 "Computing the Gradient Orientations."
- *
- * \param[in]  src       The source 8-bit, 3-channel image.
- * \param[out] magnitude Destination floating-point array of squared magnitudes.
- * \param[out] angle     Destination 8-bit array of orientations. Each bit
- *                       represents one bin of the orientation space.
- * \param      threshold Magnitude threshold. Keep only gradients whose norms are
- *                       larger than this.
- */
 static void quantizedOrientations(const Mat &src, Mat &magnitude,
                                   Mat &angle, float threshold)
 {
@@ -634,12 +622,25 @@ public:
                          float weak_threshold, size_t num_features,
                          float strong_threshold);
 
+    ColorGradientPyramid(const Ptr<ColorGradientPyramid> ptr_this){
+        src = ptr_this->src.clone();
+        mask = ptr_this->mask.clone();
+        pyramid_level = ptr_this->pyramid_level;
+        angle = ptr_this->angle.clone();
+        magnitude = ptr_this->magnitude.clone();
+        weak_threshold = ptr_this->weak_threshold;
+        num_features = ptr_this->num_features;
+        strong_threshold = ptr_this->strong_threshold;
+    }
+
     virtual void quantize(Mat &dst) const;
 
     virtual bool extractTemplate(Template &templ) const;
 
     virtual void pyrDown();
 
+    virtual void crop_by_mask(const cv::Mat& mask_crop, const cv::Rect& bbox);
+    virtual cv::Ptr<QuantizedPyramid> Clone(){return makePtr<ColorGradientPyramid>(this);}
 protected:
     /// Recalculate angle and magnitude images
     void update();
@@ -694,6 +695,19 @@ void ColorGradientPyramid::pyrDown()
     }
 
     update();
+}
+
+void ColorGradientPyramid::crop_by_mask(const cv::Mat& mask_crop, const cv::Rect& bbox)
+{
+    src = src(bbox).clone();
+    angle = angle(bbox).clone();
+    magnitude = magnitude(bbox).clone();
+    if(!mask.empty()){
+        cv::bitwise_and(mask, mask_crop, mask);
+        mask = mask(bbox).clone();
+    }else{
+        mask = mask_crop(bbox).clone();
+    }
 }
 
 void ColorGradientPyramid::quantize(Mat &dst) const
@@ -970,12 +984,22 @@ public:
                        int distance_threshold, int difference_threshold, size_t num_features,
                        int extract_threshold);
 
+    DepthNormalPyramid(const Ptr<DepthNormalPyramid> ptr_this){
+        mask = ptr_this->mask.clone();
+        pyramid_level = ptr_this->pyramid_level;
+        normal = ptr_this->normal.clone();
+        num_features = ptr_this->num_features;
+        extract_threshold = ptr_this->extract_threshold;
+    }
+
     virtual void quantize(Mat &dst) const;
 
     virtual bool extractTemplate(Template &templ) const;
 
     virtual void pyrDown();
 
+    virtual void crop_by_mask(const cv::Mat& mask_crop, const cv::Rect& bbox);
+    virtual cv::Ptr<QuantizedPyramid> Clone(){return makePtr<DepthNormalPyramid>(this);}
 protected:
     Mat mask;
 
@@ -1015,6 +1039,17 @@ void DepthNormalPyramid::pyrDown()
         Mat next_mask;
         resize(mask, next_mask, size, 0.0, 0.0, INTER_NEAREST);
         mask = next_mask;
+    }
+}
+
+void DepthNormalPyramid::crop_by_mask(const Mat &mask_crop, const Rect &bbox)
+{
+    normal = normal(bbox).clone();
+    if(!mask.empty()){
+        cv::bitwise_and(mask, mask_crop, mask);
+        mask = mask(bbox).clone();
+    }else{
+        mask = mask_crop(bbox).clone();
     }
 }
 
@@ -1619,11 +1654,10 @@ Detector::Detector(const std::vector<Ptr<Modality>> &_modalities,
 }
 
 static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const std::vector<int>& dep_anchors,
-                                                     const int dep_range, std::vector<int>& dep_templs){
+                                                     const int dep_range, std::vector<int>& dep_templs, int T=8){
     dep_templs.clear();
 
-
-    const int cell_size = 8;
+    const int cell_size = T;
     const int seed_stride = 3;
     assert(depth.rows%cell_size==0 && depth.cols%cell_size==0 && "depth rows&cols should be 8n");
 
@@ -1739,11 +1773,8 @@ static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const
         if(cell_mask.empty()) continue;
         int dep_anchor = dep_anchors[mask_iter];
 
-        cv::Mat mask;
-        cv::resize(cell_mask, mask, {cell_mask.cols*cell_size, cell_mask.rows*cell_size}, 0, 0, cv::INTER_NEAREST);
-
-        cv::Mat labels, stats, centroids;
-        cv::connectedComponents(mask, labels, 8, CV_16UC1);
+        cv::Mat labels;
+        cv::connectedComponents(cell_mask, labels, 8, CV_16UC1);
 
         int max_label = 0;
         for(int r=0; r<labels.rows; r++){
@@ -1759,6 +1790,9 @@ static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const
 
         for(int i=1; i<=max_label; i++){
             cv::Mat connected_mask = (labels == i);
+            cv::resize(connected_mask, connected_mask,
+            {connected_mask.cols*cell_size, connected_mask.rows*cell_size}, 0, 0, cv::INTER_NEAREST);
+
             masks_final.push_back(connected_mask);
             dep_templs.push_back(dep_anchor);
         }
@@ -1770,36 +1804,35 @@ static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const
 std::vector<Match> Detector::match(const std::vector<Mat> &sources, float threshold, float active_ratio,
                                    const std::vector<std::string> &class_ids,
                                    const std::vector<int>& dep_anchors, const int dep_range,
-                                   const std::vector<Mat> &masks) const
+                                   const std::vector<Mat> &masks_ori) const
 {
     std::vector<Match> matches_final;
-
     CV_Assert(sources.size() == modalities.size());
 
-    auto find_matches = [&](const std::vector<Mat> &sources, const std::vector<std::string> &class_ids,
-            const std::vector<Mat> &masks_ori){
-        std::vector<Match> matches;
-        std::vector<Ptr<QuantizedPyramid>> quantizers;
+    std::vector<Match> matches;
+    std::vector<Ptr<QuantizedPyramid>> quantizers;
 
-        std::vector<Mat> masks = masks_ori;
-        if(masks.size() == 1 && modalities.size() > 1){
-            for (int i = 1; i < (int)modalities.size(); ++i){
-                masks.push_back(masks[0]);
-            }
+    std::vector<Mat> masks = masks_ori;
+    if(masks.size() == 1 && modalities.size() > 1){
+        for (int i = 1; i < (int)modalities.size(); ++i){
+            masks.push_back(masks[0]);
         }
-
-        for (int i = 0; i < (int)modalities.size(); ++i)
+    }
+    for (int i = 0; i < (int)modalities.size(); ++i)
+    {
+        Mat mask, source;
+        source = sources[i];
+        if (!masks.empty())
         {
-            Mat mask, source;
-            source = sources[i];
-            if (!masks.empty())
-            {
-                CV_Assert(masks.size() == modalities.size());
-                mask = masks[i];
-            }
-            CV_Assert(mask.empty() || mask.size() == source.size());
-            quantizers.push_back(modalities[i]->process(sources, mask));
+            CV_Assert(masks.size() == modalities.size());
+            mask = masks[i];
         }
+        CV_Assert(mask.empty() || mask.size() == source.size());
+        quantizers.push_back(modalities[i]->process(sources, mask));
+    }
+    // whole image quantizers OK
+
+    auto find_matches = [&](std::vector<Ptr<QuantizedPyramid>>& quantizers, const std::vector<std::string> &class_ids){
         // pyramid level -> modality -> quantization
         LinearMemoryPyramid lm_pyramid(pyramid_levels,
                                        std::vector<LinearMemories>(modalities.size(), LinearMemories(8)));
@@ -1859,10 +1892,10 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
 
     if(dep_anchors.empty()){
         // Initialize each modality with our sources
-        matches_final = find_matches(sources, class_ids, masks);
+        matches_final = find_matches(quantizers, class_ids);
     }else{
         std::vector<int> dep_templs;
-        auto mask_vec = crop_to_same_depth_parts(sources[1], dep_anchors, dep_range, dep_templs);
+        auto mask_vec = crop_to_same_depth_parts(sources[1], dep_anchors, dep_range, dep_templs, T_at_level.back());
         for(size_t i=0; i<mask_vec.size(); i++){
             cv::Mat mask = mask_vec[i];
             int dep_templ = dep_templs[i];
@@ -1874,10 +1907,10 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
                 bbox=cv::boundingRect(Points);
             }
 
-            std::vector<Mat> srcs_part, masks_part;
-            for(const auto& src: sources){
-                srcs_part.push_back(src(bbox).clone());
-                masks_part.push_back(mask(bbox).clone());
+            // parts quant, clone to avoid writing whole quant
+            std::vector<Ptr<QuantizedPyramid>> quantizers_part;
+            for(auto& ori_quant: quantizers){
+                quantizers_part.push_back(ori_quant->Clone());
             }
 
             std::vector<std::string> class_ids_with_dep;
@@ -1885,7 +1918,7 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
                 class_ids_with_dep.push_back(class_id + "_" + std::to_string(dep_templ));
             }
 
-            auto matches = find_matches(srcs_part, class_ids_with_dep ,masks_part);
+            auto matches = find_matches(quantizers_part, class_ids_with_dep);
             for(auto& match: matches){
                 match.x += bbox.x;
                 match.y += bbox.y;

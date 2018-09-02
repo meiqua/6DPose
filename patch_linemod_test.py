@@ -88,6 +88,8 @@ while current_dep < dep_max:
     dep_anchors.append(int(current_dep))
     current_dep = current_dep*dep_anchor_step
 
+print('\ndep anchors:\n {}, \ndep range: {}\n'.format(dep_anchors, dep_range))
+
 # mode = 'render_train'
 mode = 'test'
 

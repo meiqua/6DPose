@@ -167,8 +167,11 @@ void dataset_test(){
         classes.push_back("06_template");
         detector.readClasses(classes, prefix + "%s.yaml");
 
+        std::vector<int> dep_anchors = {600, 660, 726, 798, 878, 966, 1062, 1169, 1286};
+        int dep_range = 200;
+
         auto start_time = std::chrono::high_resolution_clock::now();
-        vector<linemodLevelup::Match> matches = detector.match(sources, 66, 0.6f, classes);
+        vector<linemodLevelup::Match> matches = detector.match(sources, 66, 0.6f, classes, dep_anchors, dep_range);
         auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
         cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 

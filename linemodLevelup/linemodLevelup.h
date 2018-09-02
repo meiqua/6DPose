@@ -55,7 +55,9 @@ class QuantizedPyramid
 {
 public:
   // Virtual destructor
-  virtual ~QuantizedPyramid() {}
+  virtual ~QuantizedPyramid(){}
+
+  virtual cv::Ptr<QuantizedPyramid> Clone() =0;
 
   /**
    * \brief Compute quantized image at current pyramid level for online detection.
@@ -77,6 +79,8 @@ public:
    * \todo Allow pyramid scale factor other than 2
    */
   virtual void pyrDown() =0;
+
+  virtual void crop_by_mask(const cv::Mat& mask_crop, const cv::Rect& bbox) = 0;
 
 protected:
   /// Candidate feature with a score
