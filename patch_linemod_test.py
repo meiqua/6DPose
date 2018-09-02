@@ -96,7 +96,7 @@ mode = 'render_train'
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
 template_saved_to = join(dp['base_path'], 'linemod_render_up', '%s.yaml')
-tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info.yaml')
+tempInfo_saved_to = join(dp['base_path'], 'linemod_render_up', '{:02d}_info_{}.yaml')
 if mode == 'train':
     start_time = time.time()
     # im_ids = list(range(1, 1000, 10))  # obj's img
@@ -182,7 +182,7 @@ if mode == 'render_train':
     K_rgb = dp['cam']['K'] * ssaa_fact
 
     for obj_id in obj_ids_curr:
-        templateInfo = dict()
+
 
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
@@ -210,6 +210,8 @@ if mode == 'render_train':
                                                            azimuth_range, elev_range,
                                                            tilt_range=(-math.pi, math.pi), tilt_step=0.1*math.pi)
             print('Sampled views: ' + str(len(views)))
+
+            templateInfo = dict()
 
             # Render the object model from all the views
             for view_id, view in enumerate(views):
@@ -274,9 +276,11 @@ if mode == 'render_train':
                 if success != -1:
                     templateInfo[success] = aTemplateInfo
 
-        inout.save_info(tempInfo_saved_to.format(obj_id), templateInfo)
+            inout.save_info(tempInfo_saved_to.format(obj_id, radius), templateInfo)
+            detector.writeClasses(template_saved_to)
+            #  clear to save RAM
+            detector.clear_classes()
 
-    detector.writeClasses(template_saved_to)
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
 
@@ -303,6 +307,8 @@ if mode == 'test':
         scene_info = inout.load_info(dp['scene_info_mpath'].format(scene_id))
         scene_gt = inout.load_gt(dp['scene_gt_mpath'].format(scene_id))
         model = inout.load_ply(dp['model_mpath'].format(scene_id))
+
+        # @Todo add radius according to matches
         aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
 
         # Considered subset of images for the current scene
@@ -327,10 +333,9 @@ if mode == 'test':
 
             match_ids = list()
             match_ids.append('{:02d}_template'.format(scene_id))
+
             start_time = time.time()
-            # only search for one obj
-            matches = detector.match([rgb, depth], 65.0, 0.5, match_ids, masks=[])
-            # matches2 = ori_detector.match([rgb, depth], 80, match_ids)
+            matches = detector.match([rgb, depth], 65.0, 0.5, match_ids, dep_anchors, dep_range, masks=[])
             elapsed_time = time.time() - start_time
 
             print('matching time: {}'.format(elapsed_time))

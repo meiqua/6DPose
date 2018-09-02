@@ -338,6 +338,7 @@ public:
   void readClasses(const std::vector<std::string>& class_ids,
                            const std::string& format = "templates_%s.yml.gz");
   void writeClasses(const std::string& format = "templates_%s.yml.gz") const;
+  void clear_classes(){class_templates.clear();}
 protected:
   int clusters;
   std::vector< cv::Ptr<Modality> > modalities;

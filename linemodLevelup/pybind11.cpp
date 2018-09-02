@@ -28,6 +28,7 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
         .def(py::init<int, std::vector<int>, int>())
         .def("addTemplate", &linemodLevelup::Detector::addTemplate)
         .def("writeClasses", &linemodLevelup::Detector::writeClasses)
+        .def("clear_classes", &linemodLevelup::Detector::clear_classes)
         .def("readClasses", &linemodLevelup::Detector::readClasses)
         .def("match", &linemodLevelup::Detector::match, py::arg("sources"),
              py::arg("threshold"), py::arg("active_ratio"), py::arg("class_ids"),
