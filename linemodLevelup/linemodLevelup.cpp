@@ -622,15 +622,23 @@ public:
                          float weak_threshold, size_t num_features,
                          float strong_threshold);
 
-    ColorGradientPyramid(const Ptr<ColorGradientPyramid> ptr_this){
-        src = ptr_this->src.clone();
-        mask = ptr_this->mask.clone();
-        pyramid_level = ptr_this->pyramid_level;
-        angle = ptr_this->angle.clone();
-        magnitude = ptr_this->magnitude.clone();
-        weak_threshold = ptr_this->weak_threshold;
-        num_features = ptr_this->num_features;
-        strong_threshold = ptr_this->strong_threshold;
+    ColorGradientPyramid(const ColorGradientPyramid& ptr_this, const cv::Mat& mask_crop, const cv::Rect& bbox){
+        src = ptr_this.src(bbox).clone();
+        pyramid_level = ptr_this.pyramid_level;
+        angle = ptr_this.angle(bbox).clone();
+        magnitude = ptr_this.magnitude(bbox).clone();
+        weak_threshold = ptr_this.weak_threshold;
+        num_features = ptr_this.num_features;
+        strong_threshold = ptr_this.strong_threshold;
+
+        if(ptr_this.mask.empty()){
+            mask = mask_crop(bbox).clone();
+        }else{
+            cv::bitwise_and(mask_crop(bbox), ptr_this.mask(bbox), mask);
+            if(!mask.isContinuous()){
+                mask = mask.clone();
+            }
+        }
     }
 
     virtual void quantize(Mat &dst) const;
@@ -640,7 +648,10 @@ public:
     virtual void pyrDown();
 
     virtual void crop_by_mask(const cv::Mat& mask_crop, const cv::Rect& bbox);
-    virtual cv::Ptr<QuantizedPyramid> Clone(){return makePtr<ColorGradientPyramid>(this);}
+    virtual cv::Ptr<QuantizedPyramid> Clone(const cv::Mat& mask_crop, const cv::Rect& bbox){
+        // don't know why, pass this pointer directly will erase this's data
+        auto qd = makePtr<ColorGradientPyramid>(*this, mask_crop, bbox);
+        return qd;}
 protected:
     /// Recalculate angle and magnitude images
     void update();
@@ -984,12 +995,20 @@ public:
                        int distance_threshold, int difference_threshold, size_t num_features,
                        int extract_threshold);
 
-    DepthNormalPyramid(const Ptr<DepthNormalPyramid> ptr_this){
-        mask = ptr_this->mask.clone();
-        pyramid_level = ptr_this->pyramid_level;
-        normal = ptr_this->normal.clone();
-        num_features = ptr_this->num_features;
-        extract_threshold = ptr_this->extract_threshold;
+    DepthNormalPyramid(const DepthNormalPyramid& ptr_this, const cv::Mat& mask_crop, const cv::Rect& bbox){
+        pyramid_level = ptr_this.pyramid_level;
+        normal = ptr_this.normal(bbox).clone();
+        num_features = ptr_this.num_features;
+        extract_threshold = ptr_this.extract_threshold;
+
+        if(ptr_this.mask.empty()){
+            mask = mask_crop(bbox).clone();
+        }else{
+            cv::bitwise_and(mask_crop(bbox), ptr_this.mask(bbox), mask);
+            if(!mask.isContinuous()){
+                mask = mask.clone();
+            }
+        }
     }
 
     virtual void quantize(Mat &dst) const;
@@ -999,7 +1018,10 @@ public:
     virtual void pyrDown();
 
     virtual void crop_by_mask(const cv::Mat& mask_crop, const cv::Rect& bbox);
-    virtual cv::Ptr<QuantizedPyramid> Clone(){return makePtr<DepthNormalPyramid>(this);}
+    virtual cv::Ptr<QuantizedPyramid> Clone(const cv::Mat& mask_crop, const cv::Rect& bbox){
+        // don't know why, pass this pointer directly will erase this's data
+        auto qd = makePtr<DepthNormalPyramid>(*this, mask_crop, bbox);
+        return qd;}
 protected:
     Mat mask;
 
@@ -1203,56 +1225,75 @@ void DepthNormal::write(FileStorage &fs) const
 *                                 Response maps                                          *
 \****************************************************************************************/
 
+//static void orUnaligned8u(const uchar *src, const int src_stride,
+//                          uchar *dst, const int dst_stride,
+//                          const int width, const int height)
+//{
+//#if CV_SSE2
+//    volatile bool haveSSE2 = checkHardwareSupport(CPU_SSE2);
+//#if CV_SSE3
+//    volatile bool haveSSE3 = checkHardwareSupport(CPU_SSE3);
+//#endif
+//    bool src_aligned = reinterpret_cast<unsigned long long>(src) % 16 == 0;
+//#endif
+
+//    for (int r = 0; r < height; ++r)
+//    {
+//        int c = 0;
+
+//#if CV_SSE2
+//        // Use aligned loads if possible
+//        if (haveSSE2 && src_aligned)
+//        {
+//            for (; c < width - 15; c += 16)
+//            {
+//                const __m128i *src_ptr = reinterpret_cast<const __m128i *>(src + c);
+//                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
+//                *dst_ptr = _mm_or_si128(*dst_ptr, *src_ptr);
+//            }
+//        }
+//#if CV_SSE3
+//        // Use LDDQU for fast unaligned load
+//        else if (haveSSE3)
+//        {
+//            for (; c < width - 15; c += 16)
+//            {
+//                __m128i val = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(src + c));
+//                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
+//                *dst_ptr = _mm_or_si128(*dst_ptr, val);
+//            }
+//        }
+//#endif
+//        // Fall back to MOVDQU
+//        else if (haveSSE2)
+//        {
+//            for (; c < width - 15; c += 16)
+//            {
+//                __m128i val = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + c));
+//                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
+//                *dst_ptr = _mm_or_si128(*dst_ptr, val);
+//            }
+//        }
+//#endif
+//        for (; c < width; ++c)
+//            dst[c] |= src[c];
+
+//        // Advance to next row
+//        src += src_stride;
+//        dst += dst_stride;
+//    }
+//}
+
+
+// compiler have done opt for us
 static void orUnaligned8u(const uchar *src, const int src_stride,
                           uchar *dst, const int dst_stride,
                           const int width, const int height)
 {
-#if CV_SSE2
-    volatile bool haveSSE2 = checkHardwareSupport(CPU_SSE2);
-#if CV_SSE3
-    volatile bool haveSSE3 = checkHardwareSupport(CPU_SSE3);
-#endif
-    bool src_aligned = reinterpret_cast<unsigned long long>(src) % 16 == 0;
-#endif
-
     for (int r = 0; r < height; ++r)
     {
         int c = 0;
 
-#if CV_SSE2
-        // Use aligned loads if possible
-        if (haveSSE2 && src_aligned)
-        {
-            for (; c < width - 15; c += 16)
-            {
-                const __m128i *src_ptr = reinterpret_cast<const __m128i *>(src + c);
-                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
-                *dst_ptr = _mm_or_si128(*dst_ptr, *src_ptr);
-            }
-        }
-#if CV_SSE3
-        // Use LDDQU for fast unaligned load
-        else if (haveSSE3)
-        {
-            for (; c < width - 15; c += 16)
-            {
-                __m128i val = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(src + c));
-                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
-                *dst_ptr = _mm_or_si128(*dst_ptr, val);
-            }
-        }
-#endif
-        // Fall back to MOVDQU
-        else if (haveSSE2)
-        {
-            for (; c < width - 15; c += 16)
-            {
-                __m128i val = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + c));
-                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
-                *dst_ptr = _mm_or_si128(*dst_ptr, val);
-            }
-        }
-#endif
         for (; c < width; ++c)
             dst[c] |= src[c];
 
@@ -1669,33 +1710,33 @@ static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const
         }
     }
 
+    const int cols = cell_depth.cols;
+    const int rows = cell_depth.rows;
+    auto rc2id = [cols](int r, int c){return (r*cols+c);};
+    auto id2rc = [cols](int id, int& r, int& c){r = id/cols; c=id%cols;};
+    auto valid_check = [rows, cols](int r, int c, const cv::Mat& mask){
+        if(r>=0 && r<rows && c>=0 && c<cols){
+            if(mask.at<uchar>(r,c)==0){
+                return true;
+            }
+        }
+        return false;
+    };
+
     std::vector<cv::Mat> masks_seeds;
     std::vector<int> seeds_avg_dep;
     for(int r=1; r<cell_depth.rows-1; r+=seed_stride){
         for(int c=1; c<cell_depth.cols-1; c+=seed_stride){
             cv::Mat masks_seed = cv::Mat(cell_depth.size(), CV_8UC1, cv::Scalar(0));
             masks_seed.at<uchar>(r, c) = 255;
-            int total_dep = 0;
-            int total_dep_count = 0;
 
             {  // bread first extend
-                const int cols = cell_depth.cols;
-                const int rows = cell_depth.rows;
-                auto rc2id = [cols](int r, int c){return (r*cols+c);};
-                auto id2rc = [cols](int id, int& r, int& c){r = id/cols; c=id%cols;};
-                auto valid_check = [rows, cols](int r, int c, const cv::Mat& mask){
-                    if(r>=0 && r<rows && c>=0 && c<cols){
-                        if(mask.at<uchar>(r,c)==0){
-                            return true;
-                        }
-                    }
-                    return false;
-                };
-
                 std::queue<int> bfs_queue;
                 bfs_queue.push(rc2id(r,c));
                 int current_min = cell_depth.at<uint16_t>(r,c);
                 int current_max = current_min;
+                int total_dep = current_max;
+                int total_dep_count = 1;
                 while (!bfs_queue.empty()) {
                     int front_r, front_c;
                     id2rc(bfs_queue.front(), front_r, front_c);
@@ -1726,10 +1767,8 @@ static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const
                     }
                     bfs_queue.pop();
                 }
+                seeds_avg_dep.push_back(total_dep/total_dep_count);
             }
-
-            seeds_avg_dep.push_back(total_dep/total_dep_count);
-
             cv::dilate(masks_seed, masks_seed, cv::Mat());
             masks_seeds.push_back(masks_seed);
         }
@@ -1895,22 +1934,77 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
         matches_final = find_matches(quantizers, class_ids);
     }else{
         std::vector<int> dep_templs;
-        auto mask_vec = crop_to_same_depth_parts(sources[1], dep_anchors, dep_range, dep_templs, T_at_level.back());
+        auto mask_vec = crop_to_same_depth_parts(sources[1], dep_anchors,
+                dep_range, dep_templs, T_at_level.back());
         for(size_t i=0; i<mask_vec.size(); i++){
             cv::Mat mask = mask_vec[i];
             int dep_templ = dep_templs[i];
 
             cv::Rect bbox;
             {
+                // discard small area
+                if(bbox.width*bbox.height<=32*32) continue;
+
                 cv::Mat Points;
                 cv::findNonZero(mask,Points);
                 bbox=cv::boundingRect(Points);
+
+                if(bbox.width%16!=0){
+                    bbox.width += (16 - bbox.width%16);
+                    if(bbox.width + bbox.x > mask.cols){
+                        bbox.x -= (16 - bbox.width%16);
+                        if(bbox.x < 0) bbox.x = 0;
+                    }
+                }
+                if(bbox.height%16!=0){
+                    bbox.height += (16 - bbox.height%16);
+                    if(bbox.height + bbox.y > mask.rows){
+                        bbox.y -= (16 - bbox.height%16);
+                        if(bbox.y < 0) bbox.y = 0;
+                    }
+                }
+//                assert(bbox.height%16==0 && bbox.width%16==0);
+            }
+
+            bool debug_ = false;
+            if(debug_){
+                auto view_dep = [](cv::Mat dep){
+                    cv::Mat map = dep;
+                    double min;
+                    double max;
+                    cv::minMaxIdx(map, &min, &max);
+                    cv::Mat adjMap;
+                    map.convertTo(adjMap,CV_8UC1, 255 / (max-min), -min);
+                    cv::Mat falseColorsMap;
+                    applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_HOT);
+                    return falseColorsMap;
+                };
+
+                std::cout << "dep_templ: " << dep_templ << std::endl;
+
+                cv::Mat rgb = sources[0].clone();
+                cv::Mat depth = view_dep(sources[1]);
+
+                cv::rectangle(rgb, bbox.tl(), bbox.br(), {0, 255, 0}, 2);
+                cv::rectangle(depth, bbox.tl(), bbox.br(), {0, 255, 0}, 2);
+
+                cv::imshow("rgb", rgb);
+                cv::imshow("depth",depth);
+
+                cv::Mat mask_rgb, mask_dep;
+                sources[0].copyTo(mask_rgb, mask);
+                sources[1].copyTo(mask_dep, mask);
+
+                cv::imshow("mask_rgb", mask_rgb);
+                cv::imshow("mask_dep", view_dep(mask_dep));
+                cv::waitKey(0);
             }
 
             // parts quant, clone to avoid writing whole quant
             std::vector<Ptr<QuantizedPyramid>> quantizers_part;
-            for(auto& ori_quant: quantizers){
-                quantizers_part.push_back(ori_quant->Clone());
+            for(auto& quant: quantizers){
+                auto pd = quant->Clone(mask, bbox);
+                quantizers_part.push_back(pd);
             }
 
             std::vector<std::string> class_ids_with_dep;

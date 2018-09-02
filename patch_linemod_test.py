@@ -90,8 +90,8 @@ while current_dep < dep_max:
 
 print('\ndep anchors:\n {}, \ndep range: {}\n'.format(dep_anchors, dep_range))
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
@@ -257,7 +257,7 @@ if mode == 'render_train':
 
                 mask = (depth > 0).astype(np.uint8) * 255
 
-                visual = True
+                visual = False
                 if visual:
                     cv2.namedWindow('rgb')
                     cv2.imshow('rgb', rgb)

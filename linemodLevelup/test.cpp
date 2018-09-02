@@ -50,27 +50,6 @@ void train_test(){
     cout << "break point line: train_test" << endl;
 }
 
-Mat getHistImg(const Mat& hist)
-{
-    double maxVal=0;
-    double minVal=0;
-
-    minMaxLoc(hist,&minVal,&maxVal,0,0);
-    int histSize=hist.rows;
-    Mat histImg(histSize,histSize,CV_8U,Scalar(255));
-
-    int hpt=static_cast<int>(0.9*histSize);
-
-    for(int h=0;h<histSize;h++)
-    {
-        float binVal=hist.at<float>(h);
-        int intensity=static_cast<int>(binVal*hpt/maxVal);
-        line(histImg,Point(h,histSize),Point(h,histSize-intensity),Scalar::all(0));
-    }
-
-    return histImg;
-}
-
 void detect_test(){
     // test case1
     /*

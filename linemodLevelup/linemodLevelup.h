@@ -57,7 +57,7 @@ public:
   // Virtual destructor
   virtual ~QuantizedPyramid(){}
 
-  virtual cv::Ptr<QuantizedPyramid> Clone() =0;
+  virtual cv::Ptr<QuantizedPyramid> Clone(const cv::Mat& mask_crop, const cv::Rect& bbox) =0;
 
   /**
    * \brief Compute quantized image at current pyramid level for online detection.
