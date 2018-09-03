@@ -90,8 +90,8 @@ while current_dep < dep_max:
 
 print('\ndep anchors:\n {}, \ndep range: {}\n'.format(dep_anchors, dep_range))
 
-mode = 'render_train'
-# mode = 'test'
+# mode = 'render_train'
+mode = 'test'
 
 # template_saved_to = join(dp['base_path'], 'linemod', '%s.yaml')
 # tempInfo_saved_to = join(dp['base_path'], 'linemod', '{:02d}_info.yaml')
@@ -182,11 +182,9 @@ if mode == 'render_train':
     K_rgb = dp['cam']['K'] * ssaa_fact
 
     for obj_id in obj_ids_curr:
-
-
         azimuth_range = (0, 2 * math.pi)
         elev_range = (0, 0.5 * math.pi)
-        min_n_views = 100
+        min_n_views = 200
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
         ambient_weight = 0.8  # Weight of ambient light [0, 1]
@@ -208,7 +206,8 @@ if mode == 'render_train':
             # Sample views
             views, views_level = view_sampler.sample_views(min_n_views, radius,
                                                            azimuth_range, elev_range,
-                                                           tilt_range=(-math.pi, math.pi), tilt_step=0.1*math.pi)
+                                                           tilt_range=(-math.pi*(80/180), math.pi*(80/180)),
+                                                           tilt_step=math.pi/8)
             print('Sampled views: ' + str(len(views)))
 
             templateInfo = dict()
@@ -308,8 +307,13 @@ if mode == 'test':
         scene_gt = inout.load_gt(dp['scene_gt_mpath'].format(scene_id))
         model = inout.load_ply(dp['model_mpath'].format(scene_id))
 
-        # @Todo add radius according to matches
-        aTemplateInfo = inout.load_info(tempInfo_saved_to.format(scene_id))
+        for radius in dep_anchors:
+            key = tempInfo_saved_to.format(scene_id, radius)
+            aTemplateInfo = inout.load_info(key)
+            key = os.path.basename(key)
+            key = os.path.splitext(key)[0]
+            key = key.replace('info', 'template')
+            templateInfo[key] = aTemplateInfo
 
         # Considered subset of images for the current scene
         if im_ids_sets is not None:
@@ -332,19 +336,24 @@ if mode == 'test':
             im_size = (depth.shape[1], depth.shape[0])
 
             match_ids = list()
-            match_ids.append('{:02d}_template'.format(scene_id))
+
+            for radius in dep_anchors:
+                match_ids.append('{:02d}_template_{}'.format(scene_id, radius))
 
             start_time = time.time()
-            matches = detector.match([rgb, depth], 65.0, 0.5, match_ids, dep_anchors, dep_range, masks=[])
+            matches = detector.match([rgb, depth], 66.6, 0.66, match_ids, dep_anchors, dep_range, masks=[])
             elapsed_time = time.time() - start_time
 
-            print('matching time: {}'.format(elapsed_time))
+            print('matching time: {}s'.format(elapsed_time))
 
-            render_K = aTemplateInfo[0]['cam_K']
+            if len(matches) > 0:
+                aTemplateInfo = templateInfo[matches[0].class_id]
+                render_K = aTemplateInfo[0]['cam_K']
 
             dets = np.zeros(shape=(len(matches), 5))
             for i in range(len(matches)):
                 match = matches[i]
+                aTemplateInfo = templateInfo[match.class_id]
                 info = aTemplateInfo[match.template_id]
                 dets[i, 0] = match.x
                 dets[i, 1] = match.y
@@ -353,22 +362,27 @@ if mode == 'test':
                 dets[i, 4] = match.similarity
             idx = nms(dets, 0.5)
 
+            print('candidates size: {}\n'.format(len(idx)))
+
             render_rgb = rgb
             color_list = list()
-            color_list.append([1, 0, 0])
-            color_list.append([0, 1, 0])
-            color_list.append([0, 0, 1])
+            color_list.append([1, 0, 0])  # blue
+            color_list.append([0, 1, 0])  # green
+            color_list.append([0, 0, 1])  # red
 
             color_list.append([0, 1, 1])
             color_list.append([1, 0, 1])
             color_list.append([1, 1, 0])
 
-            top5 = 5
+            top5 = 6
+            if top5 > len(color_list):
+                top5 = len(color_list)
             if top5 > len(idx):
                 top5 = len(idx)
-            for i in range(top5):
+            for i in reversed(range(top5)):  # avoid overlap high score
                 match = matches[idx[i]]
                 startPos = (int(match.x), int(match.y))
+                aTemplateInfo = templateInfo[match.class_id]
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
@@ -376,7 +390,9 @@ if mode == 'test':
 
                 start_time = time.time()
                 poseRefine = linemodLevelup_pybind.poseRefine()
+
                 # make sure data type is consistent
+                # have closed ICP, just raw pose
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
                                    K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                    , match.x, match.y)
@@ -402,10 +418,10 @@ if mode == 'test':
             visual = True
             # visual = False
             if visual:
-                cv2.namedWindow('rgb_render')
-                cv2.imshow('rgb_render', render_rgb)
                 cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
+                cv2.namedWindow('rgb_render')
+                cv2.imshow('rgb_render', render_rgb)
                 cv2.waitKey(0)
 
             gt_ids_curr = range(len(scene_gt[im_id]))

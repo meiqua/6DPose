@@ -110,22 +110,24 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
                                   modelR.at<float>(2, 0), modelR.at<float>(2, 1), modelR.at<float>(2, 2));
     auto T_real_icp = cv::Vec3f(modelT.at<float>(0, 0), modelT.at<float>(1, 0), modelT.at<float>(2, 0));
 
-    std::vector<cv::Vec3f> pts_real_model_temp;
-    std::vector<cv::Vec3f> pts_real_ref_temp;
-    float px_ratio_missing = matToVec(sceneCloud_cropped, modelCloud_cropped, pts_real_ref_temp, pts_real_model_temp);
+//    std::vector<cv::Vec3f> pts_real_model_temp;
+//    std::vector<cv::Vec3f> pts_real_ref_temp;
+//    float px_ratio_missing = matToVec(sceneCloud_cropped, modelCloud_cropped, pts_real_ref_temp, pts_real_model_temp);
 
-    float px_ratio_match_inliers = 0.0f;
-    float icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-                                     T_real_icp, px_ratio_match_inliers, 1);
+//    float px_ratio_match_inliers = 0.0f;
+//    float icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
+//                                     T_real_icp, px_ratio_match_inliers, 1);
 
-    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-                               T_real_icp, px_ratio_match_inliers, 2);
+//    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
+//                               T_real_icp, px_ratio_match_inliers, 2);
 
-    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-                               T_real_icp, px_ratio_match_inliers, 0);
+//    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
+//                               T_real_icp, px_ratio_match_inliers, 0);
+//    residual = icp_dist;
+
     R_refined = Mat(R_real_icp);
     t_refiend = Mat(T_real_icp);
-    residual = icp_dist;
+
 }
 
 float poseRefine::getResidual()
@@ -231,7 +233,6 @@ static Rect cropTemplates(std::vector<Template> &templates, int clusters)
     for (int i = 0; i < (int)templates.size(); ++i)
     {
         Template &templ = templates[i];
-        templ.clusters = clusters << (templ.pyramid_level);
 
         for (int j = 0; j < (int)templ.features.size(); ++j)
         {
@@ -1848,7 +1849,6 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
     std::vector<Match> matches_final;
     CV_Assert(sources.size() == modalities.size());
 
-    std::vector<Match> matches;
     std::vector<Ptr<QuantizedPyramid>> quantizers;
 
     std::vector<Mat> masks = masks_ori;
@@ -1872,7 +1872,7 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
     // whole image quantizers OK
 
     auto find_matches = [&](std::vector<Ptr<QuantizedPyramid>>& quantizers, const std::vector<std::string> &class_ids){
-        // pyramid level -> modality -> quantization
+        std::vector<Match> matches;
         LinearMemoryPyramid lm_pyramid(pyramid_levels,
                                        std::vector<LinearMemories>(modalities.size(), LinearMemories(8)));
 
@@ -1942,12 +1942,12 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
 
             cv::Rect bbox;
             {
-                // discard small area
-                if(bbox.width*bbox.height<=32*32) continue;
-
                 cv::Mat Points;
                 cv::findNonZero(mask,Points);
                 bbox=cv::boundingRect(Points);
+
+                // discard small area
+                if(bbox.width<=32 || bbox.height<=32) continue;
 
                 if(bbox.width%16!=0){
                     bbox.width += (16 - bbox.width%16);
@@ -1966,6 +1966,29 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
 //                assert(bbox.height%16==0 && bbox.width%16==0);
             }
 
+            // parts quant, clone to avoid writing whole quant
+            std::vector<Ptr<QuantizedPyramid>> quantizers_part;
+            for(auto& quant: quantizers){
+                auto pd = quant->Clone(mask, bbox);
+                quantizers_part.push_back(pd);
+            }
+
+            std::vector<std::string> ids_with_dep;
+            for(const auto& class_id: class_ids){
+                auto idx = class_id.find_last_of('_');
+                ids_with_dep.push_back(class_id.substr(0, idx) +
+                                             "_" + std::to_string(dep_templ));
+            }
+            ids_with_dep.erase(unique(ids_with_dep.begin(),
+                                              ids_with_dep.end()), ids_with_dep.end() );
+
+            auto matches = find_matches(quantizers_part, ids_with_dep);
+            for(auto& match: matches){
+                match.x += bbox.x;
+                match.y += bbox.y;
+            }
+            matches_final.insert(matches_final.end(), matches.begin(), matches.end());
+
             bool debug_ = false;
             if(debug_){
                 auto view_dep = [](cv::Mat dep){
@@ -1982,42 +2005,30 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
 
                 std::cout << "dep_templ: " << dep_templ << std::endl;
 
-                cv::Mat rgb = sources[0].clone();
+                cv::Mat draw = sources[0].clone();
                 cv::Mat depth = view_dep(sources[1]);
 
-                cv::rectangle(rgb, bbox.tl(), bbox.br(), {0, 255, 0}, 2);
+                cv::rectangle(draw, bbox.tl(), bbox.br(), {0, 255, 0}, 2);
                 cv::rectangle(depth, bbox.tl(), bbox.br(), {0, 255, 0}, 2);
 
-                cv::imshow("rgb", rgb);
-                cv::imshow("depth",depth);
-
-                cv::Mat mask_rgb, mask_dep;
+                cv::Mat mask_rgb;
                 sources[0].copyTo(mask_rgb, mask);
-                sources[1].copyTo(mask_dep, mask);
 
+                for(auto& match: matches){
+                    int r = 40;
+                    cout << "x: " << match.x << "\ty: " << match.y
+                         << "\tsimilarity: "<< match.similarity <<endl;
+                    cv::circle(draw, cv::Point(match.x,match.y), 2, cv::Scalar(255, 0 ,255), -1);
+                    cv::putText(draw, to_string(int(round(match.similarity))),
+                                cv::Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 1.4, cv::Scalar(0,255,255));
+                }
+
+                cv::imshow("depth",depth);
                 cv::imshow("mask_rgb", mask_rgb);
-                cv::imshow("mask_dep", view_dep(mask_dep));
+                cv::imshow("rgb", draw);
+
                 cv::waitKey(0);
             }
-
-            // parts quant, clone to avoid writing whole quant
-            std::vector<Ptr<QuantizedPyramid>> quantizers_part;
-            for(auto& quant: quantizers){
-                auto pd = quant->Clone(mask, bbox);
-                quantizers_part.push_back(pd);
-            }
-
-            std::vector<std::string> class_ids_with_dep;
-            for(const auto& class_id: class_ids){
-                class_ids_with_dep.push_back(class_id + "_" + std::to_string(dep_templ));
-            }
-
-            auto matches = find_matches(quantizers_part, class_ids_with_dep);
-            for(auto& match: matches){
-                match.x += bbox.x;
-                match.y += bbox.y;
-            }
-            matches_final.insert(matches_final.end(), matches.begin(), matches.end());
         }
     }
     return matches_final;
@@ -2114,7 +2125,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             }
 
             // Find initial matches, nms
-            int nms_kernel_size = 5;
+            int nms_kernel_size = 3;
             for (int r = nms_kernel_size/2; r < similarities[0][0].rows-nms_kernel_size/2; ++r)
             {
                 float* nms_row = nms_candidates.ptr<float>(r);

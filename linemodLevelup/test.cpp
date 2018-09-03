@@ -10,7 +10,6 @@
 using namespace std;
 using namespace cv;
 
-
 static std::string prefix = "/home/meiqua/6DPose/linemodLevelup/test/case1/";
 // for test
 std::string type2str(int type) {
@@ -130,7 +129,8 @@ void detect_test(){
 
 void dataset_test(){
     string pre = "/home/meiqua/6DPose/public/datasets/hinterstoisser/test/06/";
-    for(int i=0;i<1000;i++){
+    int i=0;
+    for(;i<1000;i++){
         auto i_str = to_string(i);
         for(int pad=4-i_str.size();pad>0;pad--){
             i_str = '0'+i_str;
@@ -140,23 +140,24 @@ void dataset_test(){
         vector<Mat> sources;
         sources.push_back(rgb);
         sources.push_back(depth);
-        auto detector = linemodLevelup::Detector(20,{4, 8});
-
-        vector<string> classes;
-        classes.push_back("06_template");
-        detector.readClasses(classes, prefix + "%s.yaml");
+        auto detector = linemodLevelup::Detector(16, {4, 8});
 
         std::vector<int> dep_anchors = {600, 660, 726, 798, 878, 966, 1062, 1169, 1286};
         int dep_range = 200;
+        vector<string> classes;
+        for(int dep: dep_anchors){
+            classes.push_back("06_template_"+std::to_string(dep));
+        }
+        detector.readClasses(classes, prefix + "%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        vector<linemodLevelup::Match> matches = detector.match(sources, 66, 0.6f, classes, dep_anchors, dep_range);
+        vector<linemodLevelup::Match> matches = detector.match(sources, 70, 0.6f, classes, dep_anchors, dep_range);
         auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
         cout << "match time: " << elapsed_time.count()/1000000000.0 <<"s" << endl;
 
-        vector<Rect> boxes;
-        vector<float> scores;
-        vector<int> idxs;
+        std::vector<cv::Rect> boxes;
+        std::vector<float> scores;
+        std::vector<int> idxs;
         for(auto match: matches){
             Rect box;
             box.x = match.x;
@@ -168,17 +169,30 @@ void dataset_test(){
         }
         cv::dnn::NMSBoxes(boxes, scores, 0, 0.4, idxs);
 
-        Mat draw = rgb;
+        cv::Mat draw = rgb;
         for(auto idx : idxs){
             auto match = matches[idx];
+
+            auto templ = detector.getTemplates(match.class_id, match.template_id);
+            cv::Mat show_templ = cv::Mat(templ[0].height+1, templ[0].width+1, CV_8UC3, cv::Scalar(0));
+            for(auto f: templ[0].features){
+                cv::circle(show_templ, {f.x, f.y}, 1, {0, 0, 255}, -1);
+            }
+            for(auto f: templ[1].features){
+                cv::circle(show_templ, {f.x, f.y}, 1, {0, 255, 0}, -1);
+            }
+            cv::imshow("templ", show_templ);
+//            cv::waitKey(0);
+
             int r = 40;
-            cout << "x: " << match.x << "\ty: " << match.y
+            cout << "\nx: " << match.x << "\ty: " << match.y
                  << "\tsimilarity: "<< match.similarity <<endl;
+            cout << "class_id: " << match.class_id << "\ttemplate_id: " << match.template_id <<endl;
             cv::circle(draw, cv::Point(match.x+r,match.y+r), r, cv::Scalar(255, 0 ,255), 2);
             cv::putText(draw, to_string(int(round(match.similarity))),
-                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 1.4, Scalar(0,255,255));
-
+                        cv::Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 1.4, cv::Scalar(0,255,255));
         }
+        std::cout << "i: " << i << std::endl;
         imshow("rgb", draw);
 
         waitKey(0);
