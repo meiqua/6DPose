@@ -173,15 +173,15 @@ void dataset_test(){
         for(auto idx : idxs){
             auto match = matches[idx];
 
-            auto templ = detector.getTemplates(match.class_id, match.template_id);
-            cv::Mat show_templ = cv::Mat(templ[0].height+1, templ[0].width+1, CV_8UC3, cv::Scalar(0));
-            for(auto f: templ[0].features){
-                cv::circle(show_templ, {f.x, f.y}, 1, {0, 0, 255}, -1);
-            }
-            for(auto f: templ[1].features){
-                cv::circle(show_templ, {f.x, f.y}, 1, {0, 255, 0}, -1);
-            }
-            cv::imshow("templ", show_templ);
+//            auto templ = detector.getTemplates(match.class_id, match.template_id);
+//            cv::Mat show_templ = cv::Mat(templ[0].height+1, templ[0].width+1, CV_8UC3, cv::Scalar(0));
+//            for(auto f: templ[0].features){
+//                cv::circle(show_templ, {f.x, f.y}, 1, {0, 0, 255}, -1);
+//            }
+//            for(auto f: templ[1].features){
+//                cv::circle(show_templ, {f.x, f.y}, 1, {0, 255, 0}, -1);
+//            }
+//            cv::imshow("templ", show_templ);
 //            cv::waitKey(0);
 
             int r = 40;
