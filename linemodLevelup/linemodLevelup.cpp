@@ -5,6 +5,7 @@
 #include <opencv2/dnn.hpp>
 #include <assert.h>
 #include <queue>
+#include <set>
 using namespace std;
 using namespace cv;
 
@@ -233,7 +234,7 @@ static Rect cropTemplates(std::vector<Template> &templates, int clusters)
     for (int i = 0; i < (int)templates.size(); ++i)
     {
         Template &templ = templates[i];
-
+        templ.clusters = clusters;
         for (int j = 0; j < (int)templ.features.size(); ++j)
         {
             int x = templ.features[j].x << templ.pyramid_level;
@@ -412,7 +413,8 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
     float distance_sq = distance * distance;
     int i = 0;
     //    while (features.size() < num_features)
-    while (true) // not limited to num features
+//    while (true) // not limited to num features
+    while(features.size() < num_features*16)  // well, not too many for big objects
     {
         Candidate c = candidates[i];
 
@@ -1987,7 +1989,28 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
                 match.x += bbox.x;
                 match.y += bbox.y;
             }
-            matches_final.insert(matches_final.end(), matches.begin(), matches.end());
+
+            // nms, matches may have different similarities locally
+            int nms_kernel_size = 3*T_at_level.front();
+            const int cols = mask.cols;
+            auto rc2id = [cols](int r, int c){return (r*cols+c);};
+
+            std::set<int> invalid_id_set;
+            std::vector<Match> nms_matches;
+            for(auto& match: matches){  // matches have been sorted by simi
+                if(invalid_id_set.count(rc2id(match.y, match.x)) == 0){
+                    nms_matches.push_back(match);
+
+                    for(int y_offset = -nms_kernel_size/2; y_offset <= nms_kernel_size/2; y_offset++){
+                        for(int x_offset = -nms_kernel_size/2; x_offset <= nms_kernel_size/2; x_offset++){
+//                            if(y_offset == 0 && x_offset == 0) continue;
+                            invalid_id_set.insert(rc2id(match.y+y_offset, match.x+x_offset));
+                        }
+                    }
+                }
+            }
+
+            matches_final.insert(matches_final.end(), nms_matches.begin(), nms_matches.end());
 
             bool debug_ = false;
             if(debug_){
@@ -2014,7 +2037,7 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
                 cv::Mat mask_rgb;
                 sources[0].copyTo(mask_rgb, mask);
 
-                for(auto& match: matches){
+                for(auto& match: nms_matches){
                     int r = 40;
                     cout << "x: " << match.x << "\ty: " << match.y
                          << "\tsimilarity: "<< match.similarity <<endl;
@@ -2125,7 +2148,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             }
 
             // Find initial matches, nms
-            int nms_kernel_size = 3;
+            int nms_kernel_size = 5;
             for (int r = nms_kernel_size/2; r < similarities[0][0].rows-nms_kernel_size/2; ++r)
             {
                 float* nms_row = nms_candidates.ptr<float>(r);

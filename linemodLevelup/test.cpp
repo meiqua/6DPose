@@ -35,17 +35,15 @@ std::string type2str(int type) {
   return r;
 }
 void train_test(){
-    Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/667/rgb.png");
-    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/667/dep.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
-    Mat mask = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/667/mask.png");
-    cvtColor(mask, mask, cv::COLOR_RGB2GRAY);
+    Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/train_test/rgb.png");
+    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/train_test/depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
     vector<Mat> sources;
     sources.push_back(rgb);
     sources.push_back(depth);
     auto detector = linemodLevelup::Detector(20, {4, 8}, 16);
-    detector.addTemplate(sources, "06_template", mask);
-    detector.writeClasses(prefix+"writeClasses/%s.yaml");
+    detector.addTemplate(sources, "06_template", cv::Mat());
+//    detector.writeClasses(prefix+"writeClasses/%s.yaml");
     cout << "break point line: train_test" << endl;
 }
 
@@ -142,13 +140,13 @@ void dataset_test(){
         sources.push_back(depth);
         auto detector = linemodLevelup::Detector(16, {4, 8});
 
-        std::vector<int> dep_anchors = {600, 660, 726, 798, 878, 966, 1062, 1169, 1286};
+        std::vector<int> dep_anchors = {346, 415, 498, 598, 718, 861, 1034, 1240, 1489};
         int dep_range = 200;
         vector<string> classes;
         for(int dep: dep_anchors){
-            classes.push_back("06_template_"+std::to_string(dep));
+            classes.push_back("01_template_"+std::to_string(dep));
         }
-        detector.readClasses(classes, prefix + "%s.yaml");
+        detector.readClasses(classes, "/home/meiqua/6DPose/public/datasets/hinterstoisser/linemod_render_up/%s.yaml");
 
         auto start_time = std::chrono::high_resolution_clock::now();
         vector<linemodLevelup::Match> matches = detector.match(sources, 70, 0.6f, classes, dep_anchors, dep_range);

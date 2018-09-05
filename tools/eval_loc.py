@@ -175,9 +175,19 @@ def calc_scores(scene_ids, obj_ids, matches, n_top, do_print=True):
 def main():
     # Paths to pose errors (calculated using eval_calc_errors.py)
     #---------------------------------------------------------------------------
-    error_bpath = '/path/to/eval/'
+    top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    dataset = 'hinterstoisser'
+    # dataset = 'tless'
+    # dataset = 'tudlight'
+    # dataset = 'rutgers'
+    # dataset = 'tejani'
+    # dataset = 'doumanoglou'
+    # dataset = 'toyotalight
+
+    error_bpath = pjoin(top_level_path, 'eval')
     error_paths = [
-        pjoin(error_bpath, 'hodan-iros15_hinterstoisser'),
+        pjoin(error_bpath, 'patch-linemod_'+dataset),
         # pjoin(error_bpath, 'hodan-iros15_tless_primesense'),
     ]
 

@@ -15,16 +15,26 @@ from params.dataset_params import get_dataset_params
 
 # Results for which the errors will be calculated
 #-------------------------------------------------------------------------------
-result_base = '/path/to/results/'
+
+dataset = 'hinterstoisser'
+# dataset = 'tless'
+# dataset = 'tudlight'
+# dataset = 'rutgers'
+# dataset = 'tejani'
+# dataset = 'doumanoglou'
+# dataset = 'toyotalight'
+
+top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+result_base = pjoin(top_level_path, 'public', 'sixd_results')
 result_paths = [
-    pjoin(result_base, 'hodan-iros15_hinterstoisser'),
+    pjoin(result_base, 'patch-linemod_' + dataset),
     # pjoin(result_base, 'hodan-iros15_tless_primesense'),
 ]
 
 # Other paths
 #-------------------------------------------------------------------------------
 # Mask of path to the output file with calculated errors
-errors_mpath = pjoin('{result_path}', '..', '..', 'eval', '{result_name}',
+errors_mpath = pjoin(result_base, '..', '..', 'eval', '{result_name}',
                      '{error_sign}', 'errors_{scene_id:02d}.yml')
 
 # Parameters

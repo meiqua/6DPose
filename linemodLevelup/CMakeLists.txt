@@ -7,21 +7,27 @@ SET(CMAKE_BUILD_TYPE "Release")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -g2 -ggdb -fopenmp")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -fopenmp")
 
-set(CMAKE_PREFIX_PATH /home/meiqua/anaconda3/envs/furnace)
-# we install cuda9 but build opencv with cuda8, have to set mannually
-set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)
-# we install opencv in our conda env
-#set(OpenCV_DIR /home/meiqua/anaconda3/envs/furnace/share/OpenCV)
-find_package(OpenCV 3 REQUIRED)
-#message(STATUS "dir='${OpenCV_DIR}'")
 
+# opencv
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /opt/ros/kinetic)
+find_package(OpenCV 3 REQUIRED)
+
+
+## normal icp
+#set(ENV{NICP_ROOT} $ENV{HOME}/nicp)
+#link_directories($ENV{NICP_ROOT}/lib)
+#include(Cmake/FindEigen3.cmake)
+#include(Cmake/FindNicp.cmake)
+
+
+# pybind11
 find_package(PythonLibs 3 REQUIRED)
 find_package(pybind11 REQUIRED)
-
 include(Cmake/FindNumPy.cmake)
 
+
 include_directories(${OpenCV_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS}
-    ${PYTHON_NUMPY_INCLUDE_DIR})
+    ${PYTHON_NUMPY_INCLUDE_DIR} ${NICP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR})
 
 set(SOURCE_PYBIND
     pybind11.cpp

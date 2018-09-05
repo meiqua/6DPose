@@ -228,7 +228,7 @@ def pts2views(pts, azimuth_range, elev_range, tilt_range, tilt_step):
 def sample_views(min_n_views, radius=1,
                  azimuth_range=(0, 2 * math.pi),
                  elev_range=(-0.5 * math.pi, 0.5 * math.pi),
-                 tilt_range=(-0.5 * math.pi, 0.5 * math.pi), tilt_step=0.1*math.pi):
+                 tilt_range=(0, 0.01), tilt_step= math.pi, hinter_or_fibonacci = True):
     '''
     Viewpoint sampling from a view sphere.
     :param min_n_views: Minimum required number of views on the whole view sphere.
@@ -240,7 +240,7 @@ def sample_views(min_n_views, radius=1,
     '''
 
     # Get points on a sphere
-    if True:
+    if hinter_or_fibonacci:
         pts, pts_level = hinter_sampling(min_n_views, radius=radius)
     else:
         pts = fibonacci_sampling(min_n_views + 1, radius=radius)

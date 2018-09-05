@@ -2,9 +2,12 @@
 # Center for Machine Perception, Czech Technical University in Prague
 
 import math
+import os
 from os.path import join as pjoin
 
 from pysixd import inout
+
+top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def get_dataset_params(name, model_type='', train_type='', test_type='',
                        cam_type=''):
@@ -13,10 +16,10 @@ def get_dataset_params(name, model_type='', train_type='', test_type='',
          'train_type': train_type, 'test_type': test_type, 'cam_type': cam_type}
 
     # Path to the folder with datasets
-    common_base_path = '/home/meiqua/6DPose/public/datasets/'
+    common_base_path = pjoin(top_level_path, 'public/datasets/')
 
     # Path to the T-LESS Toolkit (https://github.com/thodan/t-less_toolkit)
-    tless_tk_path = '../t_less_toolkit/'
+    tless_tk_path = pjoin(top_level_path, 't_less_toolkit/')
 
     if name == 'hinterstoisser':
         p['obj_count'] = 15
@@ -143,7 +146,7 @@ def get_dataset_params(name, model_type='', train_type='', test_type='',
         p['model_texture_mpath'] = None
         p['cam_params_path'] = pjoin(p['base_path'], 'camera.yml')
 
-        p['test_obj_depth_range'] = (454.56 - 1076.29) # [mm]
+        p['test_obj_depth_range'] = (454.56, 1076.29) # [mm]
         p['test_obj_azimuth_range'] = (0, 2 * math.pi)
         p['test_obj_elev_range'] = (-1.0297, 0.5 * math.pi) # (-59, 90) [deg]
 
