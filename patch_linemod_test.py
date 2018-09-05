@@ -359,12 +359,11 @@ if mode == 'test':
             dets = np.zeros(shape=(len(matches), 5))
             for i in range(len(matches)):
                 match = matches[i]
-                aTemplateInfo = templateInfo[match.class_id]
-                info = aTemplateInfo[match.template_id]
+                templ = detector.getTemplates(match.class_id, match.template_id)
                 dets[i, 0] = match.x
                 dets[i, 1] = match.y
-                dets[i, 2] = match.x + info['width']
-                dets[i, 3] = match.y + info['height']
+                dets[i, 2] = match.x + templ[0].width
+                dets[i, 3] = match.y + templ[0].height
                 dets[i, 4] = match.similarity
             idx = nms(dets, 0.4)
             #
@@ -378,7 +377,7 @@ if mode == 'test':
             color_list.append([0, 1, 0])  # green
             color_list.append([0, 0, 1])  # red
 
-            color_list.append([0, 1, 1])
+            color_list.append([0, 1, 1])  # who knows
             color_list.append([1, 0, 1])
             color_list.append([1, 1, 0])
 
