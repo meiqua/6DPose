@@ -21,6 +21,12 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
             .def_readwrite("class_id",&linemodLevelup::Match::class_id)
             .def_readwrite("template_id",&linemodLevelup::Match::template_id);
 
+    py::class_<linemodLevelup::Template>(m,"Template")
+            .def(py::init<>())
+            .def_readwrite("width",&linemodLevelup::Template::width)
+            .def_readwrite("height",&linemodLevelup::Template::height)
+            .def_readwrite("pyramid_level",&linemodLevelup::Template::pyramid_level);
+
 
     py::class_<linemodLevelup::Detector>(m, "Detector")
         .def(py::init<>())
