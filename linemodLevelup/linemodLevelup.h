@@ -294,8 +294,8 @@ public:
                            const std::vector<int>& dep_anchors = std::vector<int>(), const int dep_range = 200,
                            const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
 
-  int addTemplate(const std::vector<cv::Mat>& sources, const std::string& class_id,
-          const cv::Mat& object_mask);
+  std::vector<int> addTemplate(const std::vector<cv::Mat>& sources, const std::string& class_id,
+          const cv::Mat& object_mask, const std::vector<int>& dep_anchors = std::vector<int>());
 
   /**
    * \brief Get the modalities used by this detector.
@@ -341,6 +341,7 @@ public:
   void clear_classes(){class_templates.clear();}
 protected:
   int clusters;
+  int num_features;
   std::vector< cv::Ptr<Modality> > modalities;
   int pyramid_levels;
   std::vector<int> T_at_level;

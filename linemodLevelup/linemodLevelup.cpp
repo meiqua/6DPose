@@ -1687,6 +1687,7 @@ Detector::Detector(int num_features, std::vector<int> T, int clusters_)
     pyramid_levels = T.size();
     T_at_level = T;
     clusters = clusters_;
+    this->num_features = num_features;
 }
 
 Detector::Detector(const std::vector<Ptr<Modality>> &_modalities,
@@ -2315,9 +2316,11 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
     }
 }
 
-int Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
-                          const Mat &object_mask)
+std::vector<int> Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
+                          const Mat &object_mask, const std::vector<int>& dep_anchors)
 {
+    std::vector<int> successes;
+
     int num_modalities = static_cast<int>(modalities.size());
     std::vector<TemplatePyramid> &template_pyramids = class_templates[class_id];
     int template_id = static_cast<int>(template_pyramids.size());
@@ -2337,16 +2340,81 @@ int Detector::addTemplate(const std::vector<Mat> &sources, const std::string &cl
                 qp->pyrDown();
 
             bool success = qp->extractTemplate(tp[l * num_modalities + i]);
-            if (!success)
-                return -1;
+            if (!success){
+                if(dep_anchors.size() == 0){
+                    successes.push_back(-1);
+                }else{
+                    for(int i=0; i<dep_anchors.size(); i++){
+                        successes.push_back(-1);
+                    }
+                }
+                return successes;
+            }
         }
     }
+    successes.push_back(template_id);
 
     Rect bb = cropTemplates(tp, clusters);
-
-    /// @todo Can probably avoid a copy of tp here with swap
     template_pyramids.push_back(tp);
-    return template_id;
+
+    if(dep_anchors.size() > 1){
+        std::string idx_without_dep;
+        auto idx = class_id.find_last_of('_');
+        idx_without_dep = class_id.substr(0, idx);
+
+        for(size_t i=1; i<dep_anchors.size(); i++){
+            int dep = dep_anchors[i];
+            float scale = float(dep_anchors[0])/dep;
+            std::string new_dep_class = idx_without_dep + "_" + std::to_string(dep);
+            std::vector<TemplatePyramid> &new_pyramids = class_templates[new_dep_class];
+
+            TemplatePyramid tp_new;
+            for(auto templ: tp){
+                for(auto& f: templ.features){
+                    f.x = int(f.x*scale);
+                    f.y = int(f.y*scale);
+                }
+                templ.height = int(templ.height*scale);
+                templ.width = int(templ.width*scale);
+                templ.tl_x = int(templ.tl_x*scale);
+                templ.tl_y = int(templ.tl_y*scale);
+
+                // nms to avoid features too close
+                int nms_kernel_size = 5;
+                std::set<int> invalid_id_set;
+                int cols = templ.width + 10; // larger is OK
+                auto rc2id = [cols](int r, int c){return (r*cols+c);};
+
+                auto new_templ = templ;
+                new_templ.features.clear();
+
+                for(auto& f: templ.features){
+                    if(invalid_id_set.count(rc2id(f.y, f.x)) == 0){
+                        new_templ.features.push_back(f);
+
+                        for(int y_offset = -nms_kernel_size/2; y_offset <= nms_kernel_size/2; y_offset++){
+                            for(int x_offset = -nms_kernel_size/2; x_offset <= nms_kernel_size/2; x_offset++){
+        //                            if(y_offset == 0 && x_offset == 0) continue;
+                                invalid_id_set.insert(rc2id(f.y+y_offset, f.x+x_offset));
+                            }
+                        }
+                    }
+                }
+                if(new_templ.features.size() >= (num_features >> templ.pyramid_level)){
+                    // min num features requirement
+                    tp_new.push_back(new_templ);
+                }else{
+                    for(;i<dep_anchors.size(); i++){
+                        successes.push_back(-1);
+                    }
+                    return successes;
+                }
+            }
+            successes.push_back(static_cast<int>(new_pyramids.size()));
+            new_pyramids.push_back(tp_new);
+        }
+    }
+    return successes;
 }
 const std::vector<Template> &Detector::getTemplates(const std::string &class_id, int template_id) const
 {

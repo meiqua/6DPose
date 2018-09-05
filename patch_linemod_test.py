@@ -8,7 +8,7 @@ from pysixd import view_sampler, inout, misc
 from  pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
-
+import copy
 import linemodLevelup_pybind
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,8 +60,8 @@ def nms(dets, thresh):
 dataset = 'doumanoglou'
 # dataset = 'toyotalight'
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector(16, [4, 8], 16)  # min features; pyramid strides; num clusters
@@ -133,30 +133,34 @@ if mode == 'render_train':
         else:
             model_texture = None
 
-        im_id = 0
-        for radius in dep_anchors:
+        fast_train = True  # just scale templates
+
+        if fast_train:
             # Sample views
 
             # with camera tilt
-            views, views_level = view_sampler.sample_views(min_n_views, radius,
+            views, views_level = view_sampler.sample_views(min_n_views, dep_anchors[0],
                                                            azimuth_range, elev_range,
-                                                           tilt_range=(-math.pi*(80/180), math.pi*(80/180)),
-                                                           tilt_step=math.pi/8)
+                                                           tilt_range=(-math.pi, math.pi),
+                                                           tilt_step=math.pi / 8)
+
             print('Sampled views: ' + str(len(views)))
 
-            templateInfo = dict()
+            templateInfo_radius = dict()
+            for dep in dep_anchors:
+                templateInfo_radius[dep] = dict()
 
             # Render the object model from all the views
             for view_id, view in enumerate(views):
 
                 if view_id % 10 == 0:
                     print('obj,radius,view: ' + str(obj_id) +
-                          ',' + str(radius) + ',' + str(view_id) + ', view_id: ', view_id)
+                          ',' + str(dep_anchors[0]) + ',' + str(view_id) + ', view_id: ', view_id)
 
                 # Render depth image
                 depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
-                                        view['R'], view['t'],
-                                        clip_near, clip_far, mode='depth')
+                               view['R'], view['t'],
+                               clip_near, clip_far, mode='depth')
 
                 # Convert depth so it is in the same units as the real test images
                 depth /= dp['cam']['depth_scale']
@@ -164,31 +168,17 @@ if mode == 'render_train':
 
                 # Render RGB image
                 rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
-                                      clip_near, clip_far, texture=model_texture,
-                                      ambient_weight=ambient_weight, shading=shading,
-                                      mode='rgb')
+                             clip_near, clip_far, texture=model_texture,
+                             ambient_weight=ambient_weight, shading=shading,
+                             mode='rgb')
                 rgb = cv2.resize(rgb, dp['cam']['im_size'], interpolation=cv2.INTER_AREA)
 
-                K = dp['cam']['K']
-                R = view['R']
-                t = view['t']
                 # have read rgb, depth, pose, obj_bb, obj_id here
 
                 rows = np.any(depth, axis=1)
                 cols = np.any(depth, axis=0)
                 ymin, ymax = np.where(rows)[0][[0, -1]]
                 xmin, xmax = np.where(cols)[0][[0, -1]]
-
-                # cv2.rectangle(rgb, (xmin, ymin), (xmax, ymax),(0,255,0),3)
-                # cv2.imshow('mask', rgb)
-                # cv2.waitKey(0)
-
-                aTemplateInfo = dict()
-                aTemplateInfo['cam_K'] = K
-                aTemplateInfo['cam_R_w2c'] = R
-                aTemplateInfo['cam_t_w2c'] = t
-                aTemplateInfo['width'] = int(xmax-xmin)
-                aTemplateInfo['height'] = int(ymax-ymin)
 
                 mask = (depth > 0).astype(np.uint8) * 255
 
@@ -198,17 +188,104 @@ if mode == 'render_train':
                     cv2.imshow('rgb', rgb)
                     cv2.waitKey(1000)
 
-                success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask)
-                print('success {}'.format(success))
+                success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, dep_anchors[0]),
+                                               mask, dep_anchors)
                 del rgb, depth, mask
 
-                if success != -1:
-                    templateInfo[success] = aTemplateInfo
+                print('success: {}'.format(success))
+                for i in range(len(dep_anchors)):
+                    if success[i] != -1:
+                        aTemplateInfo = dict()
+                        aTemplateInfo['cam_K'] = copy.deepcopy(dp['cam']['K'])
+                        aTemplateInfo['cam_R_w2c'] = copy.deepcopy(view['R'])
+                        aTemplateInfo['cam_t_w2c'] = copy.deepcopy(view['t'])
+                        aTemplateInfo['cam_t_w2c'][2] = dep_anchors[i]
 
-            inout.save_info(tempInfo_saved_to.format(obj_id, radius), templateInfo)
+                        templateInfo = templateInfo_radius[dep_anchors[i]]
+                        templateInfo[success[i]] = aTemplateInfo
+
+            for radius in dep_anchors:
+                inout.save_info(tempInfo_saved_to.format(obj_id, radius), templateInfo_radius[radius])
+
             detector.writeClasses(template_saved_to)
             #  clear to save RAM
             detector.clear_classes()
+        else:
+            for radius in dep_anchors:
+                # Sample views
+
+                # with camera tilt
+                views, views_level = view_sampler.sample_views(min_n_views, radius,
+                                                               azimuth_range, elev_range,
+                                                               tilt_range=(-math.pi * (80 / 180), math.pi * (80 / 180)),
+                                                               tilt_step=math.pi / 8)
+                print('Sampled views: ' + str(len(views)))
+
+                templateInfo = dict()
+
+                # Render the object model from all the views
+                for view_id, view in enumerate(views):
+
+                    if view_id % 10 == 0:
+                        print('obj,radius,view: ' + str(obj_id) +
+                              ',' + str(radius) + ',' + str(view_id) + ', view_id: ', view_id)
+
+                    # Render depth image
+                    depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
+                                   view['R'], view['t'],
+                                   clip_near, clip_far, mode='depth')
+
+                    # Convert depth so it is in the same units as the real test images
+                    depth /= dp['cam']['depth_scale']
+                    depth = depth.astype(np.uint16)
+
+                    # Render RGB image
+                    rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
+                                 clip_near, clip_far, texture=model_texture,
+                                 ambient_weight=ambient_weight, shading=shading,
+                                 mode='rgb')
+                    rgb = cv2.resize(rgb, dp['cam']['im_size'], interpolation=cv2.INTER_AREA)
+
+                    K = dp['cam']['K']
+                    R = view['R']
+                    t = view['t']
+                    # have read rgb, depth, pose, obj_bb, obj_id here
+
+                    rows = np.any(depth, axis=1)
+                    cols = np.any(depth, axis=0)
+                    ymin, ymax = np.where(rows)[0][[0, -1]]
+                    xmin, xmax = np.where(cols)[0][[0, -1]]
+
+                    # cv2.rectangle(rgb, (xmin, ymin), (xmax, ymax),(0,255,0),3)
+                    # cv2.imshow('mask', rgb)
+                    # cv2.waitKey(0)
+
+                    aTemplateInfo = dict()
+                    aTemplateInfo['cam_K'] = K
+                    aTemplateInfo['cam_R_w2c'] = R
+                    aTemplateInfo['cam_t_w2c'] = t
+                    aTemplateInfo['width'] = int(xmax - xmin)
+                    aTemplateInfo['height'] = int(ymax - ymin)
+
+                    mask = (depth > 0).astype(np.uint8) * 255
+
+                    visual = False
+                    if visual:
+                        cv2.namedWindow('rgb')
+                        cv2.imshow('rgb', rgb)
+                        cv2.waitKey(1000)
+
+                    success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask, [])
+                    print('success {}'.format(success[0]))
+                    del rgb, depth, mask
+
+                    if success[0] != -1:
+                        templateInfo[success[0]] = aTemplateInfo
+
+                inout.save_info(tempInfo_saved_to.format(obj_id, radius), templateInfo)
+                detector.writeClasses(template_saved_to)
+                #  clear to save RAM
+                detector.clear_classes()
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
@@ -327,7 +404,7 @@ if mode == 'test':
                 poseRefine = linemodLevelup_pybind.poseRefine()
 
                 # make sure data type is consistent
-                # simple ICP from ORK-linemod even without KNN; may improve later?
+                # have closed ICP, just point cloud conversion; you can check that refinedT[2] = one of anchor depth
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
                                    K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                    , match.x, match.y)
