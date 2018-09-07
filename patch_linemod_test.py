@@ -52,26 +52,26 @@ def nms(dets, thresh):
 
     return keep
 
-# dataset = 'hinterstoisser'
+dataset = 'hinterstoisser'
 # dataset = 'tless'
 # dataset = 'tudlight'
 # dataset = 'rutgers'
 # dataset = 'tejani'
-dataset = 'doumanoglou'
+# dataset = 'doumanoglou'
 # dataset = 'toyotalight'
 
-# mode = 'render_train'
-mode = 'test'
+mode = 'render_train'
+# mode = 'test'
 
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector(16, [4, 8], 16)  # min features; pyramid strides; num clusters
 
-obj_ids = []  # for each obj
+obj_ids = [6]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-scene_ids = []  # for each obj
+scene_ids = [6]  # for each obj
 im_ids = []  # obj's img
 gt_ids = []  # multi obj in one img
 scene_ids_curr = range(1, dp['scene_count'] + 1)
@@ -133,7 +133,8 @@ if mode == 'render_train':
         else:
             model_texture = None
 
-        fast_train = True  # just scale templates
+        # in our test, for complex objects fast-train performs badly...
+        fast_train = False  # just scale templates
 
         if fast_train:
             # Sample views
@@ -331,6 +332,7 @@ if mode == 'test':
             im_ids_curr = set(im_ids_curr).intersection(im_ids)
 
         for im_id in im_ids_curr:
+            print('#'*20)
             print('scene: {}, im: {}'.format(scene_id, im_id))
 
             K = scene_info[im_id]['cam_K']
@@ -349,7 +351,6 @@ if mode == 'test':
             start_time = time.time()
             matches = detector.match([rgb, depth], 66.6, 0.66, match_ids, dep_anchors, dep_range, masks=[])
             matching_time = time.time() - start_time
-
             print('matching time: {}s'.format(matching_time))
 
             if len(matches) > 0:
@@ -366,9 +367,10 @@ if mode == 'test':
                 dets[i, 3] = match.y + templ[0].height
                 dets[i, 4] = match.similarity
             idx = nms(dets, 0.4)
-            #
-            # idx = range(len(matches))  # shouldn't nms here? because of different pose candidates in one position
-                                       # nms after locally pose refine
+
+            # shouldn't nms here? different pose candidates in one position?
+            # nms after locally pose refine?
+            # idx = range(len(matches))
             print('candidates size: {}\n'.format(len(idx)))
 
             render_rgb = rgb
@@ -389,7 +391,7 @@ if mode == 'test':
 
             result = {}
             result_ests = []
-            result_name = join(result_base_path, '{:02d}'.format(scene_id),'{:04d}_{:02d}.yml'.format(im_id, scene_id))
+            result_name = join(result_base_path, '{:02d}'.format(scene_id), '{:04d}_{:02d}.yml'.format(im_id, scene_id))
             for i in reversed(range(top5)):  # avoid overlap high score
                 match = matches[idx[i]]
                 startPos = (int(match.x), int(match.y))
@@ -403,12 +405,18 @@ if mode == 'test':
                 poseRefine = linemodLevelup_pybind.poseRefine()
 
                 # make sure data type is consistent
-                # have closed ICP, just point cloud conversion; you can check that refinedT[2] = one of anchor depth
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
                                    K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                    , match.x, match.y)
-                refinedR = poseRefine.getR()
-                refinedT = poseRefine.getT()
+
+                refinedR = poseRefine.result_refined[0:3, 0:3]
+                refinedT = poseRefine.result_refined[0:3, 3]
+                refinedT = np.reshape(refinedT, (3,))*1000
+
+                if poseRefine.fitness < 0.666 or poseRefine.inlier_rmse > 0.01:
+                    print('reject {}, because: \nfitness: {} \ninlier_rmse: {}\n'
+                          .format(i, poseRefine.fitness, poseRefine.inlier_rmse))
+                    continue
 
                 e = dict()
                 e['R'] = refinedR
@@ -443,16 +451,5 @@ if mode == 'test':
                 cv2.namedWindow('rgb_render')
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.waitKey(1000)
-
-            gt_ids_curr = range(len(scene_gt[im_id]))
-            if gt_ids:
-                gt_ids_curr = set(gt_ids_curr).intersection(gt_ids)
-            # for multi objs in one img
-            for gt_id in gt_ids_curr:
-                gt = scene_gt[im_id][gt_id]
-                obj_id = gt['obj_id']
-                R = gt['cam_R_m2c']
-                t = gt['cam_t_m2c']
-                # have read rgb, depth, pose, obj_bb, obj_id here
 
 print('end line for debug')

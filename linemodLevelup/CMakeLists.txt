@@ -13,11 +13,21 @@ set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /opt/ros/kinetic)
 find_package(OpenCV 3 REQUIRED)
 
 
-## normal icp
-#set(ENV{NICP_ROOT} $ENV{HOME}/nicp)
-#link_directories($ENV{NICP_ROOT}/lib)
-#include(Cmake/FindEigen3.cmake)
-#include(Cmake/FindNicp.cmake)
+# open3d
+find_package(Open3D REQUIRED PATHS "~/Open3D/build/CMakeFiles")
+if (Open3D_FOUND)
+    message(STATUS "Found Open3D ${Open3D_VERSION}")
+
+    include_directories(${Open3D_INCLUDE_DIRS})
+
+    link_directories(${Open3D_LIBRARY_DIRS})
+
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${Open3D_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Open3D_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${Open3D_EXE_LINKER_FLAGS}")
+else ()
+    message(SEND_ERROR "Open3D not found")
+endif ()
 
 
 # pybind11
@@ -34,12 +44,11 @@ set(SOURCE_PYBIND
     np2mat/ndarray_converter.cpp)
 
 set(SOURCE
-    linemodLevelup.cpp
-    linemod_icp.cpp)
+    linemodLevelup.cpp)
 
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} ${Open3D_LIBRARIES})
 
 add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
-target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS})
+target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} ${Open3D_LIBRARIES})
 

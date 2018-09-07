@@ -131,8 +131,6 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 //        open3d::DrawGeometries({model_pcd, scene_pcd_for_center});
     }
 
-
-
     double voxel_size = 0.005;
     auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
     auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd, voxel_size);

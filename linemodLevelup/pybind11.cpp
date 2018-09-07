@@ -6,12 +6,13 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(linemodLevelup_pybind, m) {
     NDArrayConverter::init_numpy();
+
     py::class_<poseRefine>(m, "poseRefine")
         .def(py::init<>())
-        .def("getResidual", &poseRefine::getResidual)
-        .def("process", &poseRefine::process)
-        .def("getR", &poseRefine::getR)
-        .def("getT", &poseRefine::getT);
+        .def_readwrite("result_refined",&poseRefine::result_refined)
+        .def_readwrite("inlier_rmse",&poseRefine::inlier_rmse)
+        .def_readwrite("fitness",&poseRefine::fitness)
+        .def("process", &poseRefine::process);
 
     py::class_<linemodLevelup::Match>(m,"Match")
             .def(py::init<>())
