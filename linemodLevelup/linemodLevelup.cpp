@@ -19,13 +19,13 @@ void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCol
     if (!(src.Flags & Eigen::RowMajorBit))
     {
         cv::Mat _src(src.cols(), src.rows(), cv::DataType<_Tp>::type,
-            (void*)src.data(), src.stride() * sizeof(_Tp));
+                     (void*)src.data(), src.stride() * sizeof(_Tp));
         cv::transpose(_src, dst);
     }
     else
     {
         cv::Mat _src(src.rows(), src.cols(), cv::DataType<_Tp>::type,
-            (void*)src.data(), src.stride() * sizeof(_Tp));
+                     (void*)src.data(), src.stride() * sizeof(_Tp));
         _src.copyTo(dst);
     }
 }
@@ -70,26 +70,26 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
     sceneDepth.copyTo(sceneDepth_masked, mask_diluted);
 
-//    cv::imshow("sceneDepth", view_dep(sceneDepth));
-//    cv::imshow("sceneDepth_masked", view_dep(sceneDepth_masked));
-//    cv::waitKey(0);
+    //    cv::imshow("sceneDepth", view_dep(sceneDepth));
+    //    cv::imshow("sceneDepth_masked", view_dep(sceneDepth_masked));
+    //    cv::waitKey(0);
 
     open3d::Image scene_depth_open3d, model_depth_open3d;
     scene_depth_open3d.PrepareImage(sceneDepth_masked.cols, sceneDepth_masked.rows, 1, 2);
     model_depth_open3d.PrepareImage(modelDepth.cols, modelDepth.rows, 1, 2);
 
     std::copy_n(sceneDepth_masked.data, scene_depth_open3d.data_.size(),
-              scene_depth_open3d.data_.begin());
+                scene_depth_open3d.data_.begin());
     std::copy_n(modelDepth.data, model_depth_open3d.data_.size(),
-              model_depth_open3d.data_.begin());
+                model_depth_open3d.data_.begin());
 
     open3d::PinholeCameraIntrinsic K_scene_open3d(sceneDepth.cols, sceneDepth.rows,
-                                            double(sceneK.at<float>(0, 0)), double(sceneK.at<float>(1, 1)),
-                                            double(sceneK.at<float>(0, 2)), double(sceneK.at<float>(1, 2)));
+                                                  double(sceneK.at<float>(0, 0)), double(sceneK.at<float>(1, 1)),
+                                                  double(sceneK.at<float>(0, 2)), double(sceneK.at<float>(1, 2)));
 
     open3d::PinholeCameraIntrinsic K_model_open3d(modelDepth.cols, modelDepth.rows,
-                                            double(modelK.at<float>(0, 0)), double(modelK.at<float>(1, 1)),
-                                            double(modelK.at<float>(0, 2)), double(modelK.at<float>(1, 2)));
+                                                  double(modelK.at<float>(0, 0)), double(modelK.at<float>(1, 1)),
+                                                  double(modelK.at<float>(0, 2)), double(modelK.at<float>(1, 2)));
 
     auto scene_pcd = open3d::CreatePointCloudFromDepthImage(scene_depth_open3d, K_scene_open3d);
     auto model_pcd = open3d::CreatePointCloudFromDepthImage(model_depth_open3d, K_model_open3d);
@@ -100,14 +100,14 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
         cv::Mat scene_depth_model_cover = cv::Mat::zeros(sceneDepth.rows, sceneDepth.cols, sceneDepth.type());
         sceneDepth(roi).copyTo(scene_depth_model_cover(roi), modelMask(bbox));
 
-//        cv::imshow("scene_depth_model_bbox_cover", view_dep(scene_depth_model_cover));
-//        cv::waitKey(0);
+        //        cv::imshow("scene_depth_model_bbox_cover", view_dep(scene_depth_model_cover));
+        //        cv::waitKey(0);
 
         open3d::Image scene_depth_for_center_estimation;
         scene_depth_for_center_estimation.PrepareImage(scene_depth_model_cover.cols, scene_depth_model_cover.rows,
                                                        1, 2);
         std::copy_n(scene_depth_model_cover.data, scene_depth_for_center_estimation.data_.size(),
-                  scene_depth_for_center_estimation.data_.begin());
+                    scene_depth_for_center_estimation.data_.begin());
         auto scene_pcd_for_center = open3d::CreatePointCloudFromDepthImage(scene_depth_for_center_estimation, K_scene_open3d);
 
         Eigen::Vector3d center_scene = Eigen::Vector3d::Zero();
@@ -125,10 +125,10 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
         init_guess.block(0, 3, 3, 1) = center_scene - center_model;
 
-//        model_pcd->Transform(init_guess);
-//        model_pcd->PaintUniformColor({1, 0.706, 0});
-//        scene_pcd_for_center->PaintUniformColor({0, 0.651, 0.929});
-//        open3d::DrawGeometries({model_pcd, scene_pcd_for_center});
+        //        model_pcd->Transform(init_guess);
+        //        model_pcd->PaintUniformColor({1, 0.706, 0});
+        //        scene_pcd_for_center->PaintUniformColor({0, 0.651, 0.929});
+        //        open3d::DrawGeometries({model_pcd, scene_pcd_for_center});
     }
 
     double voxel_size = 0.005;
@@ -159,7 +159,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
         model_pcd_down->Transform(final_result.transformation_);
         model_pcd_down->PaintUniformColor({1, 0.706, 0});
         scene_pcd_down->PaintUniformColor({0, 0.651, 0.929});
-        open3d::DrawGeometries({model_pcd_down, scene_pcd_down});
+        //        open3d::DrawGeometries({model_pcd_down, scene_pcd_down});
     }
 
     Eigen::Matrix4d result = final_result.transformation_*init_base.cast<double>();
@@ -195,6 +195,7 @@ static inline int getLabel(int quantized)
     case 128:
         return 7;
     default:
+        std::cout << "quantized: " << quantized << std::endl;
         CV_Error(Error::StsBadArg, "Invalid value of quantized parameter");
         return -1; //avoid warning
     }
@@ -436,7 +437,7 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
     float distance_sq = distance * distance;
     int i = 0;
     //    while (features.size() < num_features)
-//    while (true) // not limited to num features
+    //    while (true) // not limited to num features
     while(features.size() < num_features*16)  // well, not too many for big objects
     {
         Candidate c = candidates[i];
@@ -951,6 +952,8 @@ static void quantizedNormals(const Mat &src, Mat &dst, int distance_threshold,
 
         for (int l_x = l_r; l_x < l_W - l_r - 1; ++l_x)
         {
+            if(lp_line[0] == 0) continue;
+
             long l_d = lp_line[0];
 
             if (l_d < distance_threshold)
@@ -996,7 +999,11 @@ static void quantizedNormals(const Mat &src, Mat &dst, int distance_threshold,
                     int l_val2 = static_cast<int>(l_ny * l_offsety + l_offsety);
                     int l_val3 = static_cast<int>(l_nz * GRANULARITY + GRANULARITY);
 
-                    *lp_norm = NORMAL_LUT[l_val3][l_val2][l_val1];
+                    if(l_val1>=GRANULARITY || l_val2>=GRANULARITY || l_val3>=GRANULARITY){
+                        *lp_norm = 0;
+                    }else{
+                        *lp_norm = NORMAL_LUT[l_val3][l_val2][l_val1];
+                    }
                 }
                 else
                 {
@@ -1991,7 +1998,7 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
                         if(bbox.y < 0) bbox.y = 0;
                     }
                 }
-//                assert(bbox.height%16==0 && bbox.width%16==0);
+                //                assert(bbox.height%16==0 && bbox.width%16==0);
             }
 
             // parts quant, clone to avoid writing whole quant
@@ -2005,10 +2012,10 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
             for(const auto& class_id: class_ids){
                 auto idx = class_id.find_last_of('_');
                 ids_with_dep.push_back(class_id.substr(0, idx) +
-                                             "_" + std::to_string(dep_templ));
+                                       "_" + std::to_string(dep_templ));
             }
             ids_with_dep.erase(unique(ids_with_dep.begin(),
-                                              ids_with_dep.end()), ids_with_dep.end() );
+                                      ids_with_dep.end()), ids_with_dep.end() );
 
             auto matches = find_matches(quantizers_part, ids_with_dep);
             for(auto& match: matches){
@@ -2029,7 +2036,7 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
 
                     for(int y_offset = -nms_kernel_size/2; y_offset <= nms_kernel_size/2; y_offset++){
                         for(int x_offset = -nms_kernel_size/2; x_offset <= nms_kernel_size/2; x_offset++){
-//                            if(y_offset == 0 && x_offset == 0) continue;
+                            //                            if(y_offset == 0 && x_offset == 0) continue;
                             invalid_id_set.insert(rc2id(match.y+y_offset, match.x+x_offset));
                         }
                     }
@@ -2105,7 +2112,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                           const std::string &class_id,
                           const std::vector<TemplatePyramid> &template_pyramids) const
 {
-    #pragma omp parallel for
+#pragma omp parallel for
     for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id)
     {
         const TemplatePyramid &tp = template_pyramids[template_id];
@@ -2334,7 +2341,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             candidates.erase(new_end, candidates.end());
         }
 
-        #pragma omp critical
+#pragma omp critical
         {
             matches.insert(matches.end(), candidates.begin(), candidates.end());
         }
@@ -2342,7 +2349,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 }
 
 std::vector<int> Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
-                          const Mat &object_mask, const std::vector<int>& dep_anchors)
+                                       const Mat &object_mask, const std::vector<int>& dep_anchors)
 {
     std::vector<int> successes;
 
@@ -2419,7 +2426,7 @@ std::vector<int> Detector::addTemplate(const std::vector<Mat> &sources, const st
 
                         for(int y_offset = -nms_kernel_size/2; y_offset <= nms_kernel_size/2; y_offset++){
                             for(int x_offset = -nms_kernel_size/2; x_offset <= nms_kernel_size/2; x_offset++){
-        //                            if(y_offset == 0 && x_offset == 0) continue;
+                                //                            if(y_offset == 0 && x_offset == 0) continue;
                                 invalid_id_set.insert(rc2id(f.y+y_offset, f.x+x_offset));
                             }
                         }

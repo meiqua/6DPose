@@ -109,12 +109,6 @@ misc.ensure_dir(result_base_path)
 
 if mode == 'render_train':
     start_time = time.time()
-    visual = True
-
-    # ssaa_fact = 4
-    ssaa_fact = 1
-    im_size_rgb = [int(round(x * float(ssaa_fact))) for x in dp['cam']['im_size']]
-    K_rgb = dp['cam']['K'] * ssaa_fact
 
     for obj_id in obj_ids_curr:
         azimuth_range = dp['test_obj_azimuth_range']
@@ -136,9 +130,72 @@ if mode == 'render_train':
         else:
             model_texture = None
 
+        ######################################################
+        # prepare renderer rather than rebuilding every time
+        texture = model_texture
+        surf_color = None
+        mode = 'rgb+depth'
+        K = dp['cam']['K']
+        im_size = dp['cam']['im_size']
+
+        assert ({'pts', 'faces'}.issubset(set(model.keys())))
+        # Set texture / color of vertices
+        if texture is not None:
+            if texture.max() > 1.0:
+                texture = texture.astype(np.float32) / 255.0
+            texture = np.flipud(texture)
+            texture_uv = model['texture_uv']
+            colors = np.zeros((model['pts'].shape[0], 3), np.float32)
+        else:
+            texture_uv = np.zeros((model['pts'].shape[0], 2), np.float32)
+            if not surf_color:
+                if 'colors' in model.keys():
+                    assert (model['pts'].shape[0] == model['colors'].shape[0])
+                    colors = model['colors']
+                    if colors.max() > 1.0:
+                        colors /= 255.0  # Color values are expected in range [0, 1]
+                else:
+                    colors = np.ones((model['pts'].shape[0], 3), np.float32) * 0.5
+            else:
+                colors = np.tile(list(surf_color) + [1.0], [model['pts'].shape[0], 1])
+
+        # Set the vertex data
+        if mode == 'depth':
+            vertices_type = [('a_position', np.float32, 3),
+                             ('a_color', np.float32, colors.shape[1])]
+            vertices = np.array(list(zip(model['pts'], colors)), vertices_type)
+        else:
+            if shading == 'flat':
+                vertices_type = [('a_position', np.float32, 3),
+                                 ('a_color', np.float32, colors.shape[1]),
+                                 ('a_texcoord', np.float32, 2)]
+                vertices = np.array(list(zip(model['pts'], colors, texture_uv)),
+                                    vertices_type)
+            else:  # shading == 'phong'
+                vertices_type = [('a_position', np.float32, 3),
+                                 ('a_normal', np.float32, 3),
+                                 ('a_color', np.float32, colors.shape[1]),
+                                 ('a_texcoord', np.float32, 2)]
+                vertices = np.array(list(zip(model['pts'], model['normals'],
+                                             colors, texture_uv)), vertices_type)
+
+        # Projection matrix
+        mat_proj = renderer._compute_calib_proj(K, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
+
+        # Model matrix
+        mat_model = np.eye(4, dtype=np.float32)  # From object space to world space
+
+        # Create buffers
+        vertex_buffer = vertices.view(renderer.gloo.VertexBuffer)
+        index_buffer = model['faces'].flatten().astype(np.uint32).view(renderer.gloo.IndexBuffer)
+        window = renderer.app.Window(visible=False)
+
+        bg_color = (0.0, 0.0, 0.0, 0.0)
+        shape = (im_size[1], im_size[0])
+        ######################################################
+
         # in our test, for complex objects fast-train performs badly...
         fast_train = False  # just scale templates
-
         if fast_train:
             # Sample views
 
@@ -162,19 +219,33 @@ if mode == 'render_train':
                           ',' + str(dep_anchors[0]) + ',' + str(view_id) + ', view_id: ', view_id)
 
                 # Render depth image
-                depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
-                               view['R'], view['t'],
-                               clip_near, clip_far, mode='depth')
+                # depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
+                #                view['R'], view['t'],
+                #                clip_near, clip_far, mode='depth')
+
+                mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
+                mat_view[:3, :3] = view['R']
+                mat_view[:3, 3] = view['t'].squeeze()
+                yz_flip = np.eye(4, dtype=np.float32)
+                yz_flip[1, 1], yz_flip[2, 2] = -1, -1
+                mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
+                mat_view = mat_view.T  # OpenGL expects column-wise matrix format
+                depth = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
+                                            mat_view, mat_proj)
 
                 # Convert depth so it is in the same units as the real test images
                 depth /= dp['cam']['depth_scale']
                 depth = depth.astype(np.uint16)
 
                 # Render RGB image
-                rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
-                             clip_near, clip_far, texture=model_texture,
-                             ambient_weight=ambient_weight, shading=shading,
-                             mode='rgb')
+                # rgb = render(model, dp['cam']['im_size'], dp['cam']['K'], view['R'], view['t'],
+                #              clip_near, clip_far, texture=model_texture,
+                #              ambient_weight=ambient_weight, shading=shading,
+                #              mode='rgb')
+
+                rgb = renderer.draw_color(shape, vertex_buffer, index_buffer, texture, mat_model,
+                                          mat_view, mat_proj, ambient_weight, bg_color, shading)
+
                 rgb = cv2.resize(rgb, dp['cam']['im_size'], interpolation=cv2.INTER_AREA)
 
                 # have read rgb, depth, pose, obj_bb, obj_id here
@@ -232,25 +303,41 @@ if mode == 'render_train':
 
                 # Render the object model from all the views
                 for view_id, view in enumerate(views):
+                    window.clear()
 
-                    if view_id % 10 == 0:
+                    if view_id % 50 == 0:
                         print('obj,radius,view: ' + str(obj_id) +
                               ',' + str(radius) + ',' + str(view_id) + ', view_id: ', view_id)
+                        # cv2.waitKey(0)
 
                     # Render depth image
-                    depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
-                                   view['R'], view['t'],
-                                   clip_near, clip_far, mode='depth')
+                    # depth = render(model, dp['cam']['im_size'], dp['cam']['K'],
+                    #                view['R'], view['t'],
+                    #                clip_near, clip_far, mode='depth')
+
+                    mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
+                    mat_view[:3, :3] = view['R']
+                    mat_view[:3, 3] = view['t'].squeeze()
+                    yz_flip = np.eye(4, dtype=np.float32)
+                    yz_flip[1, 1], yz_flip[2, 2] = -1, -1
+                    mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
+                    mat_view = mat_view.T  # OpenGL expects column-wise matrix format
+                    depth = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
+                                               mat_view, mat_proj)
 
                     # Convert depth so it is in the same units as the real test images
                     depth /= dp['cam']['depth_scale']
                     depth = depth.astype(np.uint16)
 
-                    # Render RGB image
-                    rgb = render(model, im_size_rgb, K_rgb, view['R'], view['t'],
-                                 clip_near, clip_far, texture=model_texture,
-                                 ambient_weight=ambient_weight, shading=shading,
-                                 mode='rgb')
+                    # # Render RGB image
+                    # rgb = render(model, dp['cam']['im_size'], dp['cam']['K'], view['R'], view['t'],
+                    #              clip_near, clip_far, texture=model_texture,
+                    #              ambient_weight=ambient_weight, shading=shading,
+                    #              mode='rgb')
+
+                    rgb = renderer.draw_color(shape, vertex_buffer, index_buffer, texture, mat_model,
+                                             mat_view, mat_proj, ambient_weight, bg_color, shading)
+
                     rgb = cv2.resize(rgb, dp['cam']['im_size'], interpolation=cv2.INTER_AREA)
 
                     K = dp['cam']['K']
@@ -277,13 +364,20 @@ if mode == 'render_train':
                     mask = (depth > 0).astype(np.uint8) * 255
 
                     visual = False
+                    if view_id == 100:
+                        visual = True
+                        cv2.imwrite('/home/meiqua/6DPose/linemodLevelup/test/100/rgb.png', rgb)
+                        cv2.imwrite('/home/meiqua/6DPose/linemodLevelup/test/100/depth.png', depth)
+                        cv2.imwrite('/home/meiqua/6DPose/linemodLevelup/test/100/mask.png', mask)
+
                     if visual:
                         cv2.namedWindow('rgb')
                         cv2.imshow('rgb', rgb)
-                        cv2.waitKey(1000)
+                        cv2.waitKey(0)
 
                     success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask, [])
                     print('success {}'.format(success[0]))
+
                     del rgb, depth, mask
 
                     if success[0] != -1:
@@ -293,6 +387,7 @@ if mode == 'render_train':
                 detector.writeClasses(template_saved_to)
                 #  clear to save RAM
                 detector.clear_classes()
+                window.close()
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
@@ -312,6 +407,70 @@ if mode == 'test':
         scene_info = inout.load_info(dp['scene_info_mpath'].format(scene_id))
         scene_gt = inout.load_gt(dp['scene_gt_mpath'].format(scene_id))
         model = inout.load_ply(dp['model_mpath'].format(scene_id))
+
+        ######################################################
+        # prepare renderer rather than rebuilding every time
+        clip_near = 10  # [mm]
+        clip_far = 10000  # [mm]
+        texture = None
+        surf_color = None
+        mode = 'rgb+depth'
+        K = dp['cam']['K']
+        im_size = dp['cam']['im_size']
+        shading = 'phong'  # 'flat', 'phong'
+
+        assert ({'pts', 'faces'}.issubset(set(model.keys())))
+        # Set texture / color of vertices
+        if texture is not None:
+            if texture.max() > 1.0:
+                texture = texture.astype(np.float32) / 255.0
+            texture = np.flipud(texture)
+            texture_uv = model['texture_uv']
+            colors = np.zeros((model['pts'].shape[0], 3), np.float32)
+        else:
+            texture_uv = np.zeros((model['pts'].shape[0], 2), np.float32)
+            if not surf_color:
+                if 'colors' in model.keys():
+                    assert (model['pts'].shape[0] == model['colors'].shape[0])
+                    colors = model['colors']
+                    if colors.max() > 1.0:
+                        colors /= 255.0  # Color values are expected in range [0, 1]
+                else:
+                    colors = np.ones((model['pts'].shape[0], 3), np.float32) * 0.5
+            else:
+                colors = np.tile(list(surf_color) + [1.0], [model['pts'].shape[0], 1])
+
+        # Set the vertex data
+        if mode == 'depth':
+            vertices_type = [('a_position', np.float32, 3),
+                             ('a_color', np.float32, colors.shape[1])]
+            vertices = np.array(list(zip(model['pts'], colors)), vertices_type)
+        else:
+            if shading == 'flat':
+                vertices_type = [('a_position', np.float32, 3),
+                                 ('a_color', np.float32, colors.shape[1]),
+                                 ('a_texcoord', np.float32, 2)]
+                vertices = np.array(list(zip(model['pts'], colors, texture_uv)),
+                                    vertices_type)
+            else:  # shading == 'phong'
+                vertices_type = [('a_position', np.float32, 3),
+                                 ('a_normal', np.float32, 3),
+                                 ('a_color', np.float32, colors.shape[1]),
+                                 ('a_texcoord', np.float32, 2)]
+                vertices = np.array(list(zip(model['pts'], model['normals'],
+                                             colors, texture_uv)), vertices_type)
+
+        # Model matrix
+        mat_model = np.eye(4, dtype=np.float32)  # From object space to world space
+
+        # Create buffers
+        vertex_buffer = vertices.view(renderer.gloo.VertexBuffer)
+        index_buffer = model['faces'].flatten().astype(np.uint32).view(renderer.gloo.IndexBuffer)
+
+        window = renderer.app.Window(visible=False)
+        bg_color = (0.0, 0.0, 0.0, 0.0)
+        shape = (im_size[1], im_size[0])
+        ######################################################
 
         template_read_classes = []
         detector.clear_classes()
@@ -338,6 +497,8 @@ if mode == 'test':
             im_ids_curr = set(im_ids_curr).intersection(im_ids)
 
         for im_id in im_ids_curr:
+            start_time = time.time()
+
             print('#'*20)
             print('scene: {}, im: {}'.format(scene_id, im_id))
 
@@ -354,10 +515,7 @@ if mode == 'test':
             for radius in dep_anchors:
                 match_ids.append('{:02d}_template_{}'.format(scene_id, radius))
 
-            start_time = time.time()
             matches = detector.match([rgb, depth], 66.6, 0.66, match_ids, dep_anchors, dep_range, masks=[])
-            matching_time = time.time() - start_time
-            print('matching time: {}s'.format(matching_time))
 
             if len(matches) > 0:
                 aTemplateInfo = templateInfo[matches[0].class_id]
@@ -405,6 +563,20 @@ if mode == 'test':
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
+
+                mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
+                mat_view[:3, :3] = R_match
+                mat_view[:3, 3] = t_match.squeeze()
+                yz_flip = np.eye(4, dtype=np.float32)
+                yz_flip[1, 1], yz_flip[2, 2] = -1, -1
+                mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
+                mat_view = mat_view.T  # OpenGL expects column-wise matrix format
+                # Projection matrix
+                mat_proj = renderer._compute_calib_proj(K_match, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
+
+                depth = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
+                                            mat_view, mat_proj)
+
                 depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
                 start_time = time.time()
@@ -444,6 +616,9 @@ if mode == 'test':
 
                 draw_axis(rgb, render_R, render_t, render_K)
 
+            matching_time = time.time() - start_time
+            print('matching time: {}s'.format(matching_time))
+
             result['ests'] = result_ests
             inout.save_results_sixd17(result_name, result, matching_time)
 
@@ -456,4 +631,5 @@ if mode == 'test':
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.waitKey(1000)
 
+        window.close()
 print('end line for debug')

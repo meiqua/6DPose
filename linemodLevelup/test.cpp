@@ -34,14 +34,14 @@ std::string type2str(int type) {
   return r;
 }
 void train_test(){
-    Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/train_test/rgb.png");
-    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/train_test/depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/869/rgb.png");
+    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/869/depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
     vector<Mat> sources;
     sources.push_back(rgb);
     sources.push_back(depth);
-    auto detector = linemodLevelup::Detector(20, {4, 8}, 16);
-    detector.addTemplate(sources, "06_template", cv::Mat());
+    auto detector = linemodLevelup::Detector(16, {4, 8}, 16);
+    detector.addTemplate(sources, "06_template", depth>0);
 //    detector.writeClasses(prefix+"writeClasses/%s.yaml");
     cout << "break point line: train_test" << endl;
 }
@@ -223,11 +223,10 @@ void icp_test(){
 }
 
 int main(){
-
-//    train_test();
+    train_test();
 //    detect_test();
 //    dataset_test();
-    icp_test();
+//    icp_test();
 
     return 0;
 }
