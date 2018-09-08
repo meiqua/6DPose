@@ -19,7 +19,6 @@ if (Open3D_FOUND)
     message(STATUS "Found Open3D ${Open3D_VERSION}")
 
     include_directories(${Open3D_INCLUDE_DIRS})
-
     link_directories(${Open3D_LIBRARY_DIRS})
 
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${Open3D_C_FLAGS}")
@@ -36,7 +35,8 @@ find_package(pybind11 REQUIRED)
 include(Cmake/FindNumPy.cmake)
 
 
-include_directories(${OpenCV_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS}
+include_directories(${INCLUDE_DIRECTORIES} ${OpenCV_INCLUDE_DIRS}
+    ${PYTHON_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS}
     ${PYTHON_NUMPY_INCLUDE_DIR} ${NICP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR})
 
 set(SOURCE_PYBIND
@@ -46,9 +46,12 @@ set(SOURCE_PYBIND
 set(SOURCE
     linemodLevelup.cpp)
 
-pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} ${Open3D_LIBRARIES})
+set(LIBS
+    ${OpenCV_LIBS} ${Open3D_LIBRARIES})
 
-add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
-target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} ${Open3D_LIBRARIES})
+pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
+
+add_executable(${PROJECT_NAME}_test ${SOURCE} test.cpp)
+target_link_libraries(${PROJECT_NAME}_test ${LIBS})
 

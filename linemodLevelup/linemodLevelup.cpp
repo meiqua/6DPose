@@ -1681,13 +1681,15 @@ static void similarityLocal(std::vector<uint16_t> &cluster_counts, const std::ve
 
 Detector::Detector()
 {
+    num_features = 16;
     std::vector<Ptr<Modality>> modalities;
-    modalities.push_back(makePtr<ColorGradient>());
-    modalities.push_back(makePtr<DepthNormal>());
+    modalities.push_back(makePtr<ColorGradient>(10.0f, num_features, 55.0f));
+    modalities.push_back(makePtr<DepthNormal>(2000, 50, num_features, 2));
     this->modalities = modalities;
     pyramid_levels = 2;
-    T_at_level.push_back(5);
+    T_at_level.push_back(4);
     T_at_level.push_back(8);
+    clusters = 16;
 }
 
 Detector::Detector(std::vector<int> T, int clusters_)

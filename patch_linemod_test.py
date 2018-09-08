@@ -5,11 +5,13 @@ import numpy as np
 import cv2
 import math
 from pysixd import view_sampler, inout, misc
-from  pysixd.renderer import render
+from pysixd.renderer import render
 from params.dataset_params import get_dataset_params
 from os.path import join
 import copy
 import linemodLevelup_pybind
+
+from pysixd import renderer
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -66,12 +68,12 @@ mode = 'render_train'
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector(16, [4, 8], 16)  # min features; pyramid strides; num clusters
 
-obj_ids = [6]  # for each obj
+obj_ids = [2]  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-scene_ids = [6]  # for each obj
+scene_ids = [2]  # for each obj
 im_ids = []  # obj's img
 gt_ids = []  # multi obj in one img
 scene_ids_curr = range(1, dp['scene_count'] + 1)
@@ -109,7 +111,8 @@ if mode == 'render_train':
     start_time = time.time()
     visual = True
 
-    ssaa_fact = 4
+    # ssaa_fact = 4
+    ssaa_fact = 1
     im_size_rgb = [int(round(x * float(ssaa_fact))) for x in dp['cam']['im_size']]
     K_rgb = dp['cam']['K'] * ssaa_fact
 
@@ -216,9 +219,12 @@ if mode == 'render_train':
                 # Sample views
 
                 # with camera tilt
+                # tilt_factor = (80 / 180)
+                tilt_factor = 1
                 views, views_level = view_sampler.sample_views(min_n_views, radius,
                                                                azimuth_range, elev_range,
-                                                               tilt_range=(-math.pi * (80 / 180), math.pi * (80 / 180)),
+                                                               tilt_range=(-math.pi * tilt_factor,
+                                                                           math.pi * tilt_factor),
                                                                tilt_step=math.pi / 8)
                 print('Sampled views: ' + str(len(views)))
 
@@ -421,15 +427,13 @@ if mode == 'test':
                 e = dict()
                 e['R'] = refinedR
                 e['t'] = refinedT
-                e['score'] = match.similarity
+                e['score'] = poseRefine.inlier_rmse
                 result_ests.append(e)
 
                 render_R = refinedR
                 render_t = refinedT
 
                 elapsed_time = time.time() - start_time
-                # print('residual: {}'.format(poseRefine.getResidual()))
-                # print("pose refine time: {}s".format(elapsed_time))
                 render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t,
                                                       surf_color=color_list[i])
                 visible_mask = render_depth < depth
