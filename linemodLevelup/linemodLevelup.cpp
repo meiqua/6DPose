@@ -128,7 +128,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
         //        model_pcd->Transform(init_guess);
         //        model_pcd->PaintUniformColor({1, 0.706, 0});
         //        scene_pcd_for_center->PaintUniformColor({0, 0.651, 0.929});
-        //        open3d::DrawGeometries({model_pcd, scene_pcd_for_center});
+                open3d::DrawGeometries({model_pcd, scene_pcd_for_center});
     }
 
     double voxel_size = 0.005;
@@ -952,11 +952,8 @@ static void quantizedNormals(const Mat &src, Mat &dst, int distance_threshold,
 
         for (int l_x = l_r; l_x < l_W - l_r - 1; ++l_x)
         {
-            if(lp_line[0] == 0) continue;
-
             long l_d = lp_line[0];
-
-            if (l_d < distance_threshold)
+            if (l_d < distance_threshold && l_d > 0)
             {
                 // accum
                 long l_A[4];

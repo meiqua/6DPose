@@ -223,7 +223,7 @@ void icp_test(){
 }
 
 int main(){
-    train_test();
+//    train_test();
 //    detect_test();
 //    dataset_test();
 //    icp_test();

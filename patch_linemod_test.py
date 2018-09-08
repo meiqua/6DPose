@@ -68,12 +68,12 @@ mode = 'render_train'
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector(16, [4, 8], 16)  # min features; pyramid strides; num clusters
 
-obj_ids = [2]  # for each obj
+obj_ids = []  # for each obj
 obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-scene_ids = [2]  # for each obj
+scene_ids = [6]  # for each obj
 im_ids = []  # obj's img
 gt_ids = []  # multi obj in one img
 scene_ids_curr = range(1, dp['scene_count'] + 1)
@@ -113,7 +113,7 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         azimuth_range = dp['test_obj_azimuth_range']
         elev_range = dp['test_obj_elev_range']
-        min_n_views = 200
+        min_n_views = 233
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
         ambient_weight = 0.8  # Weight of ambient light [0, 1]
@@ -364,12 +364,6 @@ if mode == 'render_train':
                     mask = (depth > 0).astype(np.uint8) * 255
 
                     visual = False
-                    if view_id == 100:
-                        visual = True
-                        cv2.imwrite('/home/meiqua/6DPose/linemodLevelup/test/100/rgb.png', rgb)
-                        cv2.imwrite('/home/meiqua/6DPose/linemodLevelup/test/100/depth.png', depth)
-                        cv2.imwrite('/home/meiqua/6DPose/linemodLevelup/test/100/mask.png', mask)
-
                     if visual:
                         cv2.namedWindow('rgb')
                         cv2.imshow('rgb', rgb)
@@ -414,7 +408,7 @@ if mode == 'test':
         clip_far = 10000  # [mm]
         texture = None
         surf_color = None
-        mode = 'rgb+depth'
+        mode = 'depth'
         K = dp['cam']['K']
         im_size = dp['cam']['im_size']
         shading = 'phong'  # 'flat', 'phong'
@@ -574,10 +568,11 @@ if mode == 'test':
                 # Projection matrix
                 mat_proj = renderer._compute_calib_proj(K_match, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
 
-                depth = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
+                window.clear()
+                depth_ren = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
                                             mat_view, mat_proj)
 
-                depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
+                # depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
 
                 start_time = time.time()
                 poseRefine = linemodLevelup_pybind.poseRefine()
@@ -625,9 +620,7 @@ if mode == 'test':
             visual = True
             # visual = False
             if visual:
-                cv2.namedWindow('rgb')
                 cv2.imshow('rgb', rgb)
-                cv2.namedWindow('rgb_render')
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.waitKey(1000)
 
