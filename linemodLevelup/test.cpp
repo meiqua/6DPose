@@ -35,7 +35,7 @@ std::string type2str(int type) {
 }
 void train_test(){
     Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/869/rgb.png");
-    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test//depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/869/depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
 
     std::cout << type2str(depth.type());
 
@@ -240,10 +240,10 @@ void icp_test(){
 }
 
 int main(){
-    train_test();
+//    train_test();
 //    detect_test();
 //    dataset_test();
-//    icp_test();
+    icp_test();
 
     return 0;
 }

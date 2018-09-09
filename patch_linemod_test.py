@@ -10,7 +10,6 @@ from params.dataset_params import get_dataset_params
 from os.path import join
 import copy
 import linemodLevelup_pybind
-import open3d
 
 from pysixd import renderer
 
@@ -74,7 +73,7 @@ obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-scene_ids = [6]  # for each obj
+scene_ids = [9]  # for each obj
 im_ids = []  # obj's img
 gt_ids = []  # multi obj in one img
 scene_ids_curr = range(1, dp['scene_count'] + 1)
@@ -477,12 +476,21 @@ if mode == 'test':
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
         ambient_weight = 0.8
-        texture = None
-        surf_color = (0, 1, 0)
+
+        surf_color = None
         mode = 'rgb+depth'
         K = dp['cam']['K']
         im_size = dp['cam']['im_size']
-        shading = 'phong'  # 'flat', 'phong'
+        shading = 'flat'
+
+        # Load model texture
+        if dp['model_texture_mpath']:
+            model_texture_path = dp['model_texture_mpath'].format(obj_id)
+            model_texture = inout.load_im(model_texture_path)
+        else:
+            model_texture = None
+
+        texture = model_texture
 
         assert ({'pts', 'faces'}.issubset(set(model.keys())))
         # Set texture / color of vertices
@@ -583,6 +591,10 @@ if mode == 'test':
         if im_ids:
             im_ids_curr = set(im_ids_curr).intersection(im_ids)
 
+        # active ratio should be higher for simple objects
+        # we adjust this factor according to candidates size
+        trick_factor = 1
+        base_active_ratio = 0.55
         for im_id in im_ids_curr:
             start_time = time.time()
 
@@ -602,7 +614,9 @@ if mode == 'test':
             for radius in dep_anchors:
                 match_ids.append('{:02d}_template_{}'.format(scene_id, radius))
 
-            matches = detector.match([rgb, depth], 66.6, 0.66, match_ids, dep_anchors, dep_range, masks=[])
+            # srcs, score for one part, active ratio
+            matches = detector.match([rgb, depth], 66, base_active_ratio*trick_factor,
+                                     match_ids, dep_anchors, dep_range, masks=[])
 
             if len(matches) > 0:
                 aTemplateInfo = templateInfo[matches[0].class_id]
@@ -624,16 +638,36 @@ if mode == 'test':
             # idx = range(len(matches))
             print('candidates size: {}\n'.format(len(idx)))
 
-            render_rgb = rgb
+            top5 = 10
 
-            top5 = 5
+            if len(idx) > int(top5*1.5):  # we don't want too many
+                trick_factor = trick_factor + 0.05
+                if trick_factor > 1/base_active_ratio:
+                    trick_factor = 1/base_active_ratio
+                if trick_factor < base_active_ratio/2:
+                    trick_factor = base_active_ratio/2
+                print('active ratio too low, increase trick factor: {}'.format(trick_factor))
+
             if top5 > len(idx):
                 top5 = len(idx)
+
+            if top5 == 0:
+                trick_factor = trick_factor - 0.05
+                if trick_factor > 1/base_active_ratio:
+                    trick_factor = 1/base_active_ratio
+                if trick_factor < base_active_ratio/2:
+                    trick_factor = base_active_ratio/2
+                print('active ratio too high, decrease trick factor: {}'.format(trick_factor))
+
+            local_refine_start = time.time()
+            icp_time = 0
 
             result = {}
             result_ests = []
             result_name = join(result_base_path, '{:02d}'.format(scene_id), '{:04d}_{:02d}.yml'.format(im_id, scene_id))
-            for i in reversed(range(top5)):  # avoid overlap high score
+
+            render_rgb = rgb
+            for i in reversed(range(top5)):
                 match = matches[idx[i]]
                 startPos = (int(match.x), int(match.y))
                 aTemplateInfo = templateInfo[match.class_id]
@@ -675,20 +709,20 @@ if mode == 'test':
 
                 depth_ren = depth_out
 
-                start_time = time.time()
-
+                icp_start = time.time()
                 # make sure data type is consistent
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
                                    K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                    , match.x, match.y)
+                icp_time += (time.time() - icp_start)
 
                 refinedR = poseRefine.result_refined[0:3, 0:3]
                 refinedT = poseRefine.result_refined[0:3, 3]
                 refinedT = np.reshape(refinedT, (3,))*1000
 
-                if poseRefine.fitness < 0.666 or poseRefine.inlier_rmse > 0.01:
-                    print('reject {}, because: \nfitness: {} \ninlier_rmse: {}\n'
-                          .format(i, poseRefine.fitness, poseRefine.inlier_rmse))
+                if poseRefine.fitness < 0.6 or poseRefine.inlier_rmse > 0.01:
+                    # print('reject {}, because: \nfitness: {} \ninlier_rmse: {}\n'
+                    #       .format(i, poseRefine.fitness, poseRefine.inlier_rmse))
                     continue
 
                 e = dict()
@@ -700,18 +734,11 @@ if mode == 'test':
                 render_R = refinedR
                 render_t = refinedT
 
-                elapsed_time = time.time() - start_time
-
-                ##################################################################
+                ################################################################
                 R_in = render_R
                 t_in = render_t
-                K_in = K_match
+                K_in = K
 
-                window.clear()
-                renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
-                renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
-
-                ### prepare mat
                 mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
                 mat_view[:3, :3] = R_in
                 mat_view[:3, 3] = t_in.squeeze()
@@ -719,13 +746,19 @@ if mode == 'test':
                 yz_flip[1, 1], yz_flip[2, 2] = -1, -1
                 mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
                 mat_view = mat_view.T  # OpenGL expects column-wise matrix format
+
+                window.clear()
+                renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
+
                 # Projection matrix
                 mat_proj = renderer._compute_calib_proj(K_in, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
 
-                ### depth
                 program_dep['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
                 program_dep['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                program['u_nm'] = renderer._compute_normal_matrix(mat_model, mat_view)
                 program_dep.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
                 # Retrieve the contents of the FBO texture
                 depth_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
                 renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, depth_out)
@@ -734,27 +767,25 @@ if mode == 'test':
                 depth_out = depth_out[:, :, 0]  # Depth is saved in the first channel
 
                 window.clear()
-                renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                renderer.gl.glClearColor(bg_color[0], bg_color[1], bg_color[2], bg_color[3])
                 renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
 
-                ### rgb
                 program['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
                 program['u_nm'] = renderer._compute_normal_matrix(mat_model, mat_view)
                 program['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
                 program.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
                 # Retrieve the contents of the FBO texture
                 rgb_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
                 renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, rgb_out)
                 rgb_out.shape = shape[0], shape[1], 4
-                rgb_out = rgb[::-1, :]
-                rgb_out = np.round(rgb[:, :, :3] * 255).astype(np.uint8)  # Convert to [0, 255]
-                ##################################################################
+                rgb_out = rgb_out[::-1, :]
+                rgb_out = np.round(rgb_out[:, :, :3] * 255).astype(np.uint8)  # Convert to [0, 255]
+                #################################################################
 
                 render_depth = depth_out
                 render_rgb_new = rgb_out
 
-                # render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t,
-                #                                       surf_color=color_list[i])
                 visible_mask = render_depth < depth
                 mask = render_depth > 0
                 mask = mask.astype(np.uint8)
@@ -762,6 +793,8 @@ if mode == 'test':
                 render_rgb = render_rgb * (1 - rgb_mask) + render_rgb_new * rgb_mask
 
                 draw_axis(rgb, render_R, render_t, K)
+
+            print('local refine time: {}s, icp time: {}s'.format(time.time() - local_refine_start, icp_time))
 
             matching_time = time.time() - start_time
             print('matching time: {}s'.format(matching_time))
@@ -778,4 +811,5 @@ if mode == 'test':
 
     fbo.deactivate()
     window.close()
+
 print('end line for debug')

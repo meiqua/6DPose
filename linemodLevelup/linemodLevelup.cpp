@@ -36,6 +36,32 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     assert(sceneDepth.type() == CV_16U);
     assert(sceneK.type() == CV_32F);
 
+    fitness = -1;
+    inlier_rmse = -1;
+
+    const bool dump = false;
+    if(dump){  // for debug
+        FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/dump.yml", FileStorage::WRITE);
+        fs << "sceneDepth" << sceneDepth;
+        fs << "modelDepth" << sceneDepth;
+        fs << "sceneK" << sceneK;
+        fs << "modelK" << modelK;
+        fs << "modelR" << modelR;
+        fs << "modelT" << modelT;
+        fs << "detectX" << detectX;
+        fs << "detectY" << detectY;
+
+//        FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/dump.yml", FileStorage::READ);
+//        fs["sceneDepth"] >> sceneDepth;
+//        fs["modelDepth"] >> modelDepth;
+//        fs["sceneK"] >> sceneK;
+//        fs["modelK"] >> modelK;
+//        fs["modelR"] >> modelR;
+//        fs["modelT"] >> modelT;
+//        fs["detectX"] >> detectX;
+//        fs["detectY"] >> detectY;
+    }
+
     cv::Mat init_base_cv(4, 4, CV_32FC1, cv::Scalar(0));
     modelR.copyTo(init_base_cv(cv::Rect(0, 0, 3, 3)));
     modelT.copyTo(init_base_cv(cv::Rect(3, 0, 1, 3)));
@@ -50,36 +76,12 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     findNonZero(modelMask, non0p);
     cv::Rect bbox = boundingRect(non0p);
 
-    auto view_dep = [](cv::Mat dep){
-        cv::Mat map = dep;
-        double min;
-        double max;
-        cv::minMaxIdx(map, &min, &max);
-        cv::Mat adjMap;
-        map.convertTo(adjMap,CV_8UC1, 255 / (max-min), -min);
-        cv::Mat falseColorsMap;
-        applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_HOT);
-        return falseColorsMap;
-    };
-
-    cv::Mat sceneDepth_masked;
-    cv::Mat mask_diluted = cv::Mat(sceneDepth.size(), CV_8UC1, cv::Scalar(0));
-    int padding = 10;
-    cv::rectangle(mask_diluted, {detectX-padding, detectY-padding},
-    {detectX + bbox.width + padding, detectY + bbox.height +padding}, {255}, -1);
-
-    sceneDepth.copyTo(sceneDepth_masked, mask_diluted);
-
-    //    cv::imshow("sceneDepth", view_dep(sceneDepth));
-    //    cv::imshow("sceneDepth_masked", view_dep(sceneDepth_masked));
-    //    cv::waitKey(0);
+    cv::Rect roi = cv::Rect(detectX, detectY, bbox.width, bbox.height);
+    if((detectX + bbox.width >= sceneDepth.cols) || (detectY + bbox.height >= sceneDepth.rows)) return;
 
     open3d::Image scene_depth_open3d, model_depth_open3d;
-    scene_depth_open3d.PrepareImage(sceneDepth_masked.cols, sceneDepth_masked.rows, 1, 2);
     model_depth_open3d.PrepareImage(modelDepth.cols, modelDepth.rows, 1, 2);
 
-    std::copy_n(sceneDepth_masked.data, scene_depth_open3d.data_.size(),
-                scene_depth_open3d.data_.begin());
     std::copy_n(modelDepth.data, model_depth_open3d.data_.size(),
                 model_depth_open3d.data_.begin());
 
@@ -91,56 +93,48 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
                                                   double(modelK.at<float>(0, 0)), double(modelK.at<float>(1, 1)),
                                                   double(modelK.at<float>(0, 2)), double(modelK.at<float>(1, 2)));
 
-    auto scene_pcd = open3d::CreatePointCloudFromDepthImage(scene_depth_open3d, K_scene_open3d);
     auto model_pcd = open3d::CreatePointCloudFromDepthImage(model_depth_open3d, K_model_open3d);
 
     Eigen::Matrix4d init_guess = Eigen::Matrix4d::Identity(4, 4);
-    {
-        cv::Rect roi = cv::Rect(detectX, detectY, bbox.width, bbox.height);
-        cv::Mat scene_depth_model_cover = cv::Mat::zeros(sceneDepth.rows, sceneDepth.cols, sceneDepth.type());
-        sceneDepth(roi).copyTo(scene_depth_model_cover(roi), modelMask(bbox));
 
-        //        cv::imshow("scene_depth_model_bbox_cover", view_dep(scene_depth_model_cover));
-        //        cv::waitKey(0);
+    cv::Mat scene_depth_model_cover = cv::Mat::zeros(sceneDepth.rows, sceneDepth.cols, sceneDepth.type());
+    sceneDepth(roi).copyTo(scene_depth_model_cover(roi), modelMask(bbox));
 
-        open3d::Image scene_depth_for_center_estimation;
-        scene_depth_for_center_estimation.PrepareImage(scene_depth_model_cover.cols, scene_depth_model_cover.rows,
-                                                       1, 2);
-        std::copy_n(scene_depth_model_cover.data, scene_depth_for_center_estimation.data_.size(),
-                    scene_depth_for_center_estimation.data_.begin());
-        auto scene_pcd_for_center = open3d::CreatePointCloudFromDepthImage(scene_depth_for_center_estimation, K_scene_open3d);
+    open3d::Image scene_depth_for_center_estimation;
+    scene_depth_for_center_estimation.PrepareImage(scene_depth_model_cover.cols, scene_depth_model_cover.rows,
+                                                   1, 2);
+    std::copy_n(scene_depth_model_cover.data, scene_depth_for_center_estimation.data_.size(),
+                scene_depth_for_center_estimation.data_.begin());
+    auto scene_pcd_for_center = open3d::CreatePointCloudFromDepthImage(scene_depth_for_center_estimation, K_scene_open3d);
 
-        Eigen::Vector3d center_scene = Eigen::Vector3d::Zero();
-        Eigen::Vector3d center_model = Eigen::Vector3d::Zero();
+//    double voxel_size = 0.002;
+//    auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
+//    auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd_for_center, voxel_size);
+    auto model_pcd_down = open3d::UniformDownSample(*model_pcd, 5);
+    auto scene_pcd_down = open3d::UniformDownSample(*scene_pcd_for_center, 5);
 
-        for(auto& p: scene_pcd_for_center->points_){
-            center_scene += p;
-        }
-        center_scene /= scene_pcd_for_center->points_.size();
+//    auto model_pcd_down = model_pcd;
+//    auto scene_pcd_down = scene_pcd_for_center;
 
-        for(auto& p: model_pcd->points_){
-            center_model += p;
-        }
-        center_model /= model_pcd->points_.size();
 
-        init_guess.block(0, 3, 3, 1) = center_scene - center_model;
+    Eigen::Vector3d center_scene = Eigen::Vector3d::Zero();
+    Eigen::Vector3d center_model = Eigen::Vector3d::Zero();
 
-        //        model_pcd->Transform(init_guess);
-        //        model_pcd->PaintUniformColor({1, 0.706, 0});
-        //        scene_pcd_for_center->PaintUniformColor({0, 0.651, 0.929});
-//                open3d::DrawGeometries({model_pcd, scene_pcd_for_center});
+    for(auto& p: scene_pcd_down->points_){
+        center_scene += p;
     }
+    center_scene /= scene_pcd_down->points_.size();
 
-    double voxel_size = 0.005;
-    auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
-    auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd, voxel_size);
+    for(auto& p: model_pcd_down->points_){
+        center_model += p;
+    }
+    center_model /= model_pcd_down->points_.size();
 
-    open3d::EstimateNormals(*model_pcd_down);
-    open3d::EstimateNormals(*scene_pcd_down);
+    init_guess.block(0, 3, 3, 1) = center_scene - center_model;
 
-    double threshold = 0.01;
+    double threshold = 0.007;
 
-    bool debug_ = false;
+    const bool debug_ = false;
     if(debug_){
         auto init_result = open3d::EvaluateRegistration(*model_pcd_down, *scene_pcd_down, threshold, init_guess);
         std::cout << "init_result.fitness_: " << init_result.fitness_ << std::endl;
@@ -150,7 +144,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
     auto final_result = open3d::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
                                                 init_guess,
-                                                open3d::TransformationEstimationPointToPlane());
+                                                open3d::TransformationEstimationPointToPoint());
 
     if(debug_){
         std::cout << "final_result.fitness_: " << final_result.fitness_ << std::endl;
@@ -996,11 +990,11 @@ static void quantizedNormals(const Mat &src, Mat &dst, int distance_threshold,
                     int l_val2 = static_cast<int>(l_ny * l_offsety + l_offsety);
                     int l_val3 = static_cast<int>(l_nz * GRANULARITY + GRANULARITY);
 
-//                    if(l_val1>=GRANULARITY || l_val2>=GRANULARITY || l_val3>=GRANULARITY){
-//                        *lp_norm = 0;
-//                    }else{
-                        *lp_norm = NORMAL_LUT[l_val3][l_val2][l_val1];
-//                    }
+                    //                    if(l_val1>=GRANULARITY || l_val2>=GRANULARITY || l_val3>=GRANULARITY){
+                    //                        *lp_norm = 0;
+                    //                    }else{
+                    *lp_norm = NORMAL_LUT[l_val3][l_val2][l_val1];
+                    //                    }
                 }
                 else
                 {
@@ -2330,6 +2324,8 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 match2.similarity = best_score;
                 match2.x = (x / T - 8 + best_c) * T + offset;
                 match2.y = (y / T - 8 + best_r) * T + offset;
+
+                if(match2.x < 0 || match2.y <0) match2.similarity = 0;
             }
 
             // Filter out any matches that drop below the similarity threshold
