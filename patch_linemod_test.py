@@ -73,7 +73,7 @@ obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-scene_ids = [9]  # for each obj
+scene_ids = []  # for each obj
 im_ids = []  # obj's img
 gt_ids = []  # multi obj in one img
 scene_ids_curr = range(1, dp['scene_count'] + 1)
@@ -594,7 +594,7 @@ if mode == 'test':
         # active ratio should be higher for simple objects
         # we adjust this factor according to candidates size
         trick_factor = 1
-        base_active_ratio = 0.55
+        base_active_ratio = 0.6
         for im_id in im_ids_curr:
             start_time = time.time()
 
@@ -659,15 +659,11 @@ if mode == 'test':
                     trick_factor = base_active_ratio/2
                 print('active ratio too high, decrease trick factor: {}'.format(trick_factor))
 
-            local_refine_start = time.time()
-            icp_time = 0
-
             result = {}
             result_ests = []
             result_name = join(result_base_path, '{:02d}'.format(scene_id), '{:04d}_{:02d}.yml'.format(im_id, scene_id))
-
-            render_rgb = rgb
-            for i in reversed(range(top5)):
+            local_refine_start = time.time()
+            for i in range(top5):
                 match = matches[idx[i]]
                 startPos = (int(match.x), int(match.y))
                 aTemplateInfo = templateInfo[match.class_id]
@@ -709,12 +705,10 @@ if mode == 'test':
 
                 depth_ren = depth_out
 
-                icp_start = time.time()
                 # make sure data type is consistent
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
                                    K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                    , match.x, match.y)
-                icp_time += (time.time() - icp_start)
 
                 refinedR = poseRefine.result_refined[0:3, 0:3]
                 refinedT = poseRefine.result_refined[0:3, 3]
@@ -728,11 +722,27 @@ if mode == 'test':
                 e = dict()
                 e['R'] = refinedR
                 e['t'] = refinedT
-                e['score'] = poseRefine.inlier_rmse
+                e['score'] = 1/(poseRefine.inlier_rmse*10 + 0.01)  # mse is smaller better, so 1/
                 result_ests.append(e)
 
-                render_R = refinedR
-                render_t = refinedT
+            print('local refine time: {}s'.format(time.time() - local_refine_start))
+
+            matching_time = time.time() - start_time
+            print('matching time: {}s'.format(matching_time))
+
+            result['ests'] = result_ests
+            inout.save_results_sixd17(result_name, result, matching_time)
+
+            scores = []
+            for e in result_ests:
+                scores.append(e['score'])
+            sort_index = np.argsort(-np.array(scores))  # descending
+
+            # draw results
+            render_rgb = rgb
+            for i in range(len(scores)):
+                render_R = result_ests[sort_index[i]]['R']
+                render_t = result_ests[sort_index[i]]['t']
 
                 ################################################################
                 R_in = render_R
@@ -794,20 +804,12 @@ if mode == 'test':
 
                 draw_axis(rgb, render_R, render_t, K)
 
-            print('local refine time: {}s, icp time: {}s'.format(time.time() - local_refine_start, icp_time))
-
-            matching_time = time.time() - start_time
-            print('matching time: {}s'.format(matching_time))
-
-            result['ests'] = result_ests
-            inout.save_results_sixd17(result_name, result, matching_time)
-
             visual = True
             # visual = False
             if visual:
                 cv2.imshow('rgb', rgb)
                 cv2.imshow('rgb_render', render_rgb)
-                cv2.waitKey(1000)
+                cv2.waitKey(100)
 
     fbo.deactivate()
     window.close()
