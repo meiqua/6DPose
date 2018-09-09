@@ -276,8 +276,8 @@ def draw_depth(shape, vertex_buffer, index_buffer, mat_model, mat_view, mat_proj
     # Frame buffer object
     color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(gloo.TextureFloat2D)
     depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(gloo.DepthTexture)
-    # fbo = gloo.FrameBuffer(color=color_buf, depth=depth_buf)
-    # fbo.activate()
+    fbo = gloo.FrameBuffer(color=color_buf, depth=depth_buf)
+    fbo.activate()
 
     # OpenGL setup
     gl.glEnable(gl.GL_DEPTH_TEST)
@@ -301,10 +301,7 @@ def draw_depth(shape, vertex_buffer, index_buffer, mat_model, mat_view, mat_proj
     depth = depth[::-1, :]
     depth = depth[:, :, 0] # Depth is saved in the first channel
 
-    # fbo.deactivate()
-
-    # fbo.delete()
-    # program.delete()
+    fbo.deactivate()
 
     return depth
 

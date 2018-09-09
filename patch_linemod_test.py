@@ -10,6 +10,7 @@ from params.dataset_params import get_dataset_params
 from os.path import join
 import copy
 import linemodLevelup_pybind
+import open3d
 
 from pysixd import renderer
 
@@ -62,8 +63,8 @@ dataset = 'hinterstoisser'
 # dataset = 'doumanoglou'
 # dataset = 'toyotalight'
 
-mode = 'render_train'
-# mode = 'test'
+# mode = 'render_train'
+mode = 'test'
 
 dp = get_dataset_params(dataset)
 detector = linemodLevelup_pybind.Detector(16, [4, 8], 16)  # min features; pyramid strides; num clusters
@@ -110,6 +111,16 @@ misc.ensure_dir(result_base_path)
 if mode == 'render_train':
     start_time = time.time()
 
+    im_size = dp['cam']['im_size']
+    shape = (im_size[1], im_size[0])
+
+    # Frame buffer object, bind here to avoid memory leak
+    window = renderer.app.Window(visible=False)
+    color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(renderer.gloo.TextureFloat2D)
+    depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(renderer.gloo.DepthTexture)
+    fbo = renderer.gloo.FrameBuffer(color=color_buf, depth=depth_buf)
+    fbo.activate()
+
     for obj_id in obj_ids_curr:
         azimuth_range = dp['test_obj_azimuth_range']
         elev_range = dp['test_obj_elev_range']
@@ -132,11 +143,11 @@ if mode == 'render_train':
 
         ######################################################
         # prepare renderer rather than rebuilding every time
+
         texture = model_texture
         surf_color = None
         mode = 'rgb+depth'
         K = dp['cam']['K']
-        im_size = dp['cam']['im_size']
 
         assert ({'pts', 'faces'}.issubset(set(model.keys())))
         # Set texture / color of vertices
@@ -188,10 +199,32 @@ if mode == 'render_train':
         # Create buffers
         vertex_buffer = vertices.view(renderer.gloo.VertexBuffer)
         index_buffer = model['faces'].flatten().astype(np.uint32).view(renderer.gloo.IndexBuffer)
-        window = renderer.app.Window(visible=False)
 
         bg_color = (0.0, 0.0, 0.0, 0.0)
-        shape = (im_size[1], im_size[0])
+        program_dep = renderer.gloo.Program(renderer._depth_vertex_code, renderer._depth_fragment_code)
+        program_dep.bind(vertex_buffer)
+
+        # Set shader for the selected shading
+        if shading == 'flat':
+            color_fragment_code = renderer._color_fragment_flat_code
+        else:  # 'phong'
+            color_fragment_code = renderer._color_fragment_phong_code
+
+        program = renderer.gloo.Program(renderer._color_vertex_code, color_fragment_code)
+        program.bind(vertex_buffer)
+        program['u_light_eye_pos'] = [0, 0, 0]  # Camera origin
+        program['u_light_ambient_w'] = ambient_weight
+        if texture is not None:
+            program['u_use_texture'] = int(True)
+            program['u_texture'] = texture
+        else:
+            program['u_use_texture'] = int(False)
+            program['u_texture'] = np.zeros((1, 1, 4), np.float32)
+
+        # OpenGL setup
+        renderer.gl.glEnable(renderer.gl.GL_DEPTH_TEST)
+        renderer.gl.glViewport(0, 0, shape[1], shape[0])
+        renderer.gl.glDisable(renderer.gl.GL_CULL_FACE)
         ######################################################
 
         # in our test, for complex objects fast-train performs badly...
@@ -315,6 +348,7 @@ if mode == 'render_train':
                     #                view['R'], view['t'],
                     #                clip_near, clip_far, mode='depth')
 
+                    ################################################################
                     mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
                     mat_view[:3, :3] = view['R']
                     mat_view[:3, 3] = view['t'].squeeze()
@@ -322,21 +356,46 @@ if mode == 'render_train':
                     yz_flip[1, 1], yz_flip[2, 2] = -1, -1
                     mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
                     mat_view = mat_view.T  # OpenGL expects column-wise matrix format
-                    depth = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
-                                               mat_view, mat_proj)
+
+                    renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                    renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
+
+                    program_dep['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                    program_dep['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                    program_dep.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
+                    # Retrieve the contents of the FBO texture
+                    depth = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                    renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, depth)
+                    depth.shape = shape[0], shape[1], 4
+                    depth = depth[::-1, :]
+                    depth = depth[:, :, 0]  # Depth is saved in the first channel
+                    #################################################################
 
                     # Convert depth so it is in the same units as the real test images
                     depth /= dp['cam']['depth_scale']
                     depth = depth.astype(np.uint16)
 
                     # # Render RGB image
-                    # rgb = render(model, dp['cam']['im_size'], dp['cam']['K'], view['R'], view['t'],
-                    #              clip_near, clip_far, texture=model_texture,
-                    #              ambient_weight=ambient_weight, shading=shading,
-                    #              mode='rgb')
+                    ##################################################################
+                    renderer.gl.glClearColor(bg_color[0], bg_color[1], bg_color[2], bg_color[3])
+                    renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
 
-                    rgb = renderer.draw_color(shape, vertex_buffer, index_buffer, texture, mat_model,
-                                             mat_view, mat_proj, ambient_weight, bg_color, shading)
+                    program['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                    program['u_nm'] = renderer._compute_normal_matrix(mat_model, mat_view)
+                    program['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                    program.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
+                    # Retrieve the contents of the FBO texture
+                    rgb = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                    renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, rgb)
+                    rgb.shape = shape[0], shape[1], 4
+                    rgb = rgb[::-1, :]
+                    rgb = np.round(rgb[:, :, :3] * 255).astype(np.uint8)  # Convert to [0, 255]
+                    ##################################################################
+
+                    # rgb = renderer.draw_color(shape, vertex_buffer, index_buffer, texture, mat_model,
+                    #                          mat_view, mat_proj, ambient_weight, bg_color, shading)
 
                     rgb = cv2.resize(rgb, dp['cam']['im_size'], interpolation=cv2.INTER_AREA)
 
@@ -350,10 +409,6 @@ if mode == 'render_train':
                     ymin, ymax = np.where(rows)[0][[0, -1]]
                     xmin, xmax = np.where(cols)[0][[0, -1]]
 
-                    # cv2.rectangle(rgb, (xmin, ymin), (xmax, ymax),(0,255,0),3)
-                    # cv2.imshow('mask', rgb)
-                    # cv2.waitKey(0)
-
                     aTemplateInfo = dict()
                     aTemplateInfo['cam_K'] = K
                     aTemplateInfo['cam_R_w2c'] = R
@@ -365,8 +420,8 @@ if mode == 'render_train':
 
                     visual = False
                     if visual:
-                        cv2.namedWindow('rgb')
                         cv2.imshow('rgb', rgb)
+                        # cv2.imshow('dep', depth)
                         cv2.waitKey(0)
 
                     success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask, [])
@@ -381,13 +436,27 @@ if mode == 'render_train':
                 detector.writeClasses(template_saved_to)
                 #  clear to save RAM
                 detector.clear_classes()
-                window.close()
+
+    fbo.deactivate()
+    window.close()
 
     elapsed_time = time.time() - start_time
     print('train time: {}\n'.format(elapsed_time))
 
 if mode == 'test':
     print('reading detector template & info')
+
+    poseRefine = linemodLevelup_pybind.poseRefine()
+
+    im_size = dp['cam']['im_size']
+    shape = (im_size[1], im_size[0])
+
+    # Frame buffer object, bind here to avoid memory leak
+    window = renderer.app.Window(visible=False)
+    color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(renderer.gloo.TextureFloat2D)
+    depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(renderer.gloo.DepthTexture)
+    fbo = renderer.gloo.FrameBuffer(color=color_buf, depth=depth_buf)
+    fbo.activate()
 
     use_image_subset = True
     if use_image_subset:
@@ -404,11 +473,13 @@ if mode == 'test':
 
         ######################################################
         # prepare renderer rather than rebuilding every time
+
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
+        ambient_weight = 0.8
         texture = None
-        surf_color = None
-        mode = 'depth'
+        surf_color = (0, 1, 0)
+        mode = 'rgb+depth'
         K = dp['cam']['K']
         im_size = dp['cam']['im_size']
         shading = 'phong'  # 'flat', 'phong'
@@ -461,9 +532,31 @@ if mode == 'test':
         vertex_buffer = vertices.view(renderer.gloo.VertexBuffer)
         index_buffer = model['faces'].flatten().astype(np.uint32).view(renderer.gloo.IndexBuffer)
 
-        window = renderer.app.Window(visible=False)
         bg_color = (0.0, 0.0, 0.0, 0.0)
-        shape = (im_size[1], im_size[0])
+        program_dep = renderer.gloo.Program(renderer._depth_vertex_code, renderer._depth_fragment_code)
+        program_dep.bind(vertex_buffer)
+
+        # Set shader for the selected shading
+        if shading == 'flat':
+            color_fragment_code = renderer._color_fragment_flat_code
+        else:  # 'phong'
+            color_fragment_code = renderer._color_fragment_phong_code
+
+        program = renderer.gloo.Program(renderer._color_vertex_code, color_fragment_code)
+        program.bind(vertex_buffer)
+        program['u_light_eye_pos'] = [0, 0, 0]  # Camera origin
+        program['u_light_ambient_w'] = ambient_weight
+        if texture is not None:
+            program['u_use_texture'] = int(True)
+            program['u_texture'] = texture
+        else:
+            program['u_use_texture'] = int(False)
+            program['u_texture'] = np.zeros((1, 1, 4), np.float32)
+
+        # OpenGL setup
+        renderer.gl.glEnable(renderer.gl.GL_DEPTH_TEST)
+        renderer.gl.glViewport(0, 0, shape[1], shape[0])
+        renderer.gl.glDisable(renderer.gl.GL_CULL_FACE)
         ######################################################
 
         template_read_classes = []
@@ -532,18 +625,8 @@ if mode == 'test':
             print('candidates size: {}\n'.format(len(idx)))
 
             render_rgb = rgb
-            color_list = list()
-            color_list.append([1, 0, 0])  # blue
-            color_list.append([0, 1, 0])  # green
-            color_list.append([0, 0, 1])  # red
-
-            color_list.append([0, 1, 1])  # who knows
-            color_list.append([1, 0, 1])
-            color_list.append([1, 1, 0])
 
             top5 = 5
-            if top5 > len(color_list):
-                top5 = len(color_list)
             if top5 > len(idx):
                 top5 = len(idx)
 
@@ -558,24 +641,41 @@ if mode == 'test':
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
                 t_match = aTemplateInfo[match.template_id]['cam_t_w2c']
 
+                ################################################################
+                R_in = R_match
+                t_in = t_match
+                K_in = K_match
+
                 mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
-                mat_view[:3, :3] = R_match
-                mat_view[:3, 3] = t_match.squeeze()
+                mat_view[:3, :3] = R_in
+                mat_view[:3, 3] = t_in.squeeze()
                 yz_flip = np.eye(4, dtype=np.float32)
                 yz_flip[1, 1], yz_flip[2, 2] = -1, -1
                 mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
                 mat_view = mat_view.T  # OpenGL expects column-wise matrix format
-                # Projection matrix
-                mat_proj = renderer._compute_calib_proj(K_match, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
 
                 window.clear()
-                depth_ren = renderer.draw_depth(shape, vertex_buffer, index_buffer, mat_model,
-                                            mat_view, mat_proj)
+                renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
 
-                # depth_ren = render(model, im_size, K_match, R_match, t_match, mode='depth')
+                # Projection matrix
+                mat_proj = renderer._compute_calib_proj(K_in, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
+
+                program_dep['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                program_dep['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                program_dep.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
+                # Retrieve the contents of the FBO texture
+                depth_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, depth_out)
+                depth_out.shape = shape[0], shape[1], 4
+                depth_out = depth_out[::-1, :]
+                depth_out = depth_out[:, :, 0]  # Depth is saved in the first channel
+                #################################################################
+
+                depth_ren = depth_out
 
                 start_time = time.time()
-                poseRefine = linemodLevelup_pybind.poseRefine()
 
                 # make sure data type is consistent
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
@@ -601,15 +701,67 @@ if mode == 'test':
                 render_t = refinedT
 
                 elapsed_time = time.time() - start_time
-                render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t,
-                                                      surf_color=color_list[i])
+
+                ##################################################################
+                R_in = render_R
+                t_in = render_t
+                K_in = K_match
+
+                window.clear()
+                renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
+
+                ### prepare mat
+                mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
+                mat_view[:3, :3] = R_in
+                mat_view[:3, 3] = t_in.squeeze()
+                yz_flip = np.eye(4, dtype=np.float32)
+                yz_flip[1, 1], yz_flip[2, 2] = -1, -1
+                mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
+                mat_view = mat_view.T  # OpenGL expects column-wise matrix format
+                # Projection matrix
+                mat_proj = renderer._compute_calib_proj(K_in, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
+
+                ### depth
+                program_dep['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                program_dep['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                program_dep.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+                # Retrieve the contents of the FBO texture
+                depth_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, depth_out)
+                depth_out.shape = shape[0], shape[1], 4
+                depth_out = depth_out[::-1, :]
+                depth_out = depth_out[:, :, 0]  # Depth is saved in the first channel
+
+                window.clear()
+                renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
+
+                ### rgb
+                program['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                program['u_nm'] = renderer._compute_normal_matrix(mat_model, mat_view)
+                program['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                program.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+                # Retrieve the contents of the FBO texture
+                rgb_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, rgb_out)
+                rgb_out.shape = shape[0], shape[1], 4
+                rgb_out = rgb[::-1, :]
+                rgb_out = np.round(rgb[:, :, :3] * 255).astype(np.uint8)  # Convert to [0, 255]
+                ##################################################################
+
+                render_depth = depth_out
+                render_rgb_new = rgb_out
+
+                # render_rgb_new, render_depth = render(model, im_size, render_K, render_R, render_t,
+                #                                       surf_color=color_list[i])
                 visible_mask = render_depth < depth
                 mask = render_depth > 0
                 mask = mask.astype(np.uint8)
                 rgb_mask = np.dstack([mask] * 3)
                 render_rgb = render_rgb * (1 - rgb_mask) + render_rgb_new * rgb_mask
 
-                draw_axis(rgb, render_R, render_t, render_K)
+                draw_axis(rgb, render_R, render_t, K)
 
             matching_time = time.time() - start_time
             print('matching time: {}s'.format(matching_time))
@@ -624,5 +776,6 @@ if mode == 'test':
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.waitKey(1000)
 
-        window.close()
+    fbo.deactivate()
+    window.close()
 print('end line for debug')

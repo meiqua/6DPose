@@ -35,7 +35,24 @@ std::string type2str(int type) {
 }
 void train_test(){
     Mat rgb = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/869/rgb.png");
-    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/869/depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+    Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test//depth.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+
+    std::cout << type2str(depth.type());
+
+    auto view_dep = [](cv::Mat dep){
+        cv::Mat map = dep;
+        double min;
+        double max;
+        cv::minMaxIdx(map, &min, &max);
+        cv::Mat adjMap;
+        map.convertTo(adjMap,CV_8UC1, 255 / (max-min), -min);
+        cv::Mat falseColorsMap;
+        applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_HOT);
+        return falseColorsMap;
+    };
+
+    imshow("depth", view_dep(depth));
+    cv::waitKey(0);
 
     vector<Mat> sources;
     sources.push_back(rgb);
@@ -223,7 +240,7 @@ void icp_test(){
 }
 
 int main(){
-//    train_test();
+    train_test();
 //    detect_test();
 //    dataset_test();
 //    icp_test();
