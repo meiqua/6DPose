@@ -191,7 +191,7 @@ def main():
         # pjoin(error_bpath, 'hodan-iros15_tless_primesense'),
     ]
 
-    error_dir = 'error=vsd_ntop=10_delta=15_tau=20_cost=step'
+    error_dir = 'error=vsd_ntop=1_delta=15_tau=20_cost=step'
     for i in range(len(error_paths)):
         error_paths[i] = os.path.join(error_paths[i], error_dir)
 
@@ -333,7 +333,7 @@ def main():
             eval_sign_occ = 'occlusion_' + eval_sign
             matches_occ = [m for m in matches if m['scene_id'] == 2]
             scene_ids_occ = [2]
-            obj_ids_occ = [1, 2, 5, 6, 8, 9, 10, 11, 12]
+            obj_ids_occ = [1, 5, 6, 8, 9, 10, 11, 12]
             scores_occ = calc_scores(scene_ids_occ, obj_ids_occ,
                                      matches_occ, n_top)
             # Save scores

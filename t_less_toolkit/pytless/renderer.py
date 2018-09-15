@@ -227,6 +227,10 @@ class _Canvas(app.Canvas):
             self.rgb = gloo.read_pixels((0, 0, self.size[0], self.size[1]))[:, :, :3]
             self.rgb = np.copy(self.rgb)
 
+        fbo.delete()
+        render_tex.delete()
+        program.delete()
+
     def draw_depth(self):
         program = gloo.Program(_depth_vertex_code, _depth_fragment_code)
         program.bind(self.vertex_buffer)
@@ -251,6 +255,11 @@ class _Canvas(app.Canvas):
             # Retrieve the contents of the FBO texture
             self.depth = self.read_fbo_color_rgba32f(fbo)
             self.depth = self.depth[:, :, 0] # Depth is saved in the first channel
+
+        fbo.delete()
+        render_tex.delete()
+        program.delete()
+
 
     @staticmethod
     def read_fbo_color_rgba32f(fbo):
@@ -292,7 +301,7 @@ def render(model, im_size, K, R, t, clip_near=100, clip_far=2000,
     vertices_type = [('a_position', np.float32, 3),
                      #('a_normal', np.float32, 3),
                      ('a_color', np.float32, colors.shape[1])]
-    vertices = np.array(zip(model['pts'], colors), vertices_type)
+    vertices = np.array(list(zip(model['pts'], colors)), vertices_type)
 
     # Rendering
     #---------------------------------------------------------------------------

@@ -41,7 +41,7 @@ errors_mpath = pjoin(result_base, '..', '..', 'eval', '{result_name}',
 #-------------------------------------------------------------------------------
 # Top N pose estimates (with the highest score) to be evaluated for each
 # object in each image
-n_top = 10 # 0 = all estimates, -1 = given by the number of GT poses
+n_top = 1  # 0 = all estimates, -1 = given by the number of GT poses
 
 # Pose error function
 error_type = 'vsd' # 'vsd', 'adi', 'add', 'cou', 're', 'te'

@@ -692,6 +692,22 @@ if mode == 'test':
                 depth_out.shape = shape[0], shape[1], 4
                 depth_out = depth_out[::-1, :]
                 depth_out = depth_out[:, :, 0]  # Depth is saved in the first channel
+
+                window.clear()
+                renderer.gl.glClearColor(bg_color[0], bg_color[1], bg_color[2], bg_color[3])
+                renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
+
+                program['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                program['u_nm'] = renderer._compute_normal_matrix(mat_model, mat_view)
+                program['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                program.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
+                # Retrieve the contents of the FBO texture
+                rgb_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT, rgb_out)
+                rgb_out.shape = shape[0], shape[1], 4
+                rgb_out = rgb_out[::-1, :]
+                rgb_out = np.round(rgb_out[:, :, :3] * 255).astype(np.uint8)  # Convert to [0, 255]
                 #################################################################
 
                 depth_ren = depth_out
@@ -709,6 +725,35 @@ if mode == 'test':
                 score = 1/(poseRefine.inlier_rmse + 0.01)
 
                 if poseRefine.fitness < base_active_ratio*trick_factor or poseRefine.inlier_rmse > 0.01:
+                    continue
+
+                # simple color check
+                mask_model = depth_out > 0
+                mask_model = mask_model.astype(np.uint8)
+                mask_model = cv2.erode(mask_model, np.ones((5,5),np.uint8))
+                rgb_mask = np.dstack([mask_model] * 3)
+                rgb_model = rgb_out*rgb_mask
+                hsv_model = cv2.cvtColor(rgb_model, cv2.COLOR_BGR2HSV)
+                avg_v_model = np.sum(hsv_model[:, :, 2]*mask_model)/np.sum(mask_model)
+
+                mask_scene = np.zeros_like(mask_model)
+                #bbox, note, variable name may not be right
+                rows = np.any(mask_model, axis=1)
+                cols = np.any(mask_model, axis=0)
+                rmin, rmax = np.where(cols)[0][[0, -1]]
+                cmin, cmax = np.where(rows)[0][[0, -1]]
+
+                mask_scene[match.y:(match.y+cmax-cmin), match.x:(match.x+rmax-rmin)] = mask_model[cmin:cmax, rmin:rmax]
+                rgb_mask_scene = np.dstack([mask_scene] * 3)
+                rgb_scene = rgb*rgb_mask_scene
+                hsv_scene = cv2.cvtColor(rgb_scene, cv2.COLOR_BGR2HSV)
+                avg_v_scene = np.sum(hsv_scene[:, :, 2]*mask_scene)/np.sum(mask_scene)
+
+                # print('v1, v2: {}, {}'.format(avg_v_model, avg_v_scene))
+                # cv2.imshow('rgb', rgb_scene)
+                # cv2.waitKey(0)
+
+                if avg_v_scene/avg_v_model < 0.6 or avg_v_scene/avg_v_model > 1/0.6:
                     continue
 
                 Rs.append(refinedR)
@@ -836,13 +881,15 @@ if mode == 'test':
                 rgb_mask = np.dstack([mask] * 3)
                 render_rgb = render_rgb * (1 - rgb_mask) + render_rgb_new * rgb_mask
 
-                # if i == len(scores) - 1:  # best result
                 draw_axis(render_rgb, render_R, render_t, K)
+
+                if i == len(scores) - 1:  # best result
+                    draw_axis(rgb, render_R, render_t, K)
 
             visual = True
             # visual = False
             if visual:
-                cv2.imshow('rgb', rgb)
+                cv2.imshow('rgb_top1', rgb)
                 cv2.imshow('rgb_render', render_rgb)
                 cv2.waitKey(100)
 
