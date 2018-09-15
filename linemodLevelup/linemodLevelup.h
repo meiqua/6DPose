@@ -15,6 +15,8 @@ public:
     double fitness, inlier_rmse;
 };
 
+double depth_edge_hit(const cv::Mat& mask, const cv::Mat depth_ren);
+
 namespace linemodLevelup {
 
 struct Feature {
@@ -289,7 +291,7 @@ public:
     std::vector<Match> match(const std::vector<cv::Mat>& sources, float threshold, float active_ratio = 0.6,
                              const std::vector<std::string>& class_ids = std::vector<std::string>(),
                              const std::vector<int>& dep_anchors = std::vector<int>(), const int dep_range = 200,
-                             const std::vector<cv::Mat>& masks = std::vector<cv::Mat>()) const;
+                             const std::vector<cv::Mat>& masks = std::vector<cv::Mat>());
 
     std::vector<int> addTemplate(const std::vector<cv::Mat>& sources, const std::string& class_id,
                                  const cv::Mat& object_mask, const std::vector<int>& dep_anchors = std::vector<int>());
@@ -321,7 +323,7 @@ public:
     const std::vector<Template>& getTemplates(const std::string& class_id, int template_id) const;
 
     int numTemplates() const;
-    int numTemplates(const std::string& class_id) const;
+//    int numTemplates(const std::string& class_id) const;
     int numClasses() const { return static_cast<int>(class_templates.size()); }
 
     std::vector<std::string> classIds() const;
@@ -336,7 +338,9 @@ public:
                      const std::string& format = "templates_%s.yml.gz");
     void writeClasses(const std::string& format = "templates_%s.yml.gz") const;
     void clear_classes(){class_templates.clear();}
+
 protected:
+
     int clusters;
     int num_features;
     std::vector< cv::Ptr<Modality> > modalities;

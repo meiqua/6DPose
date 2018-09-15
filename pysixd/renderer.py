@@ -16,6 +16,11 @@ from glumpy.log import log
 import logging
 log.setLevel(logging.WARNING) # ERROR, WARNING, DEBUG, INFO
 
+shape_ = (640, 480)
+color_buf = np.zeros((shape_[0], shape_[1], 4), np.float32).view(gloo.TextureFloat2D)
+depth_buf = np.zeros((shape_[0], shape_[1]), np.float32).view(gloo.DepthTexture)
+fbo = gloo.FrameBuffer(color=color_buf, depth=depth_buf)
+
 # Color vertex shader
 #-------------------------------------------------------------------------------
 _color_vertex_code = """
@@ -224,10 +229,16 @@ def draw_color(shape, vertex_buffer, index_buffer, texture, mat_model, mat_view,
         program['u_texture'] = np.zeros((1, 1, 4), np.float32)
 
     # Frame buffer object
-    color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(gloo.TextureFloat2D)
-    depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(gloo.DepthTexture)
+    # color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(gloo.TextureFloat2D)
+    # depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(gloo.DepthTexture)
     # fbo = gloo.FrameBuffer(color=color_buf, depth=depth_buf)
-    # fbo.activate()
+
+    global shape_
+    if shape[0] != shape_[0] or shape[1] != shape_[1]:
+        fbo.resize(shape_[0], shape_[1])
+        shape_ = shape
+
+    fbo.activate()
 
     # OpenGL setup
     gl.glEnable(gl.GL_DEPTH_TEST)
@@ -259,10 +270,7 @@ def draw_color(shape, vertex_buffer, index_buffer, texture, mat_model, mat_view,
     rgb = rgb[::-1, :]
     rgb = np.round(rgb[:, :, :3] * 255).astype(np.uint8) # Convert to [0, 255]
 
-    # fbo.deactivate()
-
-    # fbo.delete()
-    # program.delete()
+    fbo.deactivate()
 
     return rgb
 
@@ -274,9 +282,15 @@ def draw_depth(shape, vertex_buffer, index_buffer, mat_model, mat_view, mat_proj
     program['u_mvp'] = _compute_model_view_proj(mat_model, mat_view, mat_proj)
 
     # Frame buffer object
-    color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(gloo.TextureFloat2D)
-    depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(gloo.DepthTexture)
-    fbo = gloo.FrameBuffer(color=color_buf, depth=depth_buf)
+    # color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(gloo.TextureFloat2D)
+    # depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(gloo.DepthTexture)
+    # fbo = gloo.FrameBuffer(color=color_buf, depth=depth_buf)
+
+    global shape_
+    if shape[0] != shape_[0] or shape[1] != shape_[1]:
+        fbo.resize(shape_[0], shape_[1])
+        shape_ = shape
+
     fbo.activate()
 
     # OpenGL setup

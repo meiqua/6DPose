@@ -132,7 +132,7 @@ def get_dataset_params(name, model_type='', train_type='', test_type='',
         p['model_texture_mpath'] = None
         p['cam_params_path'] = pjoin(p['base_path'], 'camera.yml')
 
-        p['test_obj_depth_range'] = (509.12 - 1120.41) # [mm]
+        p['test_obj_depth_range'] = (509.12, 1120.41) # [mm]
         p['test_obj_azimuth_range'] = (0, 2 * math.pi)
         p['test_obj_elev_range'] = (0, 0.5 * math.pi)
 

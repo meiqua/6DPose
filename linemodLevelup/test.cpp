@@ -243,7 +243,6 @@ int main(){
 //    train_test();
 //    detect_test();
 //    dataset_test();
-    icp_test();
-
+//    icp_test();
     return 0;
 }

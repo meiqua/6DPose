@@ -87,9 +87,10 @@ dep_anchors = []  # depth to apply templates
 dep_min = dp['test_obj_depth_range'][0]  # min depth of scene
 dep_max = dp['test_obj_depth_range'][1]  # max depth of scene
 dep_anchor_step = 1.2  # depth scale
-# dep_min = 600  # min depth of scene
-# dep_max = 1400  # max depth of scene
-# dep_anchor_step = 1.1  # depth scale
+
+# dep_min = 400  # min depth of scene
+# dep_max = 1000  # max depth of scene
+# dep_anchor_step = 1.2  # depth scale
 
 current_dep = dep_min
 while current_dep < dep_max:
@@ -113,7 +114,7 @@ if mode == 'render_train':
     im_size = dp['cam']['im_size']
     shape = (im_size[1], im_size[0])
 
-    # Frame buffer object, bind here to avoid memory leak
+    # Frame buffer object, bind here to avoid memory leak, maybe?
     window = renderer.app.Window(visible=False)
     color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(renderer.gloo.TextureFloat2D)
     depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(renderer.gloo.DepthTexture)
@@ -338,7 +339,7 @@ if mode == 'render_train':
                     window.clear()
 
                     if view_id % 50 == 0:
-                        print('obj,radius,view: ' + str(obj_id) +
+                        print(dataset + ' obj,radius,view: ' + str(obj_id) +
                               ',' + str(radius) + ',' + str(view_id) + ', view_id: ', view_id)
                         # cv2.waitKey(0)
 
@@ -372,7 +373,7 @@ if mode == 'render_train':
                     #################################################################
 
                     # Convert depth so it is in the same units as the real test images
-                    depth /= dp['cam']['depth_scale']
+                    depth *= dp['cam']['depth_scale']
                     depth = depth.astype(np.uint16)
 
                     # # Render RGB image
@@ -420,7 +421,7 @@ if mode == 'render_train':
                     visual = False
                     if visual:
                         cv2.imshow('rgb', rgb)
-                        # cv2.imshow('dep', depth)
+                        cv2.imshow('mask', mask)
                         cv2.waitKey(0)
 
                     success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask, [])
@@ -443,14 +444,13 @@ if mode == 'render_train':
     print('train time: {}\n'.format(elapsed_time))
 
 if mode == 'test':
-    print('reading detector template & info')
-
     poseRefine = linemodLevelup_pybind.poseRefine()
 
-    im_size = dp['cam']['im_size']
+    im_size = dp['test_im_size']
     shape = (im_size[1], im_size[0])
+    print('test img size: {}'.format(shape))
 
-    # Frame buffer object, bind here to avoid memory leak
+    # Frame buffer object, bind here to avoid memory leak, maybe?
     window = renderer.app.Window(visible=False)
     color_buf = np.zeros((shape[0], shape[1], 4), np.float32).view(renderer.gloo.TextureFloat2D)
     depth_buf = np.zeros((shape[0], shape[1]), np.float32).view(renderer.gloo.DepthTexture)
@@ -464,11 +464,15 @@ if mode == 'test':
         im_ids_sets = None
 
     for scene_id in scene_ids_curr:
+        # obj_id_in_scene = 5  # for different obj in same scene
+        obj_id_in_scene = scene_id
         # Load scene info and gt poses
+        print('#'*20)
+        print('\nreading detector template & info, obj: {}'.format(obj_id_in_scene))
         misc.ensure_dir(join(result_base_path, '{:02d}'.format(scene_id)))
         scene_info = inout.load_info(dp['scene_info_mpath'].format(scene_id))
         scene_gt = inout.load_gt(dp['scene_gt_mpath'].format(scene_id))
-        model = inout.load_ply(dp['model_mpath'].format(scene_id))
+        model = inout.load_ply(dp['model_mpath'].format(obj_id_in_scene))
 
         ######################################################
         # prepare renderer rather than rebuilding every time
@@ -480,12 +484,11 @@ if mode == 'test':
         surf_color = None
         mode = 'rgb+depth'
         K = dp['cam']['K']
-        im_size = dp['cam']['im_size']
-        shading = 'flat'
+        shading = 'phong'
 
         # Load model texture
         if dp['model_texture_mpath']:
-            model_texture_path = dp['model_texture_mpath'].format(obj_id)
+            model_texture_path = dp['model_texture_mpath'].format(scene_id)
             model_texture = inout.load_im(model_texture_path)
         else:
             model_texture = None
@@ -570,12 +573,14 @@ if mode == 'test':
         template_read_classes = []
         detector.clear_classes()
         for radius in dep_anchors:
-            template_read_classes.append('{:02d}_template_{}'.format(scene_id, radius))
+            template_read_classes.append('{:02d}_template_{}'.format(obj_id_in_scene, radius))
         detector.readClasses(template_read_classes, template_saved_to)
+
+        print('num templs: {}'.format(detector.numTemplates()))
 
         templateInfo = dict()
         for radius in dep_anchors:
-            key = tempInfo_saved_to.format(scene_id, radius)
+            key = tempInfo_saved_to.format(obj_id_in_scene, radius)
             aTemplateInfo = inout.load_info(key)
             key = os.path.basename(key)
             key = os.path.splitext(key)[0]
@@ -594,78 +599,64 @@ if mode == 'test':
         # active ratio should be higher for simple objects
         # we adjust this factor according to candidates size
         trick_factor = 1
+        factor_lock = 0
         base_active_ratio = 0.6
         for im_id in im_ids_curr:
+
+            if factor_lock < 20:  # avoid overflow(may never happen)
+                factor_lock += 1
+
             start_time = time.time()
 
             print('#'*20)
-            print('scene: {}, im: {}'.format(scene_id, im_id))
+            print('\nscene: {}, im: {}'.format(scene_id, im_id))
 
             K = scene_info[im_id]['cam_K']
             # Load the images
             rgb = inout.load_im(dp['test_rgb_mpath'].format(scene_id, im_id))
             depth = inout.load_depth(dp['test_depth_mpath'].format(scene_id, im_id))
+            depth *= dp['cam']['depth_scale']
             depth = depth.astype(np.uint16)  # [mm]
-            # depth *= dp['cam']['depth_scale']  # to [mm]
             im_size = (depth.shape[1], depth.shape[0])
 
             match_ids = list()
 
             for radius in dep_anchors:
-                match_ids.append('{:02d}_template_{}'.format(scene_id, radius))
+                match_ids.append('{:02d}_template_{}'.format(obj_id_in_scene, radius))
 
             # srcs, score for one part, active ratio
-            matches = detector.match([rgb, depth], 66, base_active_ratio*trick_factor,
+            matches = detector.match([rgb, depth], 60, base_active_ratio*trick_factor,
                                      match_ids, dep_anchors, dep_range, masks=[])
 
             if len(matches) > 0:
                 aTemplateInfo = templateInfo[matches[0].class_id]
                 render_K = aTemplateInfo[0]['cam_K']
 
-            dets = np.zeros(shape=(len(matches), 5))
-            for i in range(len(matches)):
-                match = matches[i]
-                templ = detector.getTemplates(match.class_id, match.template_id)
-                dets[i, 0] = match.x
-                dets[i, 1] = match.y
-                dets[i, 2] = match.x + templ[0].width
-                dets[i, 3] = match.y + templ[0].height
-                dets[i, 4] = match.similarity
-            idx = nms(dets, 0.4)
+            print('candidates size before refine & nms: {}\n'.format(len(matches)))
 
-            # shouldn't nms here? different pose candidates in one position?
-            # nms after locally pose refine?
-            # idx = range(len(matches))
-            print('candidates size: {}\n'.format(len(idx)))
-
-            top5 = 10
-
-            if len(idx) > int(top5*1.5):  # we don't want too many
-                trick_factor = trick_factor + 0.05
-                if trick_factor > 1/base_active_ratio:
-                    trick_factor = 1/base_active_ratio
-                if trick_factor < base_active_ratio/2:
-                    trick_factor = base_active_ratio/2
-                print('active ratio too low, increase trick factor: {}'.format(trick_factor))
-
-            if top5 > len(idx):
-                top5 = len(idx)
-
-            if top5 == 0:
-                trick_factor = trick_factor - 0.05
-                if trick_factor > 1/base_active_ratio:
-                    trick_factor = 1/base_active_ratio
-                if trick_factor < base_active_ratio/2:
-                    trick_factor = base_active_ratio/2
-                print('active ratio too high, decrease trick factor: {}'.format(trick_factor))
-
-            result = {}
-            result_ests = []
-            result_name = join(result_base_path, '{:02d}'.format(scene_id), '{:04d}_{:02d}.yml'.format(im_id, scene_id))
+            dets = []
+            Rs = []
+            Ts = []
+            icp_scores = []
             local_refine_start = time.time()
-            for i in range(top5):
-                match = matches[idx[i]]
-                startPos = (int(match.x), int(match.y))
+            icp_time = 0
+
+            top50_local_refine = 150  # avoid too many for simple obj,
+            # we observed more than 1000 when active ratio too low
+            if top50_local_refine >= len(matches):
+                top50_local_refine = len(matches)
+            else:
+                if factor_lock <= 10:
+                    trick_factor = trick_factor + 0.03
+                    if trick_factor > 1 / base_active_ratio:
+                        trick_factor = 1 / base_active_ratio
+                    if trick_factor < base_active_ratio / 2:
+                        trick_factor = base_active_ratio / 2
+                    print('active ratio too low, increase trick factor: {}'.format(trick_factor))
+
+            for i in range(top50_local_refine):
+                match = matches[i]
+
                 aTemplateInfo = templateInfo[match.class_id]
                 K_match = aTemplateInfo[match.template_id]['cam_K']
                 R_match = aTemplateInfo[match.template_id]['cam_R_w2c']
@@ -705,27 +696,70 @@ if mode == 'test':
 
                 depth_ren = depth_out
 
+                icp_start = time.time()
                 # make sure data type is consistent
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
                                    K_match.astype(np.float32), R_match.astype(np.float32), t_match.astype(np.float32)
                                    , match.x, match.y)
+                icp_time += (time.time() - icp_start)
 
                 refinedR = poseRefine.result_refined[0:3, 0:3]
                 refinedT = poseRefine.result_refined[0:3, 3]
                 refinedT = np.reshape(refinedT, (3,))*1000
+                score = 1/(poseRefine.inlier_rmse + 0.01)
 
-                if poseRefine.fitness < 0.6 or poseRefine.inlier_rmse > 0.01:
-                    # print('reject {}, because: \nfitness: {} \ninlier_rmse: {}\n'
-                    #       .format(i, poseRefine.fitness, poseRefine.inlier_rmse))
+                if poseRefine.fitness < base_active_ratio*trick_factor or poseRefine.inlier_rmse > 0.01:
                     continue
 
+                Rs.append(refinedR)
+                Ts.append(refinedT)
+                icp_scores.append(score)
+
+                templ = detector.getTemplates(match.class_id, match.template_id)
+                dets.append([match.x, match.y, match.x + templ[0].width, match.y + templ[0].height, score])
+
+            idx = []
+            if len(dets) > 0:
+                idx = nms(np.array(dets), 0.4)
+
+            print('candidates size after refine & nms: {}\n'.format(len(idx)))
+
+            top5 = 10
+
+            if len(idx) > int(top5*1.5):  # we don't want too many
+                if factor_lock <= 10:
+                    trick_factor = trick_factor + 0.03
+                    if trick_factor > 1 / base_active_ratio:
+                        trick_factor = 1 / base_active_ratio
+                    if trick_factor < base_active_ratio / 2:
+                        trick_factor = base_active_ratio / 2
+                    print('active ratio too low, increase trick factor: {}'.format(trick_factor))
+
+            if top5 > len(idx):
+                top5 = len(idx)
+
+            if top5 == 0:
+                if factor_lock <= 10:
+                    trick_factor = trick_factor - 0.03
+                    if trick_factor > 1 / base_active_ratio:
+                        trick_factor = 1 / base_active_ratio
+                    if trick_factor < base_active_ratio / 2:
+                        trick_factor = base_active_ratio / 2
+                    print('active ratio too high, decrease trick factor: {}'.format(trick_factor))
+
+            result = {}
+            result_ests = []
+            result_name = join(result_base_path, '{:02d}'.format(scene_id), '{:04d}_{:02d}.yml'.format(im_id, scene_id))
+
+            for i in range(top5):
                 e = dict()
-                e['R'] = refinedR
-                e['t'] = refinedT
-                e['score'] = 1/(poseRefine.inlier_rmse*10 + 0.01)  # mse is smaller better, so 1/
+                e['R'] = Rs[idx[i]]
+                e['t'] = Ts[idx[i]]
+                e['score'] = icp_scores[idx[i]]  # mse is smaller better, so 1/
                 result_ests.append(e)
 
             print('local refine time: {}s'.format(time.time() - local_refine_start))
+            print('icp time: {}s'.format(icp_time))
 
             matching_time = time.time() - start_time
             print('matching time: {}s'.format(matching_time))
@@ -736,7 +770,7 @@ if mode == 'test':
             scores = []
             for e in result_ests:
                 scores.append(e['score'])
-            sort_index = np.argsort(-np.array(scores))  # descending
+            sort_index = np.argsort(np.array(scores))  # ascending
 
             # draw results
             render_rgb = rgb
@@ -802,7 +836,8 @@ if mode == 'test':
                 rgb_mask = np.dstack([mask] * 3)
                 render_rgb = render_rgb * (1 - rgb_mask) + render_rgb_new * rgb_mask
 
-                draw_axis(rgb, render_R, render_t, K)
+                # if i == len(scores) - 1:  # best result
+                draw_axis(render_rgb, render_R, render_t, K)
 
             visual = True
             # visual = False
@@ -814,4 +849,4 @@ if mode == 'test':
     fbo.deactivate()
     window.close()
 
-print('end line for debug')
+print('end line')

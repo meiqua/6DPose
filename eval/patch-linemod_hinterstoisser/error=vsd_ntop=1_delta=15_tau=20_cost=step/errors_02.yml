@@ -1,8 +1,0 @@
-- {im_id: 3, obj_id: 2, est_id: 1, score: 85.09615326, errors: {1: 0.89452802}}
-- {im_id: 8, obj_id: 2, est_id: 0, score: 86.11111450, errors: {1: 1.00000000}}
-- {im_id: 27, obj_id: 2, est_id: 0, score: 83.82353210, errors: {1: 0.74987585}}
-- {im_id: 36, obj_id: 2, est_id: 0, score: 94.49152374, errors: {1: 0.95893487}}
-- {im_id: 79, obj_id: 2, est_id: 0, score: 83.98437500, errors: {1: 0.73788407}}
-- {im_id: 97, obj_id: 2, est_id: 0, score: 83.75000000, errors: {1: 0.98096541}}
-- {im_id: 110, obj_id: 2, est_id: 0, score: 83.16326904, errors: {1: 0.74799659}}
-- {im_id: 119, obj_id: 2, est_id: 0, score: 78.75000000, errors: {1: 0.81502890}}

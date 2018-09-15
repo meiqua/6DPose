@@ -5,7 +5,7 @@
 
 # For evaluation of the SIXD Challenge 2017 task (6D localization of a single
 # instance of a single object), use these parameters:
-# n_top = 1
+# n_top = 10
 # visib_gt_min = 0.1
 # error_type = 'vsd'
 # vsd_cost = 'step'
@@ -105,9 +105,9 @@ def calc_scores(scene_ids, obj_ids, matches, n_top, do_print=True):
 
             # Count the number of targets in the current scene
             if n_top > 0:
-                count = sum(np.minimum(n_top, scene_insts.values()))
+                count = sum(np.minimum(n_top, list(scene_insts.values())))
             else:  # 0 = all estimates, -1 = given by the number of GT poses
-                count = sum(scene_insts.values())
+                count = sum(list(scene_insts.values()))
 
             tars += count
             obj_tars[obj_id] += count
@@ -130,13 +130,13 @@ def calc_scores(scene_ids, obj_ids, matches, n_top, do_print=True):
     obj_recalls = {}
     for i in obj_ids:
         obj_recalls[i] = calc_recall(obj_tps[i], obj_tars[i])
-    mean_obj_recall = float(np.mean(obj_recalls.values()).squeeze())
+    mean_obj_recall = float(np.mean(list(obj_recalls.values())).squeeze())
 
     # Recall per scene
     scene_recalls = {}
     for i in scene_ids:
         scene_recalls[i] = calc_recall(scene_tps[i], scene_tars[i])
-    mean_scene_recall = float(np.mean(scene_recalls.values()).squeeze())
+    mean_scene_recall = float(np.mean(list(scene_recalls.values())).squeeze())
 
     scores = {
         'total_recall': total_recall,
@@ -191,7 +191,7 @@ def main():
         # pjoin(error_bpath, 'hodan-iros15_tless_primesense'),
     ]
 
-    error_dir = 'error=vsd_ntop=1_delta=15_tau=20_cost=step'
+    error_dir = 'error=vsd_ntop=10_delta=15_tau=20_cost=step'
     for i in range(len(error_paths)):
         error_paths[i] = os.path.join(error_paths[i], error_dir)
 
@@ -206,7 +206,7 @@ def main():
 
     # Parameters
     #---------------------------------------------------------------------------
-    use_image_subset = True  # Whether to use the specified subset of images
+    use_image_subset = False  # Whether to use the specified subset of images
     require_all_errors = True # Whether to break if some errors are missing
     visib_gt_min = 0.1 # Minimum visible surface fraction of valid GT pose
     visib_delta = 15 # [mm]

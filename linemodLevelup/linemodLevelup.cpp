@@ -30,6 +30,20 @@ void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCol
     }
 }
 
+double depth_edge_hit(const cv::Mat& mask, const cv::Mat depth_ren){
+    cv::Mat depth_mask = depth_ren>0;
+    cv::Mat depth_mask_dilute;
+    cv::dilate(depth_mask, depth_mask_dilute, cv::Mat());
+
+    cv::Mat edge;
+    cv::bitwise_xor(depth_mask, depth_mask_dilute, edge);
+
+    cv::Mat edge_hit;
+    cv::bitwise_and(edge, mask, edge_hit);
+
+    return cv::countNonZero(edge_hit)/double(cv::countNonZero(edge));
+}
+
 void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                          Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
@@ -132,7 +146,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
     init_guess.block(0, 3, 3, 1) = center_scene - center_model;
 
-    double threshold = 0.007;
+    double threshold = 0.005;
 
     const bool debug_ = false;
     if(debug_){
@@ -141,10 +155,11 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
         std::cout << "init_result.inlier_rmse_ : " << init_result.inlier_rmse_ << std::endl;
     }
 
-
+    open3d::EstimateNormals(*model_pcd_down);
+    open3d::EstimateNormals(*scene_pcd_down);
     auto final_result = open3d::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
                                                 init_guess,
-                                                open3d::TransformationEstimationPointToPoint());
+                                                open3d::TransformationEstimationPointToPlane());
 
     if(debug_){
         std::cout << "final_result.fitness_: " << final_result.fitness_ << std::endl;
@@ -432,7 +447,7 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
     int i = 0;
     //    while (features.size() < num_features)
     //    while (true) // not limited to num features
-    while(features.size() < num_features*16)  // well, not too many for big objects
+    while(features.size() < num_features*8)  // well, not too many for big objects
     {
         Candidate c = candidates[i];
 
@@ -452,7 +467,7 @@ bool QuantizedPyramid::selectScatteredFeatures(const std::vector<Candidate> &can
             i = 0;
             distance -= 1.0f;
             distance_sq = distance * distance;
-            if(distance<5){
+            if(distance<3){
                 // we don't want two features too close
                 break;
             }
@@ -1867,13 +1882,24 @@ static std::vector<cv::Mat> crop_to_same_depth_parts(const cv::Mat &depth, const
     return masks_final;
 }
 
-std::vector<Match> Detector::match(const std::vector<Mat> &sources, float threshold, float active_ratio,
+std::vector<Match> Detector::match(const std::vector<Mat> &sources__, float threshold, float active_ratio,
                                    const std::vector<std::string> &class_ids,
                                    const std::vector<int>& dep_anchors, const int dep_range,
-                                   const std::vector<Mat> &masks_ori) const
+                                   const std::vector<Mat> &masks_ori)
 {
     std::vector<Match> matches_final;
-    CV_Assert(sources.size() == modalities.size());
+    CV_Assert(sources__.size() == modalities.size());
+
+    std::vector<Mat> sources;
+    for(auto& src: sources__){  // crop to 32n
+        int stride = 32;
+        int n = src.rows/stride;
+        int m = src.cols/stride;
+        Rect roi(0, 0, stride*m , stride*n);
+        Mat img = src(roi).clone();
+        assert(img.isContinuous());
+        sources.push_back(img);
+    }
 
     std::vector<Ptr<QuantizedPyramid>> quantizers;
 
@@ -1895,8 +1921,8 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
         CV_Assert(mask.empty() || mask.size() == source.size());
         quantizers.push_back(modalities[i]->process(sources, mask));
     }
-    // whole image quantizers OK
 
+    // whole image quantizers OK
     auto find_matches = [&](std::vector<Ptr<QuantizedPyramid>>& quantizers, const std::vector<std::string> &class_ids){
         std::vector<Match> matches;
         LinearMemoryPyramid lm_pyramid(pyramid_levels,
@@ -1973,7 +1999,7 @@ std::vector<Match> Detector::match(const std::vector<Mat> &sources, float thresh
                 bbox=cv::boundingRect(Points);
 
                 // discard small area
-                if(bbox.width<=32 || bbox.height<=32) continue;
+//                if(bbox.width<=32 || bbox.height<=32) continue;
 
                 if(bbox.width%16!=0){
                     bbox.width += (16 - bbox.width%16);
@@ -2458,13 +2484,13 @@ int Detector::numTemplates() const
     return ret;
 }
 
-int Detector::numTemplates(const std::string &class_id) const
-{
-    TemplatesMap::const_iterator i = class_templates.find(class_id);
-    if (i == class_templates.end())
-        return 0;
-    return static_cast<int>(i->second.size());
-}
+//int Detector::numTemplates(const std::string &class_id) const
+//{
+//    TemplatesMap::const_iterator i = class_templates.find(class_id);
+//    if (i == class_templates.end())
+//        return 0;
+//    return static_cast<int>(i->second.size());
+//}
 
 std::vector<std::string> Detector::classIds() const
 {

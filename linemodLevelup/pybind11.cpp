@@ -7,6 +7,8 @@ namespace py = pybind11;
 PYBIND11_MODULE(linemodLevelup_pybind, m) {
     NDArrayConverter::init_numpy();
 
+    m.def("depth_edge_hit", depth_edge_hit);
+
     py::class_<poseRefine>(m, "poseRefine")
         .def(py::init<>())
         .def_readwrite("result_refined",&poseRefine::result_refined)
@@ -40,5 +42,6 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
         .def("match", &linemodLevelup::Detector::match, py::arg("sources"),
              py::arg("threshold"), py::arg("active_ratio"), py::arg("class_ids"),
              py::arg("dep_anchors"), py::arg("dep_range"), py::arg("masks")=cv::Mat())
-        .def("getTemplates", &linemodLevelup::Detector::getTemplates);
+        .def("getTemplates", &linemodLevelup::Detector::getTemplates)
+            .def("numTemplates", &linemodLevelup::Detector::numTemplates);
 }
