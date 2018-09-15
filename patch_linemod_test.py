@@ -727,14 +727,20 @@ if mode == 'test':
                 if poseRefine.fitness < base_active_ratio*trick_factor or poseRefine.inlier_rmse > 0.01:
                     continue
 
-                # simple color check
+                # simple color check, refer to
+                # Model Based Training, Detection and PoseEstimation of Texture-Less 3D Objects inHeavily Cluttered Scenes
+                # emm... icp is even faster because c++? so put color check here
                 mask_model = depth_out > 0
                 mask_model = mask_model.astype(np.uint8)
                 mask_model = cv2.erode(mask_model, np.ones((5,5),np.uint8))
-                rgb_mask = np.dstack([mask_model] * 3)
-                rgb_model = rgb_out*rgb_mask
+                rgb_model = cv2.bitwise_and(rgb_out, rgb_out, mask=mask_model)
                 hsv_model = cv2.cvtColor(rgb_model, cv2.COLOR_BGR2HSV)
-                avg_v_model = np.sum(hsv_model[:, :, 2]*mask_model)/np.sum(mask_model)
+                [avg_h_model, avg_s_model, avg_v_model] = np.sum(hsv_model, axis=(0, 1))/np.sum(mask_model)
+
+                if avg_v_model < 0.12*255:
+                    avg_h_model = 120  # blue
+                elif avg_s_model < 0.12*255:
+                    avg_h_model = 30  # yellow
 
                 mask_scene = np.zeros_like(mask_model)
                 #bbox, note, variable name may not be right
@@ -744,16 +750,20 @@ if mode == 'test':
                 cmin, cmax = np.where(rows)[0][[0, -1]]
 
                 mask_scene[match.y:(match.y+cmax-cmin), match.x:(match.x+rmax-rmin)] = mask_model[cmin:cmax, rmin:rmax]
-                rgb_mask_scene = np.dstack([mask_scene] * 3)
-                rgb_scene = rgb*rgb_mask_scene
+                rgb_scene = cv2.bitwise_and(rgb, rgb, mask=mask_scene)
                 hsv_scene = cv2.cvtColor(rgb_scene, cv2.COLOR_BGR2HSV)
-                avg_v_scene = np.sum(hsv_scene[:, :, 2]*mask_scene)/np.sum(mask_scene)
+                [avg_h_scene, avg_s_scene, avg_v_scene] = np.sum(hsv_scene, axis=(0, 1))/np.sum(mask_scene)
 
-                # print('v1, v2: {}, {}'.format(avg_v_model, avg_v_scene))
+                if avg_v_scene < 0.12*255:
+                    avg_h_scene = 120  # blue
+                elif avg_s_scene < 0.12*255:
+                    avg_h_scene = 30  # yellow
+
+                # print('v1, v2: {}, {}'.format(avg_h_model, avg_h_scene))
                 # cv2.imshow('rgb', rgb_scene)
                 # cv2.waitKey(0)
 
-                if avg_v_scene/avg_v_model < 0.6 or avg_v_scene/avg_v_model > 1/0.6:
+                if abs(avg_h_scene - avg_h_model) > 30:
                     continue
 
                 Rs.append(refinedR)
