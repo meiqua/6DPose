@@ -30,20 +30,6 @@ void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCol
     }
 }
 
-double depth_edge_hit(const cv::Mat& mask, const cv::Mat depth_ren){
-    cv::Mat depth_mask = depth_ren>0;
-    cv::Mat depth_mask_dilute;
-    cv::dilate(depth_mask, depth_mask_dilute, cv::Mat());
-
-    cv::Mat edge;
-    cv::bitwise_xor(depth_mask, depth_mask_dilute, edge);
-
-    cv::Mat edge_hit;
-    cv::bitwise_and(edge, mask, edge_hit);
-
-    return cv::countNonZero(edge_hit)/double(cv::countNonZero(edge));
-}
-
 void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                          Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
@@ -86,6 +72,9 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     Eigen::Matrix4f init_base = Eigen::Map<Eigen::Matrix4f>(reinterpret_cast<float*>(init_base_cv.data));
 
     cv::Mat modelMask = modelDepth > 0;
+    for(int i=0; i<3; i++)
+    cv::dilate(modelMask, modelMask, cv::Mat());
+
     cv::Mat non0p;
     findNonZero(modelMask, non0p);
     cv::Rect bbox = boundingRect(non0p);
@@ -113,6 +102,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
     cv::Mat scene_depth_model_cover = cv::Mat::zeros(sceneDepth.rows, sceneDepth.cols, sceneDepth.type());
     sceneDepth(roi).copyTo(scene_depth_model_cover(roi), modelMask(bbox));
+    cv::medianBlur(scene_depth_model_cover, scene_depth_model_cover, 5);
 
     open3d::Image scene_depth_for_center_estimation;
     scene_depth_for_center_estimation.PrepareImage(scene_depth_model_cover.cols, scene_depth_model_cover.rows,
@@ -121,11 +111,11 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
                 scene_depth_for_center_estimation.data_.begin());
     auto scene_pcd_for_center = open3d::CreatePointCloudFromDepthImage(scene_depth_for_center_estimation, K_scene_open3d);
 
-//    double voxel_size = 0.002;
-//    auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
-//    auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd_for_center, voxel_size);
-    auto model_pcd_down = open3d::UniformDownSample(*model_pcd, 5);
-    auto scene_pcd_down = open3d::UniformDownSample(*scene_pcd_for_center, 5);
+    double voxel_size = 0.006;
+    auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
+    auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd_for_center, voxel_size);
+//    auto model_pcd_down = open3d::UniformDownSample(*model_pcd, 5);
+//    auto scene_pcd_down = open3d::UniformDownSample(*scene_pcd_for_center, 5);
 
 //    auto model_pcd_down = model_pcd;
 //    auto scene_pcd_down = scene_pcd_for_center;
@@ -146,7 +136,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 
     init_guess.block(0, 3, 3, 1) = center_scene - center_model;
 
-    double threshold = 0.005;
+    double threshold = 0.006;
 
     const bool debug_ = false;
     if(debug_){
@@ -1356,6 +1346,8 @@ static void spread(const Mat &src, Mat &dst, int T)
     // Allocate and zero-initialize spread (OR'ed) image
     dst = Mat::zeros(src.size(), CV_8U);
 
+    T += T/2;  // a base spread, because stride T with spead T may not hit
+
     // Fill in spread gradient image (section 2.3)
     for (int r = 0; r < T; ++r)
     {
@@ -1378,7 +1370,7 @@ static void spread(const Mat &src, Mat &dst, int T)
 //CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 3, 4, 1, 4, 3, 4, 0, 4, 3, 4, 1, 4, 3, 4, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 0, 3, 4, 4, 3, 3, 4, 4, 1, 3, 4, 4, 3, 3, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 3, 3, 4, 4, 4, 4, 3, 3, 3, 3, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 0, 4, 3, 4, 1, 4, 3, 4, 0, 4, 3, 4, 1, 4, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 3, 4, 4, 3, 3, 4, 4, 1, 3, 4, 4, 3, 3, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 3, 3, 4, 4, 4, 4, 3, 3, 3, 3, 4, 4, 4, 4, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 3, 1, 3, 0, 0, 1, 1, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4};
 
 // 1,2-->0 3-->1
-//CV_DECL_ALIGNED(16)
+CV_DECL_ALIGNED(16)
 static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
 
 // 1,2-->0 3-->2

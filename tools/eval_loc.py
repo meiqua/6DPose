@@ -206,7 +206,7 @@ def main():
 
     # Parameters
     #---------------------------------------------------------------------------
-    use_image_subset = False  # Whether to use the specified subset of images
+    use_image_subset = True  # Whether to use the specified subset of images
     require_all_errors = True # Whether to break if some errors are missing
     visib_gt_min = 0.1 # Minimum visible surface fraction of valid GT pose
     visib_delta = 15 # [mm]
@@ -333,7 +333,7 @@ def main():
             eval_sign_occ = 'occlusion_' + eval_sign
             matches_occ = [m for m in matches if m['scene_id'] == 2]
             scene_ids_occ = [2]
-            obj_ids_occ = [1, 5, 6, 8, 9, 10, 11, 12]
+            obj_ids_occ = [1, 2, 5, 6, 8, 9, 10, 11, 12]
             scores_occ = calc_scores(scene_ids_occ, obj_ids_occ,
                                      matches_occ, n_top)
             # Save scores

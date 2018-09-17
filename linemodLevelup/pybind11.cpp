@@ -7,8 +7,6 @@ namespace py = pybind11;
 PYBIND11_MODULE(linemodLevelup_pybind, m) {
     NDArrayConverter::init_numpy();
 
-    m.def("depth_edge_hit", depth_edge_hit);
-
     py::class_<poseRefine>(m, "poseRefine")
         .def(py::init<>())
         .def_readwrite("result_refined",&poseRefine::result_refined)

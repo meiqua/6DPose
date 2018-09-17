@@ -15,8 +15,6 @@ public:
     double fitness, inlier_rmse;
 };
 
-double depth_edge_hit(const cv::Mat& mask, const cv::Mat depth_ren);
-
 namespace linemodLevelup {
 
 struct Feature {

@@ -97,6 +97,8 @@ while current_dep < dep_max:
     dep_anchors.append(int(current_dep))
     current_dep = current_dep*dep_anchor_step
 
+dep_anchors = dep_anchors[1:-1]  # discard two border dep
+
 print('\ndep anchors:\n {}, \ndep range: {}\n'.format(dep_anchors, dep_range))
 
 top_level_path = os.path.dirname(os.path.abspath(__file__))
@@ -124,7 +126,7 @@ if mode == 'render_train':
     for obj_id in obj_ids_curr:
         azimuth_range = dp['test_obj_azimuth_range']
         elev_range = dp['test_obj_elev_range']
-        min_n_views = 233
+        min_n_views = 100
         clip_near = 10  # [mm]
         clip_far = 10000  # [mm]
         ambient_weight = 0.8  # Weight of ambient light [0, 1]
@@ -329,7 +331,7 @@ if mode == 'render_train':
                                                                azimuth_range, elev_range,
                                                                tilt_range=(-math.pi * tilt_factor,
                                                                            math.pi * tilt_factor),
-                                                               tilt_step=math.pi / 8)
+                                                               tilt_step=math.pi / 8, hinter_or_fibonacci=False)
                 print('Sampled views: ' + str(len(views)))
 
                 templateInfo = dict()
@@ -418,11 +420,11 @@ if mode == 'render_train':
 
                     mask = (depth > 0).astype(np.uint8) * 255
 
-                    visual = False
+                    visual = True
                     if visual:
                         cv2.imshow('rgb', rgb)
                         cv2.imshow('mask', mask)
-                        cv2.waitKey(0)
+                        cv2.waitKey(1)
 
                     success = detector.addTemplate([rgb, depth], '{:02d}_template_{}'.format(obj_id, radius), mask, [])
                     print('success {}'.format(success[0]))
@@ -609,7 +611,7 @@ if mode == 'test':
             start_time = time.time()
 
             print('#'*20)
-            print('\nscene: {}, im: {}'.format(scene_id, im_id))
+            print('scene: {}, im: {}'.format(scene_id, im_id))
 
             K = scene_info[im_id]['cam_K']
             # Load the images
@@ -625,7 +627,7 @@ if mode == 'test':
                 match_ids.append('{:02d}_template_{}'.format(obj_id_in_scene, radius))
 
             # srcs, score for one part, active ratio
-            matches = detector.match([rgb, depth], 60, base_active_ratio*trick_factor,
+            matches = detector.match([rgb, depth], 80, base_active_ratio*trick_factor,
                                      match_ids, dep_anchors, dep_range, masks=[])
 
             if len(matches) > 0:
@@ -641,21 +643,25 @@ if mode == 'test':
             local_refine_start = time.time()
             icp_time = 0
 
-            top50_local_refine = 150  # avoid too many for simple obj,
+            top100_local_refine = 100  # avoid too many for simple obj,
             # we observed more than 1000 when active ratio too low
-            if top50_local_refine >= len(matches):
-                top50_local_refine = len(matches)
+            if top100_local_refine >= len(matches):
+                top100_local_refine = len(matches)
             else:
                 if factor_lock <= 10:
-                    trick_factor = trick_factor + 0.03
+                    trick_factor = trick_factor + 0.1
                     if trick_factor > 1 / base_active_ratio:
                         trick_factor = 1 / base_active_ratio
                     if trick_factor < base_active_ratio / 2:
                         trick_factor = base_active_ratio / 2
-                    print('active ratio too low, increase trick factor: {}'.format(trick_factor))
+                    print('active ratio too low, increase trick factor: {}\n'.format(trick_factor))
 
-            for i in range(top50_local_refine):
+            raw_match_rgb = np.copy(rgb)
+            for i in range(top100_local_refine):
                 match = matches[i]
+                templ = detector.getTemplates(match.class_id, match.template_id)
+                cv2.circle(raw_match_rgb, (int(match.x + templ[0].width/2), int(match.y+templ[0].height/2)), 2,
+                           (0, 0, 255), -1)
 
                 aTemplateInfo = templateInfo[match.class_id]
                 K_match = aTemplateInfo[match.template_id]['cam_K']
@@ -712,6 +718,7 @@ if mode == 'test':
 
                 depth_ren = depth_out
 
+                # a coarse to fine icp is better
                 icp_start = time.time()
                 # make sure data type is consistent
                 poseRefine.process(depth.astype(np.uint16), depth_ren.astype(np.uint16), K.astype(np.float32),
@@ -724,53 +731,13 @@ if mode == 'test':
                 refinedT = np.reshape(refinedT, (3,))*1000
                 score = 1/(poseRefine.inlier_rmse + 0.01)
 
-                if poseRefine.fitness < base_active_ratio*trick_factor or poseRefine.inlier_rmse > 0.01:
-                    continue
-
-                # simple color check, refer to
-                # Model Based Training, Detection and PoseEstimation of Texture-Less 3D Objects inHeavily Cluttered Scenes
-                # emm... icp is even faster because c++? so put color check here
-                mask_model = depth_out > 0
-                mask_model = mask_model.astype(np.uint8)
-                mask_model = cv2.erode(mask_model, np.ones((5,5),np.uint8))
-                rgb_model = cv2.bitwise_and(rgb_out, rgb_out, mask=mask_model)
-                hsv_model = cv2.cvtColor(rgb_model, cv2.COLOR_BGR2HSV)
-                [avg_h_model, avg_s_model, avg_v_model] = np.sum(hsv_model, axis=(0, 1))/np.sum(mask_model)
-
-                if avg_v_model < 0.12*255:
-                    avg_h_model = 120  # blue
-                elif avg_s_model < 0.12*255:
-                    avg_h_model = 30  # yellow
-
-                mask_scene = np.zeros_like(mask_model)
-                #bbox, note, variable name may not be right
-                rows = np.any(mask_model, axis=1)
-                cols = np.any(mask_model, axis=0)
-                rmin, rmax = np.where(cols)[0][[0, -1]]
-                cmin, cmax = np.where(rows)[0][[0, -1]]
-
-                mask_scene[match.y:(match.y+cmax-cmin), match.x:(match.x+rmax-rmin)] = mask_model[cmin:cmax, rmin:rmax]
-                rgb_scene = cv2.bitwise_and(rgb, rgb, mask=mask_scene)
-                hsv_scene = cv2.cvtColor(rgb_scene, cv2.COLOR_BGR2HSV)
-                [avg_h_scene, avg_s_scene, avg_v_scene] = np.sum(hsv_scene, axis=(0, 1))/np.sum(mask_scene)
-
-                if avg_v_scene < 0.12*255:
-                    avg_h_scene = 120  # blue
-                elif avg_s_scene < 0.12*255:
-                    avg_h_scene = 30  # yellow
-
-                # print('v1, v2: {}, {}'.format(avg_h_model, avg_h_scene))
-                # cv2.imshow('rgb', rgb_scene)
-                # cv2.waitKey(0)
-
-                if abs(avg_h_scene - avg_h_model) > 30:
+                if poseRefine.fitness < 0.66 or poseRefine.inlier_rmse > 0.01:
                     continue
 
                 Rs.append(refinedR)
                 Ts.append(refinedT)
                 icp_scores.append(score)
 
-                templ = detector.getTemplates(match.class_id, match.template_id)
                 dets.append([match.x, match.y, match.x + templ[0].width, match.y + templ[0].height, score])
 
             idx = []
@@ -779,34 +746,34 @@ if mode == 'test':
 
             print('candidates size after refine & nms: {}\n'.format(len(idx)))
 
-            top5 = 10
+            top10 = 10
 
-            if len(idx) > int(top5*1.5):  # we don't want too many
+            if len(idx) > int(top10*1.5):  # we don't want too many
                 if factor_lock <= 10:
-                    trick_factor = trick_factor + 0.03
+                    trick_factor = trick_factor + 0.1
                     if trick_factor > 1 / base_active_ratio:
                         trick_factor = 1 / base_active_ratio
                     if trick_factor < base_active_ratio / 2:
                         trick_factor = base_active_ratio / 2
-                    print('active ratio too low, increase trick factor: {}'.format(trick_factor))
+                    print('active ratio too low, increase trick factor: {}\n'.format(trick_factor))
 
-            if top5 > len(idx):
-                top5 = len(idx)
+            if top10 > len(idx):
+                top10 = len(idx)
 
-            if top5 == 0:
+            if top10 == 0:
                 if factor_lock <= 10:
-                    trick_factor = trick_factor - 0.03
+                    trick_factor = trick_factor - 0.1
                     if trick_factor > 1 / base_active_ratio:
                         trick_factor = 1 / base_active_ratio
                     if trick_factor < base_active_ratio / 2:
                         trick_factor = base_active_ratio / 2
-                    print('active ratio too high, decrease trick factor: {}'.format(trick_factor))
+                    print('active ratio too high, decrease trick factor: {}\n'.format(trick_factor))
 
             result = {}
             result_ests = []
             result_name = join(result_base_path, '{:02d}'.format(scene_id), '{:04d}_{:02d}.yml'.format(im_id, scene_id))
 
-            for i in range(top5):
+            for i in range(top10):
                 e = dict()
                 e['R'] = Rs[idx[i]]
                 e['t'] = Ts[idx[i]]
@@ -814,10 +781,10 @@ if mode == 'test':
                 result_ests.append(e)
 
             print('local refine time: {}s'.format(time.time() - local_refine_start))
-            print('icp time: {}s'.format(icp_time))
+            print('icp time: {}s\n'.format(icp_time))
 
             matching_time = time.time() - start_time
-            print('matching time: {}s'.format(matching_time))
+            print('matching time: {}s\n'.format(matching_time))
 
             result['ests'] = result_ests
             inout.save_results_sixd17(result_name, result, matching_time)
@@ -828,7 +795,7 @@ if mode == 'test':
             sort_index = np.argsort(np.array(scores))  # ascending
 
             # draw results
-            render_rgb = rgb
+            render_rgb = np.copy(rgb)
             for i in range(len(scores)):
                 render_R = result_ests[sort_index[i]]['R']
                 render_t = result_ests[sort_index[i]]['t']
@@ -899,8 +866,10 @@ if mode == 'test':
             visual = True
             # visual = False
             if visual:
+                cv2.imshow('raw', raw_match_rgb)
                 cv2.imshow('rgb_top1', rgb)
                 cv2.imshow('rgb_render', render_rgb)
+
                 cv2.waitKey(100)
 
     fbo.deactivate()
