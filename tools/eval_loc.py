@@ -5,7 +5,7 @@
 
 # For evaluation of the SIXD Challenge 2017 task (6D localization of a single
 # instance of a single object), use these parameters:
-# n_top = 10
+# n_top = 1
 # visib_gt_min = 0.1
 # error_type = 'vsd'
 # vsd_cost = 'step'
@@ -177,12 +177,12 @@ def main():
     #---------------------------------------------------------------------------
     top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    dataset = 'hinterstoisser'
+    # dataset = 'hinterstoisser'
     # dataset = 'tless'
     # dataset = 'tudlight'
     # dataset = 'rutgers'
     # dataset = 'tejani'
-    # dataset = 'doumanoglou'
+    dataset = 'doumanoglou'
     # dataset = 'toyotalight
 
     error_bpath = pjoin(top_level_path, 'eval')
