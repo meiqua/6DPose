@@ -12,6 +12,7 @@ PYBIND11_MODULE(linemodLevelup_pybind, m) {
         .def_readwrite("result_refined",&poseRefine::result_refined)
         .def_readwrite("inlier_rmse",&poseRefine::inlier_rmse)
         .def_readwrite("fitness",&poseRefine::fitness)
+        .def("get_depth_edge", &poseRefine::get_depth_edge)
         .def("process", &poseRefine::process);
 
     py::class_<linemodLevelup::Match>(m,"Match")

@@ -239,10 +239,34 @@ void icp_test(){
     pr->process(depth, depth_ren, K, K, R, t, 313, 297);
 }
 
+void icp_with_depth_check_test(){
+
+
+//    cv::Mat depth = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/case0/depth/0000.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+//    cv::Mat depth_ren = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/case0/depth/dep_ren.png", CV_LOAD_IMAGE_ANYCOLOR | CV_LOAD_IMAGE_ANYDEPTH);
+//    FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/case0/depth.yml", FileStorage::WRITE);
+//    fs << "depth" << depth << "depth_ren" << depth_ren;
+
+    cv::Mat depth, depth_ren;
+    FileStorage fs2("/home/meiqua/6DPose/linemodLevelup/test/case0/depth.yml", FileStorage::READ);
+    fs2["depth"] >> depth;
+    fs2["depth_ren"] >> depth_ren;
+
+    cout << "depth: " << type2str(depth.type())  << endl;
+
+    Mat K = (Mat_<float>(3,3) << 550, 0.0, 316, 0.0, 540, 224, 0.0, 0.0, 1.0);
+    Mat R = (Mat_<float>(3,3) <<
+    -0.23661785, -0.90493455, 0.35370249, -0.47653406, -0.20915856, -0.85391334, 0.84671559, -0.37060242, -0.38174148
+             );
+    Mat t = (Mat_<float>(3,1) << 0.0, 0.0, 785);
+    auto pr = std::make_unique<poseRefine>();
+
+    pr->get_depth_edge(depth);
+    pr->process(depth, depth_ren, K, K, R, t, 313, 297);
+}
+
+
 int main(){
-//    train_test();
-//    detect_test();
-//    dataset_test();
-//    icp_test();
+    icp_with_depth_check_test();
     return 0;
 }

@@ -13,162 +13,6 @@
 using namespace std;
 using namespace cv;
 
-template<typename _Tp, int _rows, int _cols, int _options, int _maxRows, int _maxCols>
-void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCols>& src, cv::Mat& dst)
-{
-    if (!(src.Flags & Eigen::RowMajorBit))
-    {
-        cv::Mat _src(src.cols(), src.rows(), cv::DataType<_Tp>::type,
-                     (void*)src.data(), src.stride() * sizeof(_Tp));
-        cv::transpose(_src, dst);
-    }
-    else
-    {
-        cv::Mat _src(src.rows(), src.cols(), cv::DataType<_Tp>::type,
-                     (void*)src.data(), src.stride() * sizeof(_Tp));
-        _src.copyTo(dst);
-    }
-}
-
-void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
-                         Mat &modelR, Mat &modelT, int detectX, int detectY)
-{
-    assert(sceneDepth.type() == CV_16U);
-    assert(sceneK.type() == CV_32F);
-
-    fitness = -1;
-    inlier_rmse = -1;
-
-    const bool dump = false;
-    if(dump){  // for debug
-        FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/dump.yml", FileStorage::WRITE);
-        fs << "sceneDepth" << sceneDepth;
-        fs << "modelDepth" << sceneDepth;
-        fs << "sceneK" << sceneK;
-        fs << "modelK" << modelK;
-        fs << "modelR" << modelR;
-        fs << "modelT" << modelT;
-        fs << "detectX" << detectX;
-        fs << "detectY" << detectY;
-
-//        FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/dump.yml", FileStorage::READ);
-//        fs["sceneDepth"] >> sceneDepth;
-//        fs["modelDepth"] >> modelDepth;
-//        fs["sceneK"] >> sceneK;
-//        fs["modelK"] >> modelK;
-//        fs["modelR"] >> modelR;
-//        fs["modelT"] >> modelT;
-//        fs["detectX"] >> detectX;
-//        fs["detectY"] >> detectY;
-    }
-
-    cv::Mat init_base_cv(4, 4, CV_32FC1, cv::Scalar(0));
-    modelR.copyTo(init_base_cv(cv::Rect(0, 0, 3, 3)));
-    modelT.copyTo(init_base_cv(cv::Rect(3, 0, 1, 3)));
-    init_base_cv.at<float>(2, 3) /= 1000.0f;
-    init_base_cv.at<float>(3, 3) = 1;
-    init_base_cv = init_base_cv.t();  // row to col major
-
-    Eigen::Matrix4f init_base = Eigen::Map<Eigen::Matrix4f>(reinterpret_cast<float*>(init_base_cv.data));
-
-    cv::Mat modelMask = modelDepth > 0;
-//    for(int i=0; i<3; i++)
-//    cv::dilate(modelMask, modelMask, cv::Mat());
-
-    cv::Mat non0p;
-    findNonZero(modelMask, non0p);
-    cv::Rect bbox = boundingRect(non0p);
-
-    cv::Rect roi = cv::Rect(detectX, detectY, bbox.width, bbox.height);
-    if((detectX + bbox.width >= sceneDepth.cols) || (detectY + bbox.height >= sceneDepth.rows)) return;
-
-    open3d::Image scene_depth_open3d, model_depth_open3d;
-    model_depth_open3d.PrepareImage(modelDepth.cols, modelDepth.rows, 1, 2);
-
-    std::copy_n(modelDepth.data, model_depth_open3d.data_.size(),
-                model_depth_open3d.data_.begin());
-
-    open3d::PinholeCameraIntrinsic K_scene_open3d(sceneDepth.cols, sceneDepth.rows,
-                                                  double(sceneK.at<float>(0, 0)), double(sceneK.at<float>(1, 1)),
-                                                  double(sceneK.at<float>(0, 2)), double(sceneK.at<float>(1, 2)));
-
-    open3d::PinholeCameraIntrinsic K_model_open3d(modelDepth.cols, modelDepth.rows,
-                                                  double(modelK.at<float>(0, 0)), double(modelK.at<float>(1, 1)),
-                                                  double(modelK.at<float>(0, 2)), double(modelK.at<float>(1, 2)));
-
-    auto model_pcd = open3d::CreatePointCloudFromDepthImage(model_depth_open3d, K_model_open3d);
-
-    Eigen::Matrix4d init_guess = Eigen::Matrix4d::Identity(4, 4);
-
-    cv::Mat scene_depth_model_cover = cv::Mat::zeros(sceneDepth.rows, sceneDepth.cols, sceneDepth.type());
-    sceneDepth(roi).copyTo(scene_depth_model_cover(roi), modelMask(bbox));
-    cv::medianBlur(scene_depth_model_cover, scene_depth_model_cover, 5);
-
-    open3d::Image scene_depth_for_center_estimation;
-    scene_depth_for_center_estimation.PrepareImage(scene_depth_model_cover.cols, scene_depth_model_cover.rows,
-                                                   1, 2);
-    std::copy_n(scene_depth_model_cover.data, scene_depth_for_center_estimation.data_.size(),
-                scene_depth_for_center_estimation.data_.begin());
-    auto scene_pcd_for_center = open3d::CreatePointCloudFromDepthImage(scene_depth_for_center_estimation, K_scene_open3d);
-
-    double voxel_size = 0.0025;
-    auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
-    auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd_for_center, voxel_size);
-
-//    auto model_pcd_down = open3d::UniformDownSample(*model_pcd, 5);
-//    auto scene_pcd_down = open3d::UniformDownSample(*scene_pcd_for_center, 5);
-
-//    auto model_pcd_down = model_pcd;
-//    auto scene_pcd_down = scene_pcd_for_center;
-
-
-    Eigen::Vector3d center_scene = Eigen::Vector3d::Zero();
-    Eigen::Vector3d center_model = Eigen::Vector3d::Zero();
-
-    for(auto& p: scene_pcd_down->points_){
-        center_scene += p;
-    }
-    center_scene /= scene_pcd_down->points_.size();
-
-    for(auto& p: model_pcd_down->points_){
-        center_model += p;
-    }
-    center_model /= model_pcd_down->points_.size();
-
-    init_guess.block(0, 3, 3, 1) = center_scene - center_model;
-
-    double threshold = 0.01;
-
-    const bool debug_ = false;
-    if(debug_){
-        auto init_result = open3d::EvaluateRegistration(*model_pcd_down, *scene_pcd_down, threshold, init_guess);
-        std::cout << "init_result.fitness_: " << init_result.fitness_ << std::endl;
-        std::cout << "init_result.inlier_rmse_ : " << init_result.inlier_rmse_ << std::endl;
-    }
-
-    open3d::EstimateNormals(*model_pcd_down);
-    open3d::EstimateNormals(*scene_pcd_down);
-    auto final_result = open3d::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
-                                                init_guess,
-                                                open3d::TransformationEstimationPointToPlane());
-
-    if(debug_){
-        std::cout << "final_result.fitness_: " << final_result.fitness_ << std::endl;
-        std::cout << "final_result.inlier_rmse_ : " << final_result.inlier_rmse_ << std::endl;
-
-        model_pcd_down->Transform(final_result.transformation_);
-        model_pcd_down->PaintUniformColor({1, 0.706, 0});
-        scene_pcd_down->PaintUniformColor({0, 0.651, 0.929});
-        //        open3d::DrawGeometries({model_pcd_down, scene_pcd_down});
-    }
-
-    Eigen::Matrix4d result = final_result.transformation_*init_base.cast<double>();
-
-    fitness = final_result.fitness_;
-    inlier_rmse = final_result.inlier_rmse_;
-    eigen2cv(result, result_refined);
-}
-
 namespace linemodLevelup
 {
 /**
@@ -2652,3 +2496,330 @@ void Detector::writeClasses(const std::string &format) const
 }
 
 } // namespace linemodLevelup
+
+template<typename _Tp, int _rows, int _cols, int _options, int _maxRows, int _maxCols>
+void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCols>& src, cv::Mat& dst)
+{
+    if (!(src.Flags & Eigen::RowMajorBit))
+    {
+        cv::Mat _src(src.cols(), src.rows(), cv::DataType<_Tp>::type,
+                     (void*)src.data(), src.stride() * sizeof(_Tp));
+        cv::transpose(_src, dst);
+    }
+    else
+    {
+        cv::Mat _src(src.rows(), src.cols(), cv::DataType<_Tp>::type,
+                     (void*)src.data(), src.stride() * sizeof(_Tp));
+        _src.copyTo(dst);
+    }
+}
+
+void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
+                         Mat &modelR, Mat &modelT, int detectX, int detectY)
+{
+    assert(sceneDepth.type() == CV_16U);
+    assert(sceneK.type() == CV_32F);
+
+    fitness = -1;
+    inlier_rmse = -1;
+
+    const bool dump = false;
+    if(dump){  // for debug
+        FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/dump.yml", FileStorage::WRITE);
+        fs << "sceneDepth" << sceneDepth;
+        fs << "modelDepth" << sceneDepth;
+        fs << "sceneK" << sceneK;
+        fs << "modelK" << modelK;
+        fs << "modelR" << modelR;
+        fs << "modelT" << modelT;
+        fs << "detectX" << detectX;
+        fs << "detectY" << detectY;
+
+//        FileStorage fs("/home/meiqua/6DPose/linemodLevelup/test/dump.yml", FileStorage::READ);
+//        fs["sceneDepth"] >> sceneDepth;
+//        fs["modelDepth"] >> modelDepth;
+//        fs["sceneK"] >> sceneK;
+//        fs["modelK"] >> modelK;
+//        fs["modelR"] >> modelR;
+//        fs["modelT"] >> modelT;
+//        fs["detectX"] >> detectX;
+//        fs["detectY"] >> detectY;
+    }
+
+    cv::Mat init_base_cv(4, 4, CV_32FC1, cv::Scalar(0));
+    modelR.copyTo(init_base_cv(cv::Rect(0, 0, 3, 3)));
+    modelT.copyTo(init_base_cv(cv::Rect(3, 0, 1, 3)));
+    init_base_cv.at<float>(2, 3) /= 1000.0f;
+    init_base_cv.at<float>(3, 3) = 1;
+    init_base_cv = init_base_cv.t();  // row to col major
+
+    Eigen::Matrix4f init_base = Eigen::Map<Eigen::Matrix4f>(reinterpret_cast<float*>(init_base_cv.data));
+
+    cv::Mat modelMask = modelDepth > 0;
+//    for(int i=0; i<3; i++)
+//    cv::dilate(modelMask, modelMask, cv::Mat());
+
+    cv::Mat non0p;
+    findNonZero(modelMask, non0p);
+    cv::Rect bbox = boundingRect(non0p);
+
+    cv::Rect roi = cv::Rect(detectX, detectY, bbox.width, bbox.height);
+    if((detectX + bbox.width >= sceneDepth.cols) || (detectY + bbox.height >= sceneDepth.rows)) return;
+
+    open3d::Image scene_depth_open3d, model_depth_open3d;
+    model_depth_open3d.PrepareImage(modelDepth.cols, modelDepth.rows, 1, 2);
+
+    std::copy_n(modelDepth.data, model_depth_open3d.data_.size(),
+                model_depth_open3d.data_.begin());
+
+    open3d::PinholeCameraIntrinsic K_scene_open3d(sceneDepth.cols, sceneDepth.rows,
+                                                  double(sceneK.at<float>(0, 0)), double(sceneK.at<float>(1, 1)),
+                                                  double(sceneK.at<float>(0, 2)), double(sceneK.at<float>(1, 2)));
+
+    open3d::PinholeCameraIntrinsic K_model_open3d(modelDepth.cols, modelDepth.rows,
+                                                  double(modelK.at<float>(0, 0)), double(modelK.at<float>(1, 1)),
+                                                  double(modelK.at<float>(0, 2)), double(modelK.at<float>(1, 2)));
+
+    auto model_pcd = open3d::CreatePointCloudFromDepthImage(model_depth_open3d, K_model_open3d);
+
+    Eigen::Matrix4d init_guess = Eigen::Matrix4d::Identity(4, 4);
+
+    cv::Mat scene_depth_model_cover = cv::Mat::zeros(sceneDepth.rows, sceneDepth.cols, sceneDepth.type());
+    sceneDepth(roi).copyTo(scene_depth_model_cover(roi), modelMask(bbox));
+    cv::medianBlur(scene_depth_model_cover, scene_depth_model_cover, 5);
+
+    open3d::Image scene_depth_for_center_estimation;
+    scene_depth_for_center_estimation.PrepareImage(scene_depth_model_cover.cols, scene_depth_model_cover.rows,
+                                                   1, 2);
+    std::copy_n(scene_depth_model_cover.data, scene_depth_for_center_estimation.data_.size(),
+                scene_depth_for_center_estimation.data_.begin());
+    auto scene_pcd_for_center = open3d::CreatePointCloudFromDepthImage(scene_depth_for_center_estimation, K_scene_open3d);
+
+    double voxel_size = 0.0025;
+    auto model_pcd_down = open3d::VoxelDownSample(*model_pcd, voxel_size);
+    auto scene_pcd_down = open3d::VoxelDownSample(*scene_pcd_for_center, voxel_size);
+
+//    auto model_pcd_down = open3d::UniformDownSample(*model_pcd, 5);
+//    auto scene_pcd_down = open3d::UniformDownSample(*scene_pcd_for_center, 5);
+
+//    auto model_pcd_down = model_pcd;
+//    auto scene_pcd_down = scene_pcd_for_center;
+
+
+    Eigen::Vector3d center_scene = Eigen::Vector3d::Zero();
+    Eigen::Vector3d center_model = Eigen::Vector3d::Zero();
+
+    for(auto& p: scene_pcd_down->points_){
+        center_scene += p;
+    }
+    center_scene /= scene_pcd_down->points_.size();
+
+    for(auto& p: model_pcd_down->points_){
+        center_model += p;
+    }
+    center_model /= model_pcd_down->points_.size();
+
+    init_guess.block(0, 3, 3, 1) = center_scene - center_model;
+
+    double threshold = 0.01;
+
+    const bool debug_ = false;
+    if(debug_){
+        auto init_result = open3d::EvaluateRegistration(*model_pcd_down, *scene_pcd_down, threshold, init_guess);
+        std::cout << "init_result.fitness_: " << init_result.fitness_ << std::endl;
+        std::cout << "init_result.inlier_rmse_ : " << init_result.inlier_rmse_ << std::endl;
+    }
+
+    open3d::EstimateNormals(*model_pcd_down);
+    open3d::EstimateNormals(*scene_pcd_down);
+    auto final_result = open3d::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
+                                                init_guess,
+                                                open3d::TransformationEstimationPointToPlane());
+
+    if(debug_){
+        std::cout << "final_result.fitness_: " << final_result.fitness_ << std::endl;
+        std::cout << "final_result.inlier_rmse_ : " << final_result.inlier_rmse_ << std::endl;
+
+        model_pcd_down->Transform(final_result.transformation_);
+        model_pcd_down->PaintUniformColor({1, 0.706, 0});
+        scene_pcd_down->PaintUniformColor({0, 0.651, 0.929});
+        //        open3d::DrawGeometries({model_pcd_down, scene_pcd_down});
+    }
+
+    Eigen::Matrix4d result = final_result.transformation_*init_base.cast<double>();
+
+    fitness = final_result.fitness_;
+    inlier_rmse = final_result.inlier_rmse_;
+    eigen2cv(result, result_refined);
+}
+
+Mat poseRefine::get_depth_edge(Mat &depth_)
+{
+    cv::Mat depth;
+    cv::medianBlur(depth_, depth, 5);
+    cv::Mat normals = cv::Mat(depth.size(), CV_32FC3, cv::Scalar(0));
+    // method from linemod depth modality
+    {
+        cv::Mat src = depth;
+        int distance_threshold = 2000;
+        int difference_threshold = 50;
+
+        const unsigned short *lp_depth = src.ptr<ushort>();
+        cv::Vec3f *lp_normals = normals.ptr<cv::Vec3f>();
+
+        const int l_W = src.cols;
+        const int l_H = src.rows;
+
+        const int l_r = 5; // used to be 7
+        const int l_offset0 = -l_r - l_r * l_W;
+        const int l_offset1 = 0 - l_r * l_W;
+        const int l_offset2 = +l_r - l_r * l_W;
+        const int l_offset3 = -l_r;
+        const int l_offset4 = +l_r;
+        const int l_offset5 = -l_r + l_r * l_W;
+        const int l_offset6 = 0 + l_r * l_W;
+        const int l_offset7 = +l_r + l_r * l_W;
+
+        for (int l_y = l_r; l_y < l_H - l_r - 1; ++l_y)
+        {
+            const unsigned short *lp_line = lp_depth + (l_y * l_W + l_r);
+            cv::Vec3f *lp_norm = lp_normals + (l_y * l_W + l_r);
+
+            for (int l_x = l_r; l_x < l_W - l_r - 1; ++l_x)
+            {
+                long l_d = lp_line[0];
+                if (l_d < distance_threshold /*&& l_d > 0*/)
+                {
+                    // accum
+                    long l_A[4];
+                    l_A[0] = l_A[1] = l_A[2] = l_A[3] = 0;
+                    long l_b[2];
+                    l_b[0] = l_b[1] = 0;
+                    linemodLevelup::accumBilateral(lp_line[l_offset0] - l_d, -l_r, -l_r, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset1] - l_d, 0, -l_r, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset2] - l_d, +l_r, -l_r, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset3] - l_d, -l_r, 0, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset4] - l_d, +l_r, 0, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset5] - l_d, -l_r, +l_r, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset6] - l_d, 0, +l_r, l_A, l_b, difference_threshold);
+                    linemodLevelup::accumBilateral(lp_line[l_offset7] - l_d, +l_r, +l_r, l_A, l_b, difference_threshold);
+
+                    // solve
+                    long l_det = l_A[0] * l_A[3] - l_A[1] * l_A[1];
+                    long l_ddx = l_A[3] * l_b[0] - l_A[1] * l_b[1];
+                    long l_ddy = -l_A[1] * l_b[0] + l_A[0] * l_b[1];
+
+                    /// @todo Magic number 1150 is focal length? This is something like
+                    /// f in SXGA mode, but in VGA is more like 530.
+                    float l_nx = static_cast<float>(1150 * l_ddx);
+                    float l_ny = static_cast<float>(1150 * l_ddy);
+                    float l_nz = static_cast<float>(-l_det * l_d);
+
+                    float l_sqrt = sqrtf(l_nx * l_nx + l_ny * l_ny + l_nz * l_nz);
+
+                    if (l_sqrt > 0)
+                    {
+                        float l_norminv = 1.0f / (l_sqrt);
+
+                        l_nx *= l_norminv;
+                        l_ny *= l_norminv;
+                        l_nz *= l_norminv;
+
+                        *lp_norm = {l_nx, l_ny, l_nz};
+                    }
+                }
+                ++lp_line;
+                ++lp_norm;
+            }
+        }
+    }
+    cv::Mat N_xyz[3];
+    cv::split(normals, N_xyz);
+
+    // refer to RGB-D Edge Detection and Edge-based Registration
+    cv::Mat sx, sy, mag;
+    cv::Sobel(N_xyz[0], sx, CV_32F, 1, 0, 3);
+    cv::Sobel(N_xyz[1], sy, CV_32F, 0, 1, 3);
+    mag = sx.mul(sx) + sy.mul(sy);
+    cv::Mat high_curvature_edge = mag > 4;  // don't need to use canny, because we need to dilate
+
+    // don't distinct occluding and occluded
+    cv::Mat occ_edge = cv::Mat(depth.size(), CV_8UC1, cv::Scalar(0));
+    for(int r = 1; r<depth.rows-1; r++){
+        for(int c = 1; c<depth.cols-1; c++){
+
+            int dep_Dxy = depth.at<uint16_t>(r, c);
+            if(dep_Dxy == 0) continue;
+
+            // 8 neibor
+            int dep_dn[3][3] = {{0}};
+            bool invalid = false;
+            for(int offset_r=-1; offset_r<=1; offset_r++){
+                bool break_flag = false;
+                for(int offset_c=-1; offset_c<=1; offset_c++){
+                    if(offset_c == 0 && offset_r == 0) continue;
+                    int dep_nn = depth.at<uint16_t>(r+offset_r, c+offset_c);
+                    if(dep_nn == 0){
+                        break_flag = true;
+                        invalid = true;
+                        break;
+                    }else{
+                        dep_dn[offset_r+1][offset_c+1] = dep_Dxy - dep_nn;
+                    }
+                }
+                if(break_flag) break;
+            }
+            if(!invalid){
+                int max_d = 0;
+                int max_offset_r = 0;
+                int max_offset_c = 0;
+                for(int i=0; i<3; i++){
+                    for(int j=0; j<3; j++){
+                        if(std::abs(dep_dn[i][j]) > max_d){
+                            max_d = std::abs(dep_dn[i][j]);
+                            max_offset_r = i-1;
+                            max_offset_c = j-1;
+                        }
+                    }
+                }
+                if(max_d > 0.02*dep_Dxy){
+                    occ_edge.at<uchar>(r+max_offset_r, c+max_offset_c) = 255;
+                }
+            }else{
+                occ_edge.at<uchar>(r, c) = 255;
+            }
+        }
+    }
+
+    cv::Mat dst;
+    cv::bitwise_or(high_curvature_edge, occ_edge, dst);
+
+    cv::dilate(dst, dst, cv::Mat());
+
+    bool debug_ = false;
+    if(debug_){
+        auto view_dep = [](cv::Mat dep){
+            cv::Mat map = dep;
+            double min;
+            double max;
+            cv::minMaxIdx(map, &min, &max);
+            cv::Mat adjMap;
+            map.convertTo(adjMap,CV_8UC1, 255 / (max-min), -min);
+            cv::Mat falseColorsMap;
+            applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_HOT);
+            return falseColorsMap;
+        };
+        imshow("Nx", view_dep(N_xyz[0]));
+        imshow("Ny", view_dep(N_xyz[1]));
+
+        imshow("sx", view_dep(sx));
+        imshow("sy", view_dep(sy));
+        imshow("mag", view_dep(mag));
+        imshow("high_curvature_edge", high_curvature_edge);
+        imshow("occ_edge", occ_edge);
+        imshow("dst", dst);
+        waitKey(0);
+    }
+
+    return dst;
+}

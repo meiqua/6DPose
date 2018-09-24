@@ -630,6 +630,8 @@ if mode == 'test':
                 matches = detector.match([rgb, depth], 70, 0.6,
                                          match_ids, dep_anchors, dep_range, masks=[])
 
+                depth_edge = poseRefine.get_depth_edge(depth)
+
                 if len(matches) > 0:
                     aTemplateInfo = templateInfo[matches[0].class_id]
                     render_K = aTemplateInfo[0]['cam_K']
@@ -722,13 +724,67 @@ if mode == 'test':
                                        , match.x, match.y)
                     icp_time += (time.time() - icp_start)
 
+                    if poseRefine.fitness < 0.6 or poseRefine.inlier_rmse > 0.01:
+                        continue
+
                     refinedR = poseRefine.result_refined[0:3, 0:3]
                     refinedT = poseRefine.result_refined[0:3, 3]
                     refinedT = np.reshape(refinedT, (3,)) * 1000
                     score = 1 / (poseRefine.inlier_rmse + 0.01)
 
-                    if poseRefine.fitness < 0.6 or poseRefine.inlier_rmse > 0.01:
+                    ################################################################
+                    R_in = refinedR
+                    t_in = refinedT
+                    K_in = K
+
+                    mat_view = np.eye(4, dtype=np.float32)  # From world space to eye space
+                    mat_view[:3, :3] = R_in
+                    mat_view[:3, 3] = t_in.squeeze()
+                    yz_flip = np.eye(4, dtype=np.float32)
+                    yz_flip[1, 1], yz_flip[2, 2] = -1, -1
+                    mat_view = yz_flip.dot(mat_view)  # OpenCV to OpenGL camera system
+                    mat_view = mat_view.T  # OpenGL expects column-wise matrix format
+
+                    window.clear()
+                    renderer.gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+                    renderer.gl.glClear(renderer.gl.GL_COLOR_BUFFER_BIT | renderer.gl.GL_DEPTH_BUFFER_BIT)
+
+                    # Projection matrix
+                    mat_proj = renderer._compute_calib_proj(K_in, 0, 0, im_size[0], im_size[1], clip_near, clip_far)
+
+                    program_dep['u_mv'] = renderer._compute_model_view(mat_model, mat_view)
+                    program_dep['u_mvp'] = renderer._compute_model_view_proj(mat_model, mat_view, mat_proj)
+                    program['u_nm'] = renderer._compute_normal_matrix(mat_model, mat_view)
+                    program_dep.draw(renderer.gl.GL_TRIANGLES, index_buffer)
+
+                    # Retrieve the contents of the FBO texture
+                    depth_out = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+                    renderer.gl.glReadPixels(0, 0, shape[1], shape[0], renderer.gl.GL_RGBA, renderer.gl.GL_FLOAT,
+                                             depth_out)
+                    depth_out.shape = shape[0], shape[1], 4
+                    depth_out = depth_out[::-1, :]
+                    depth_out = depth_out[:, :, 0]  # Depth is saved in the first channel
+                    #################################################################
+
+                    # depth edge check
+                    depth_out_mask = (depth_out > 0)*255
+                    depth_out_mask = depth_out_mask.astype(np.uint8)
+                    kernel = np.ones((3, 3), np.uint8)
+                    dep_dilute = cv2.erode(depth_out_mask, kernel)
+                    model_dep_edge = cv2.bitwise_xor(dep_dilute, depth_out_mask)
+
+                    edge_hit = cv2.bitwise_and(model_dep_edge, depth_edge)
+                    edge_hit_ratio = cv2.countNonZero(edge_hit)/cv2.countNonZero(model_dep_edge)
+
+                    if edge_hit_ratio < 0.55:
                         continue
+
+                    # print('edge hit ratio: {}'.format(edge_hit_ratio))
+                    # cv2.imshow('rgb', rgb)
+                    # cv2.imshow('model_dep_edge', model_dep_edge)
+                    # cv2.imshow('edge_hit', edge_hit)
+                    # cv2.imshow('depth_edge', depth_edge)
+                    # cv2.waitKey(0)
 
                     Rs.append(refinedR)
                     Ts.append(refinedT)
@@ -848,6 +904,7 @@ if mode == 'test':
                 # visual = False
                 if visual:
                     cv2.imshow('raw', raw_match_rgb)
+                    cv2.imshow('depth_edge', depth_edge)
                     cv2.imshow('rgb_top1', rgb)
                     cv2.imshow('rgb_render', render_rgb)
 

@@ -191,7 +191,7 @@ def main():
         # pjoin(error_bpath, 'hodan-iros15_tless_primesense'),
     ]
 
-    error_dir = 'error=vsd_ntop=10_delta=15_tau=20_cost=step'
+    error_dir = 'error=vsd_ntop=1_delta=15_tau=20_cost=step'
     for i in range(len(error_paths)):
         error_paths[i] = os.path.join(error_paths[i], error_dir)
 

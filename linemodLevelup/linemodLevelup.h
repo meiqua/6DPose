@@ -11,6 +11,8 @@ public:
     void process(cv::Mat& sceneDepth, cv::Mat& modelDepth, cv::Mat& sceneK, cv::Mat& modelK,
                  cv::Mat& modelR, cv::Mat& modelT, int detectX, int detectY);
 
+    cv::Mat get_depth_edge(cv::Mat& depth);
+
     cv::Mat result_refined;
     double fitness, inlier_rmse;
 };
