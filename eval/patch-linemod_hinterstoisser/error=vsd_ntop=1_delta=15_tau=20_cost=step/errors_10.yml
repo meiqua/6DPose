@@ -85,7 +85,7 @@
 - {im_id: 569, obj_id: 10, est_id: 0, score: 78.68845463, errors: {0: 0.11028010}}
 - {im_id: 577, obj_id: 10, est_id: 0, score: 81.60475960, errors: {0: 0.07590458}}
 - {im_id: 583, obj_id: 10, est_id: 0, score: 78.49699518, errors: {0: 0.12642140}}
-- {im_id: 596, obj_id: 10, est_id: 0, score: 69.72163154, errors: {0: 1.00000000}}
+- {im_id: 596, obj_id: 10, est_id: 0, score: 70.80840812, errors: {0: 1.00000000}}
 - {im_id: 597, obj_id: 10, est_id: 0, score: 74.88340682, errors: {0: 1.00000000}}
 - {im_id: 598, obj_id: 10, est_id: 0, score: 72.14135899, errors: {0: 0.07585621}}
 - {im_id: 603, obj_id: 10, est_id: 0, score: 72.08978026, errors: {0: 1.00000000}}

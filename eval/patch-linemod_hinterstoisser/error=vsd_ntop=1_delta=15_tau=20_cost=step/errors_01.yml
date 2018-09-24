@@ -185,7 +185,7 @@
 - {im_id: 1169, obj_id: 1, est_id: 0, score: 80.03591957, errors: {0: 0.17159972}}
 - {im_id: 1182, obj_id: 1, est_id: 0, score: 80.02185326, errors: {0: 0.15236427}}
 - {im_id: 1189, obj_id: 1, est_id: 0, score: 76.32755130, errors: {0: 0.12935523}}
-- {im_id: 1191, obj_id: 1, est_id: 0, score: 74.58431542, errors: {0: 0.10237660}}
+- {im_id: 1191, obj_id: 1, est_id: 0, score: 75.36494730, errors: {0: 0.07743609}}
 - {im_id: 1196, obj_id: 1, est_id: 0, score: 76.61171566, errors: {0: 0.23353474}}
 - {im_id: 1199, obj_id: 1, est_id: 0, score: 76.64162060, errors: {0: 0.09802610}}
 - {im_id: 1200, obj_id: 1, est_id: 0, score: 80.32658491, errors: {0: 0.09777015}}

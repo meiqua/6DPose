@@ -9,7 +9,7 @@
 - {im_id: 89, obj_id: 7, est_id: 0, score: 77.90351694, errors: {0: 0.11396469}}
 - {im_id: 95, obj_id: 7, est_id: 0, score: 75.63587232, errors: {0: 0.20462222}}
 - {im_id: 99, obj_id: 7, est_id: 0, score: 76.09218765, errors: {0: 1.00000000}}
-- {im_id: 113, obj_id: 7, est_id: 0, score: 74.86729680, errors: {0: 0.22655172}}
+- {im_id: 113, obj_id: 7, est_id: 0, score: 77.53362222, errors: {0: 0.29782322}}
 - {im_id: 117, obj_id: 7, est_id: 0, score: 74.32434962, errors: {0: 0.25985174}}
 - {im_id: 119, obj_id: 7, est_id: 0, score: 74.01450147, errors: {0: 0.24570983}}
 - {im_id: 124, obj_id: 7, est_id: 0, score: 77.08010233, errors: {0: 0.14861461}}
@@ -68,7 +68,7 @@
 - {im_id: 449, obj_id: 7, est_id: 0, score: 75.09290327, errors: {0: 0.16593009}}
 - {im_id: 457, obj_id: 7, est_id: 0, score: 77.06165953, errors: {0: 1.00000000}}
 - {im_id: 464, obj_id: 7, est_id: 0, score: 76.06236715, errors: {0: 0.41686367}}
-- {im_id: 465, obj_id: 7, est_id: 0, score: 76.17633481, errors: {0: 1.00000000}}
+- {im_id: 465, obj_id: 7, est_id: 0, score: 76.34520832, errors: {0: 1.00000000}}
 - {im_id: 473, obj_id: 7, est_id: 0, score: 77.45577806, errors: {0: 0.19449142}}
 - {im_id: 475, obj_id: 7, est_id: 0, score: 78.09529781, errors: {0: 0.08962264}}
 - {im_id: 476, obj_id: 7, est_id: 0, score: 80.17073810, errors: {0: 0.20772395}}
@@ -91,7 +91,7 @@
 - {im_id: 568, obj_id: 7, est_id: 0, score: 74.42856309, errors: {0: 0.28292496}}
 - {im_id: 582, obj_id: 7, est_id: 0, score: 76.84475255, errors: {0: 0.19843444}}
 - {im_id: 603, obj_id: 7, est_id: 0, score: 78.59031661, errors: {0: 0.23658269}}
-- {im_id: 604, obj_id: 7, est_id: 0, score: 75.91358538, errors: {0: 0.16886834}}
+- {im_id: 604, obj_id: 7, est_id: 0, score: 76.81652950, errors: {0: 1.00000000}}
 - {im_id: 614, obj_id: 7, est_id: 0, score: 78.22446544, errors: {0: 0.24296857}}
 - {im_id: 626, obj_id: 7, est_id: 0, score: 74.25762839, errors: {0: 0.17876465}}
 - {im_id: 640, obj_id: 7, est_id: 0, score: 76.23587435, errors: {0: 0.11420096}}
@@ -109,7 +109,7 @@
 - {im_id: 721, obj_id: 7, est_id: 0, score: 76.39765336, errors: {0: 1.00000000}}
 - {im_id: 726, obj_id: 7, est_id: 0, score: 77.00922804, errors: {0: 0.20093795}}
 - {im_id: 733, obj_id: 7, est_id: 0, score: 75.05142154, errors: {0: 0.34555189}}
-- {im_id: 734, obj_id: 7, est_id: 0, score: 76.02634138, errors: {0: 0.30214272}}
+- {im_id: 734, obj_id: 7, est_id: 0, score: 78.33180568, errors: {0: 0.22924820}}
 - {im_id: 738, obj_id: 7, est_id: 0, score: 74.32734176, errors: {0: 1.00000000}}
 - {im_id: 745, obj_id: 7, est_id: 0, score: 75.35262850, errors: {0: 1.00000000}}
 - {im_id: 762, obj_id: 7, est_id: 0, score: 76.56804510, errors: {0: 0.18076812}}
@@ -138,7 +138,7 @@
 - {im_id: 887, obj_id: 7, est_id: 0, score: 78.13110900, errors: {0: 0.22162608}}
 - {im_id: 889, obj_id: 7, est_id: 0, score: 76.43316375, errors: {0: 1.00000000}}
 - {im_id: 896, obj_id: 7, est_id: 0, score: 76.47020499, errors: {0: 1.00000000}}
-- {im_id: 906, obj_id: 7, est_id: 0, score: 76.27093090, errors: {0: 1.00000000}}
+- {im_id: 906, obj_id: 7, est_id: 0, score: 76.37366557, errors: {0: 1.00000000}}
 - {im_id: 908, obj_id: 7, est_id: 0, score: 77.74299697, errors: {0: 0.21342870}}
 - {im_id: 909, obj_id: 7, est_id: 0, score: 77.31400728, errors: {0: 0.20811380}}
 - {im_id: 912, obj_id: 7, est_id: 0, score: 76.93045947, errors: {0: 0.20188133}}

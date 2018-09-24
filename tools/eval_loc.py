@@ -177,12 +177,12 @@ def main():
     #---------------------------------------------------------------------------
     top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    # dataset = 'hinterstoisser'
+    dataset = 'hinterstoisser'
     # dataset = 'tless'
     # dataset = 'tudlight'
     # dataset = 'rutgers'
     # dataset = 'tejani'
-    dataset = 'doumanoglou'
+    # dataset = 'doumanoglou'
     # dataset = 'toyotalight
 
     error_bpath = pjoin(top_level_path, 'eval')
@@ -191,7 +191,7 @@ def main():
         # pjoin(error_bpath, 'hodan-iros15_tless_primesense'),
     ]
 
-    error_dir = 'error=vsd_ntop=1_delta=15_tau=20_cost=step'
+    error_dir = 'error=vsd_ntop=10_delta=15_tau=20_cost=step'
     for i in range(len(error_paths)):
         error_paths[i] = os.path.join(error_paths[i], error_dir)
 
@@ -213,7 +213,7 @@ def main():
 
     # Threshold of correctness
     error_thresh = {
-        'vsd': 0.3,
+        'vsd': 0.4,
         'cou': 0.5,
         'te': 5.0, # [cm]
         're': 5.0 # [deg]

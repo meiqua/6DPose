@@ -73,7 +73,7 @@ obj_ids_curr = range(1, dp['obj_count'] + 1)
 if obj_ids:
     obj_ids_curr = set(obj_ids_curr).intersection(obj_ids)
 
-scene_ids = [2]  # for each obj
+scene_ids = []  # for each obj
 im_ids = []  # obj's img
 gt_ids = []  # multi obj in one img
 scene_ids_curr = range(1, dp['scene_count'] + 1)
@@ -97,7 +97,7 @@ while current_dep < dep_max:
     dep_anchors.append(int(current_dep))
     current_dep = current_dep*dep_anchor_step
 
-dep_anchors = dep_anchors[1:-1]  # discard two border dep
+# dep_anchors = dep_anchors[1:-1]  # discard two border dep
 
 print('\ndep anchors:\n {}, \ndep range: {}\n'.format(dep_anchors, dep_range))
 
@@ -472,7 +472,8 @@ if mode == 'test':
         if dataset =='doumanoglou' and scene_id == 3:
             obj_id_in_scene_array = [1, 2]
 
-        obj_id_in_scene_array = [1, 2, 5, 6, 8, 9, 10, 11, 12]  # for occ dataset
+        if dataset == 'hinterstoisser' and scene_id == 2:
+            obj_id_in_scene_array = [1, 2, 5, 6, 8, 9, 10, 11, 12]  # for occ dataset
 
         for obj_id_in_scene in obj_id_in_scene_array:
             # Load scene info and gt poses
@@ -726,7 +727,7 @@ if mode == 'test':
                     refinedT = np.reshape(refinedT, (3,)) * 1000
                     score = 1 / (poseRefine.inlier_rmse + 0.01)
 
-                    if poseRefine.fitness < 0.66 or poseRefine.inlier_rmse > 0.01:
+                    if poseRefine.fitness < 0.6 or poseRefine.inlier_rmse > 0.01:
                         continue
 
                     Rs.append(refinedR)

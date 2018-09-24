@@ -15,7 +15,7 @@
 - {im_id: 81, obj_id: 6, est_id: 0, score: 77.10254003, errors: {0: 0.13570823}}
 - {im_id: 89, obj_id: 6, est_id: 0, score: 74.42945702, errors: {0: 0.09629941}}
 - {im_id: 103, obj_id: 6, est_id: 0, score: 73.91657904, errors: {0: 0.07468124}}
-- {im_id: 107, obj_id: 6, est_id: 0, score: 71.53083663, errors: {0: 0.16525424}}
+- {im_id: 107, obj_id: 6, est_id: 0, score: 72.30171569, errors: {0: 0.60195599}}
 - {im_id: 108, obj_id: 6, est_id: 0, score: 72.63766806, errors: {0: 0.15598183}}
 - {im_id: 111, obj_id: 6, est_id: 0, score: 75.16028982, errors: {0: 0.14855225}}
 - {im_id: 113, obj_id: 6, est_id: 0, score: 72.91356639, errors: {0: 0.27483047}}
@@ -148,7 +148,7 @@
 - {im_id: 900, obj_id: 6, est_id: 0, score: 77.80812097, errors: {0: 0.05976556}}
 - {im_id: 907, obj_id: 6, est_id: 0, score: 76.69885896, errors: {0: 0.05524133}}
 - {im_id: 914, obj_id: 6, est_id: 0, score: 74.38775626, errors: {0: 0.65743243}}
-- {im_id: 915, obj_id: 6, est_id: 0, score: 70.18065008, errors: {0: 0.43303571}}
+- {im_id: 915, obj_id: 6, est_id: 0, score: 71.45963683, errors: {0: 0.70483005}}
 - {im_id: 920, obj_id: 6, est_id: 0, score: 76.59544174, errors: {0: 0.11750600}}
 - {im_id: 927, obj_id: 6, est_id: 0, score: 79.31191489, errors: {0: 0.05222969}}
 - {im_id: 928, obj_id: 6, est_id: 0, score: 73.67928949, errors: {0: 0.15295717}}

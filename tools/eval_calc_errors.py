@@ -16,12 +16,12 @@ from params.dataset_params import get_dataset_params
 # Results for which the errors will be calculated
 #-------------------------------------------------------------------------------
 
-# dataset = 'hinterstoisser'
+dataset = 'hinterstoisser'
 # dataset = 'tless'
 # dataset = 'tudlight'
 # dataset = 'rutgers'
 # dataset = 'tejani'
-dataset = 'doumanoglou'
+# dataset = 'doumanoglou'
 # dataset = 'toyotalight'
 
 top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,7 +41,7 @@ errors_mpath = pjoin(result_base, '..', '..', 'eval', '{result_name}',
 #-------------------------------------------------------------------------------
 # Top N pose estimates (with the highest score) to be evaluated for each
 # object in each image
-n_top = 1  # 0 = all estimates, -1 = given by the number of GT poses
+n_top = 10  # 0 = all estimates, -1 = given by the number of GT poses
 
 # Pose error function
 error_type = 'vsd' # 'vsd', 'adi', 'add', 'cou', 're', 'te'
