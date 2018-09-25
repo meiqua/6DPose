@@ -13,6 +13,8 @@ public:
 
     cv::Mat get_depth_edge(cv::Mat& depth);
 
+    void cannyTraceEdge(int rowOffset, int colOffset, int row, int col, cv::Mat& canny_edge, cv::Mat& mag_nms);
+
     cv::Mat result_refined;
     double fitness, inlier_rmse;
 };

@@ -213,7 +213,7 @@ def main():
 
     # Threshold of correctness
     error_thresh = {
-        'vsd': 0.4,
+        'vsd': 0.3,
         'cou': 0.5,
         'te': 5.0, # [cm]
         're': 5.0 # [deg]

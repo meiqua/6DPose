@@ -265,6 +265,19 @@ void icp_with_depth_check_test(){
     pr->process(depth, depth_ren, K, K, R, t, 313, 297);
 }
 
+void view_angle(){
+    cv::Mat circle = cv::imread("/home/meiqua/6DPose/linemodLevelup/test/circle.png");
+    cv::cvtColor(circle, circle, CV_BGR2GRAY);
+
+    cv::Mat sx, sy, angle;
+    cv::Sobel(circle, sx, CV_32F, 1, 0, 3);
+    cv::Sobel(circle, sy, CV_32F, 0, 1, 3);
+    cv::phase(sx, sy, angle, true);
+    normalize(angle, angle, 0, 255, NORM_MINMAX);
+    angle.convertTo(angle,CV_8UC1);
+    cv::imshow("angle", angle);
+    cv::waitKey(0);
+}
 
 int main(){
     icp_with_depth_check_test();

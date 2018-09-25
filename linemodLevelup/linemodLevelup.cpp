@@ -2653,6 +2653,26 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     eigen2cv(result, result_refined);
 }
 
+void poseRefine::cannyTraceEdge(int rowOffset, int colOffset, int row, int col, cv::Mat& canny_edge, cv::Mat& mag_nms){
+    int newRow = row + rowOffset;
+    int newCol = col + colOffset;
+
+    if(newRow>0 && newRow<mag_nms.rows && newCol>0 && newCol<mag_nms.cols){
+        float mag_v = mag_nms.at<float>(newRow, newCol);
+        if(canny_edge.at<uchar>(newRow, newCol)>0 || mag_v < 0.01f) return ;
+
+        canny_edge.at<uchar>(newRow, newCol) = 255;
+        cannyTraceEdge ( 1, 0, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge (-1, 0, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge ( 1, 1, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge (-1, -1, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge ( 0, -1, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge ( 0, 1, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge (-1, 1, newRow, newCol, canny_edge, mag_nms);
+        cannyTraceEdge ( 1, -1, newRow, newCol, canny_edge, mag_nms);
+    }
+};
+
 Mat poseRefine::get_depth_edge(Mat &depth_)
 {
     cv::Mat depth;
@@ -2737,11 +2757,93 @@ Mat poseRefine::get_depth_edge(Mat &depth_)
     cv::split(normals, N_xyz);
 
     // refer to RGB-D Edge Detection and Edge-based Registration
+    // canny on normal
     cv::Mat sx, sy, mag;
+
+    cv::GaussianBlur(N_xyz[0], N_xyz[0], {3, 3}, 1);
     cv::Sobel(N_xyz[0], sx, CV_32F, 1, 0, 3);
+    cv::GaussianBlur(N_xyz[1], N_xyz[0], {3, 3}, 1);
     cv::Sobel(N_xyz[1], sy, CV_32F, 0, 1, 3);
+
     mag = sx.mul(sx) + sy.mul(sy);
-    cv::Mat high_curvature_edge = mag > 4;  // don't need to use canny, because we need to dilate
+    cv::sqrt(mag, mag);
+    cv::medianBlur(mag, mag, 5);
+
+    cv::Mat angle;
+    cv::phase(sx, sy, angle, true);
+
+    Mat_<unsigned char> quantized_unfiltered;
+    // method from linemod quantizing orientation
+    {
+        angle.convertTo(quantized_unfiltered, CV_8U, 8.0 / 360.0);
+
+        // Zero out top and bottom rows
+        /// @todo is this necessary, or even correct?
+        memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
+        memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
+        // Zero out first and last columns
+        for (int r = 0; r < quantized_unfiltered.rows; ++r)
+        {
+            quantized_unfiltered(r, 0) = 0;
+            quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
+        }
+
+        // Mask 8 buckets into 4 quantized orientations
+        for (int r = 1; r < angle.rows - 1; ++r)
+        {
+            uchar *quant_r = quantized_unfiltered.ptr<uchar>(r);
+            for (int c = 1; c < angle.cols - 1; ++c)
+            {
+                quant_r[c] &= 3;
+            }
+        }
+    }
+
+    float tLow = 0.2f;
+    float tHigh = 1.1f;
+    cv::Mat mag_nms = cv::Mat(mag.size(), CV_32FC1, cv::Scalar(0));
+    for(int r=1; r<mag.rows; r++){
+        for(int c=1; c<mag.cols; c++){
+            float mag_v = mag.at<float>(r, c);
+            float& mag_nms_v = mag_nms.at<float>(r, c);
+            if(mag_v<tLow) continue;
+
+            uchar quant_angle = quantized_unfiltered.at<uchar>(r, c);
+            if(quant_angle == 0){
+                if(mag_v >= mag.at<float>(r, c+1) && mag_v >= mag.at<float>(r, c-1))
+                    mag_nms_v = mag_v;
+            }else if(quant_angle == 1){
+                if(mag_v >= mag.at<float>(r-1, c+1) && mag_v >= mag.at<float>(r+1, c-1))
+                    mag_nms_v = mag_v;
+            }else if(quant_angle == 2){
+                if(mag_v >= mag.at<float>(r-1, c) && mag_v >= mag.at<float>(r+1, c))
+                    mag_nms_v = mag_v;
+            }else if(quant_angle == 3){
+                if(mag_v >= mag.at<float>(r+1, c+1) && mag_v >= mag.at<float>(r-1, c-1))
+                    mag_nms_v = mag_v;
+            }
+        }
+    }
+
+    cv::Mat canny_edge = cv::Mat(mag_nms.size(), CV_8UC1, cv::Scalar(0));
+
+    for(int r=0; r<canny_edge.rows; r++){
+        for(int c=0; c<canny_edge.cols; c++){
+            if(mag_nms.at<float>(r, c) < tHigh || canny_edge.at<uchar>(r, c)>0) continue;
+            canny_edge.at<uchar>(r, c) = 255;
+
+            cannyTraceEdge ( 1, 0, r, c, canny_edge, mag_nms);
+            cannyTraceEdge (-1, 0, r, c, canny_edge, mag_nms);
+            cannyTraceEdge ( 1, 1, r, c, canny_edge, mag_nms);
+            cannyTraceEdge (-1, -1, r, c, canny_edge, mag_nms);
+            cannyTraceEdge ( 0, -1, r, c, canny_edge, mag_nms);
+            cannyTraceEdge ( 0, 1, r, c, canny_edge, mag_nms);
+            cannyTraceEdge (-1, 1, r, c, canny_edge, mag_nms);
+            cannyTraceEdge ( 1, -1, r, c, canny_edge, mag_nms);
+        }
+    }
+
+    cv::Mat high_curvature_edge = canny_edge;
 
     // don't distinct occluding and occluded
     cv::Mat occ_edge = cv::Mat(depth.size(), CV_8UC1, cv::Scalar(0));
@@ -2815,8 +2917,10 @@ Mat poseRefine::get_depth_edge(Mat &depth_)
         imshow("sx", view_dep(sx));
         imshow("sy", view_dep(sy));
         imshow("mag", view_dep(mag));
-        imshow("high_curvature_edge", high_curvature_edge);
+
         imshow("occ_edge", occ_edge);
+        imshow("mag_nms", mag_nms);
+        imshow("high_curvature_edge", high_curvature_edge);
         imshow("dst", dst);
         waitKey(0);
     }

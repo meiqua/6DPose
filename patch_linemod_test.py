@@ -606,6 +606,7 @@ if mode == 'test':
             if im_ids:
                 im_ids_curr = set(im_ids_curr).intersection(im_ids)
 
+            active_ratio = 0.6
             for im_id in im_ids_curr:
 
                 start_time = time.time()
@@ -627,7 +628,7 @@ if mode == 'test':
                     match_ids.append('{:02d}_template_{}'.format(obj_id_in_scene, radius))
 
                 # srcs, score for one part, active ratio, may be too low for simple objects so too many candidates?
-                matches = detector.match([rgb, depth], 70, 0.6,
+                matches = detector.match([rgb, depth], 72, active_ratio,
                                          match_ids, dep_anchors, dep_range, masks=[])
 
                 depth_edge = poseRefine.get_depth_edge(depth)
@@ -724,7 +725,7 @@ if mode == 'test':
                                        , match.x, match.y)
                     icp_time += (time.time() - icp_start)
 
-                    if poseRefine.fitness < 0.6 or poseRefine.inlier_rmse > 0.01:
+                    if poseRefine.fitness < active_ratio or poseRefine.inlier_rmse > 0.01:
                         continue
 
                     refinedR = poseRefine.result_refined[0:3, 0:3]
@@ -776,7 +777,7 @@ if mode == 'test':
                     edge_hit = cv2.bitwise_and(model_dep_edge, depth_edge)
                     edge_hit_ratio = cv2.countNonZero(edge_hit)/cv2.countNonZero(model_dep_edge)
 
-                    if edge_hit_ratio < 0.55:
+                    if edge_hit_ratio < active_ratio:
                         continue
 
                     # print('edge hit ratio: {}'.format(edge_hit_ratio))
