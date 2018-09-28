@@ -154,8 +154,9 @@ static Rect cropTemplates(std::vector<Template> &templates, int clusters)
         }
 
         // make sure one cluster has at least 4 features
-        if(templ.features.size() < templ.clusters*4){
-            templ.clusters = templ.features.size()/4;
+        const int min_num = 4;
+        if(templ.features.size() < templ.clusters*min_num){
+            templ.clusters = templ.features.size()/min_num;
         }
         if(templ.clusters == 0) templ.clusters = 1;
 
@@ -2013,7 +2014,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                     auto& simi = similarities[i][j];
                     int feat_count = cluster_counts[i][j];
 
-                    int raw_thresh = int((threshold)*(4 * feat_count)/100.0f);
+                    int raw_thresh = int((threshold)*(4 * feat_count)/100);
 
                     cv::Mat active_mask = simi > raw_thresh;
 
@@ -2147,7 +2148,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                         auto& simi = similarities2[i][j];
                         uint16_t feat_count = cluster_counts2[i][j];
 
-                        uint16_t raw_thresh = uint16_t((threshold)*(4 * feat_count)/100.0f);
+                        uint16_t raw_thresh = uint16_t((threshold)*(4 * feat_count)/100);
                         cv::Mat active_mask = simi > raw_thresh;
 
                         active_count2 += active_mask/255;
@@ -2757,6 +2758,7 @@ Mat poseRefine::get_depth_edge(Mat &depth_)
     cv::split(normals, N_xyz);
 
     // refer to RGB-D Edge Detection and Edge-based Registration
+    // PCL organized edge detection
     // canny on normal
     cv::Mat sx, sy, mag;
 
@@ -2898,6 +2900,9 @@ Mat poseRefine::get_depth_edge(Mat &depth_)
 
     cv::dilate(dst, dst, cv::Mat());
 
+    cv::bitwise_not(dst, dst);
+    cv::distanceTransform(dst, dst, CV_DIST_C, 3);  //dilute distance
+
     bool debug_ = false;
     if(debug_){
         auto view_dep = [](cv::Mat dep){
@@ -2921,7 +2926,7 @@ Mat poseRefine::get_depth_edge(Mat &depth_)
         imshow("occ_edge", occ_edge);
         imshow("mag_nms", mag_nms);
         imshow("high_curvature_edge", high_curvature_edge);
-        imshow("dst", dst);
+        imshow("dst", view_dep(dst));
         waitKey(0);
     }
 

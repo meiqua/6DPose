@@ -1,13 +1,13 @@
 gt_count: 1717
-mean_obj_recall: 0.43991248
-mean_scene_recall: 0.45288754
-obj_recalls: {1: 0.56571429, 2: 0.78000000, 5: 0.47738693, 6: 0.22222222, 8: 0.47500000, 9: 0.58333333, 10: 0.25555556, 11: 0.15000000, 12: 0.45000000}
-scene_recalls: {2: 0.45288754}
+mean_obj_recall: 0.54128909
+mean_scene_recall: 0.55440729
+obj_recalls: {1: 0.61714286, 2: 0.82000000, 5: 0.49246231, 6: 0.27485380, 8: 0.53000000, 9: 0.69444444, 10: 0.45555556, 11: 0.25714286, 12: 0.73000000}
+scene_recalls: {2: 0.55440729}
 targets_count: !!python/object/apply:numpy.core.multiarray.scalar
 - !!python/object/apply:numpy.dtype
   args: [i8, 0, 1]
   state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
 - !!binary |
   bQYAAAAAAAA=
-total_recall: 0.45288754
-tp_count: 745
+total_recall: 0.55440729
+tp_count: 912

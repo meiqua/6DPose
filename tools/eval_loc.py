@@ -177,12 +177,12 @@ def main():
     #---------------------------------------------------------------------------
     top_level_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    dataset = 'hinterstoisser'
+    # dataset = 'hinterstoisser'
     # dataset = 'tless'
     # dataset = 'tudlight'
     # dataset = 'rutgers'
     # dataset = 'tejani'
-    # dataset = 'doumanoglou'
+    dataset = 'doumanoglou'
     # dataset = 'toyotalight
 
     error_bpath = pjoin(top_level_path, 'eval')

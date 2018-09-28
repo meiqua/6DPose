@@ -54,12 +54,12 @@ def nms(dets, thresh):
 
     return keep
 
-dataset = 'hinterstoisser'
+# dataset = 'hinterstoisser'
 # dataset = 'tless'
 # dataset = 'tudlight'
 # dataset = 'rutgers'
 # dataset = 'tejani'
-# dataset = 'doumanoglou'
+dataset = 'doumanoglou'
 # dataset = 'toyotalight'
 
 # mode = 'render_train'
@@ -628,10 +628,11 @@ if mode == 'test':
                     match_ids.append('{:02d}_template_{}'.format(obj_id_in_scene, radius))
 
                 # srcs, score for one part, active ratio, may be too low for simple objects so too many candidates?
-                matches = detector.match([rgb, depth], 72, active_ratio,
+                matches = detector.match([rgb, depth], 70, active_ratio,
                                          match_ids, dep_anchors, dep_range, masks=[])
 
-                depth_edge = poseRefine.get_depth_edge(depth)
+                depth_edge = poseRefine.get_depth_edge(depth)  # already dilute & distant transform
+                depth_edge = (depth_edge < 1.01).astype(np.uint8)*255  # dilute once more
 
                 if len(matches) > 0:
                     aTemplateInfo = templateInfo[matches[0].class_id]
@@ -648,7 +649,8 @@ if mode == 'test':
 
                 top100_local_refine = 100  # avoid too many for simple obj,
                 # we observed more than 1000 when active ratio too low
-                if top100_local_refine >= len(matches):
+
+                if top100_local_refine > len(matches):
                     top100_local_refine = len(matches)
 
                 raw_match_rgb = np.copy(rgb)
@@ -656,8 +658,7 @@ if mode == 'test':
                     match = matches[i]
                     templ = detector.getTemplates(match.class_id, match.template_id)
                     cv2.circle(raw_match_rgb, (int(match.x + templ[0].width / 2), int(match.y + templ[0].height / 2)),
-                               2,
-                               (0, 0, 255), -1)
+                               2, (0, 0, 255), -1)
 
                     aTemplateInfo = templateInfo[match.class_id]
                     K_match = aTemplateInfo[match.template_id]['cam_K']
@@ -773,19 +774,13 @@ if mode == 'test':
                     kernel = np.ones((3, 3), np.uint8)
                     dep_dilute = cv2.erode(depth_out_mask, kernel)
                     model_dep_edge = cv2.bitwise_xor(dep_dilute, depth_out_mask)
-
                     edge_hit = cv2.bitwise_and(model_dep_edge, depth_edge)
-                    edge_hit_ratio = cv2.countNonZero(edge_hit)/cv2.countNonZero(model_dep_edge)
 
-                    if edge_hit_ratio < active_ratio:
+                    hit_rate = cv2.countNonZero(edge_hit) / cv2.countNonZero(model_dep_edge)
+
+                    # print('after refine avg_dist: {}'.format(avg_dist))
+                    if hit_rate < active_ratio:
                         continue
-
-                    # print('edge hit ratio: {}'.format(edge_hit_ratio))
-                    # cv2.imshow('rgb', rgb)
-                    # cv2.imshow('model_dep_edge', model_dep_edge)
-                    # cv2.imshow('edge_hit', edge_hit)
-                    # cv2.imshow('depth_edge', depth_edge)
-                    # cv2.waitKey(0)
 
                     Rs.append(refinedR)
                     Ts.append(refinedT)
