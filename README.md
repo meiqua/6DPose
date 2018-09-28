@@ -9,7 +9,8 @@ implement some algorithms of 6d pose estimation
 - [ ] latent class hough tree(LCHF)
 - [x] 3d convex segmentation  
 
-now: trying 3d seg for bin picking
+note: LCHF is too hard to tune params so I'm not going to implement it...  
+[a better choice: patch_linemod](https://github.com/meiqua/patch_linemod)
 
 ## prerequisite
 
