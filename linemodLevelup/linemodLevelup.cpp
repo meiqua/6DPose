@@ -58,6 +58,8 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     // get x,y coordinate of obj in scene
     // previous depth-cropped-first version is for icp
     // cropping depth first means we move ROI cloud to center of view
+    // relatively, it means we move model to scene roi with a xy shift.
+  
     cv::Mat sceneCloud;
     cv::rgbd::depthTo3d(sceneDepth, sceneK, sceneCloud);
 
@@ -85,8 +87,17 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
         }
     }
     avePoint /= count;
-    modelT.at<float>(0, 0) = avePoint[0]*1000; // scene cloud unit is meter
-    modelT.at<float>(1, 0) = avePoint[1]*1000;
+  
+    // the xy shift
+    
+    // modelT.at<float>(0, 0) = avePoint[0]*1000; // scene cloud unit is meter, transfer to mm
+    // modelT.at<float>(1, 0) = avePoint[1]*1000;
+  
+    // meter is more correct? 
+    // !!! untested yet.
+    modelT.at<float>(0, 0) = avePoint[0];
+    modelT.at<float>(0, 0) = avePoint[1];
+    
     // well, it looks stupid
     auto R_real_icp = cv::Matx33f(modelR.at<float>(0, 0), modelR.at<float>(0, 1), modelR.at<float>(0, 2),
                        modelR.at<float>(1, 0), modelR.at<float>(1, 1), modelR.at<float>(1, 2),
