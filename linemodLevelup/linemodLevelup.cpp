@@ -89,14 +89,15 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     avePoint /= count;
   
     // the xy shift
-    
-    // modelT.at<float>(0, 0) = avePoint[0]*1000; // scene cloud unit is meter, transfer to mm
-    // modelT.at<float>(1, 0) = avePoint[1]*1000;
+    // assume render depth at center
+  
+    modelT.at<float>(0, 0) = avePoint[0]*1000; // scene cloud unit is meter, transfer to mm
+    modelT.at<float>(1, 0) = avePoint[1]*1000;
   
     // meter is more correct? 
     // !!! untested yet.
-    modelT.at<float>(0, 0) = avePoint[0];
-    modelT.at<float>(0, 0) = avePoint[1];
+    // modelT.at<float>(0, 0) = avePoint[0];
+    // modelT.at<float>(1, 0) = avePoint[1];
     
     // well, it looks stupid
     auto R_real_icp = cv::Matx33f(modelR.at<float>(0, 0), modelR.at<float>(0, 1), modelR.at<float>(0, 2),
