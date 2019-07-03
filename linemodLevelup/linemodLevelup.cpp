@@ -1,126 +1,156 @@
 #include "linemodLevelup.h"
 #include <memory>
 #include <iostream>
-#include "linemod_icp.h"
-#include <opencv2/dnn.hpp>
+#include "Open3D/Open3D.h"
 #include <assert.h>
 using namespace std;
 using namespace cv;
 
+template<typename _Tp, int _rows, int _cols, int _options, int _maxRows, int _maxCols>
+inline void
+eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCols>& src, cv::Mat& dst)
+{
+    if (!(src.Flags & Eigen::RowMajorBit))
+    {
+        cv::Mat _src(src.cols(), src.rows(), cv::DataType<_Tp>::type,
+                     (void*)src.data(), src.stride() * sizeof(_Tp));
+        cv::transpose(_src, dst);
+    }
+    else
+    {
+        cv::Mat _src(src.rows(), src.cols(), cv::DataType<_Tp>::type,
+                     (void*)src.data(), src.stride() * sizeof(_Tp));
+        _src.copyTo(dst);
+    }
+}
+
 void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &modelK,
                         Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
-//    sceneDepth.convertTo(sceneDepth, CV_16U);
-//    modelDepth.convertTo(modelDepth, CV_16U);
-    assert(sceneDepth.type() == CV_16U);
-    assert(sceneK.type() == CV_32F);
+    Mat& __depth = sceneDepth;
+    double threshold = 0.7;
+
+
+    cv::Mat init_base_cv(4, 4, CV_32FC1, cv::Scalar(0));
+    modelR.copyTo(init_base_cv(cv::Rect(0, 0, 3, 3)));
+    modelT.copyTo(init_base_cv(cv::Rect(3, 0, 1, 3)));
+    init_base_cv.at<float>(2, 3) /= 1000.0f;
+    init_base_cv.at<float>(3, 3) = 1;
+    init_base_cv = init_base_cv.t();  // row to col major
+
+    Eigen::Matrix4f init_base = Eigen::Map<Eigen::Matrix4f>(reinterpret_cast<float*>(init_base_cv.data));
 
     cv::Mat modelMask = modelDepth > 0;
-    Mat non0p;
-    findNonZero(modelMask,non0p);
-    Rect bbox=boundingRect(non0p);
 
-    //crop scene
-    int enhancedX = bbox.width/8*0;
-    int enhancedY = bbox.height/8*0; // no padding
-    //boundary check
-    int bboxX1 = detectX - enhancedX;
-    if(bboxX1 < 0) bboxX1 = 0;
-    int bboxX2 = detectX + bbox.width + enhancedX;
-    if(bboxX2 > sceneDepth.cols) bboxX2 = sceneDepth.cols;
-    int bboxY1 = detectY - enhancedY;
-    if(bboxY1 < 0) bboxY1 = 0;
-    int bboxY2 = detectY + bbox.height + enhancedY;
-    if(bboxY2 > sceneDepth.rows) bboxY2 = sceneDepth.rows;
+    int dilute_half = 4;
+    cv::dilate(modelMask, modelMask, cv::Mat::ones(2*dilute_half+1, 2*dilute_half+1, CV_8U));
 
-    int bboxX1_ren = bbox.x - enhancedX;
-    if(bboxX1_ren < 0) bboxX1_ren = 0;
-    int bboxX2_ren = bbox.x + bbox.width + enhancedX;
-    if(bboxX2_ren > sceneDepth.cols) bboxX2_ren = sceneDepth.cols;
-    int bboxY1_ren = bbox.y - enhancedY;
-    if(bboxY1_ren < 0) bboxY1_ren = 0;
-    int bboxY2_ren = bbox.y + bbox.height + enhancedY;
-    if(bboxY2_ren > sceneDepth.rows) bboxY2_ren = sceneDepth.rows;
+    cv::Mat non0p;
+    findNonZero(modelMask, non0p);
+    cv::Rect bbox = boundingRect(non0p);
 
-    cv::Rect ROI_sceneDepth(bboxX1, bboxY1, bboxX2-bboxX1, bboxY2-bboxY1);
-    cv::Rect ROI_modelDepth(bboxX1_ren, bboxY1_ren, bboxX2_ren-bboxX1_ren, bboxY2_ren-bboxY1_ren);
-    cv::Mat modelCloud_cropped;  //rows x cols x 3, cropped
-    cv::Mat modelDepth_cropped = modelDepth(ROI_modelDepth);
-    cv::rgbd::depthTo3d(modelDepth_cropped, modelK, modelCloud_cropped);
+    if((detectX + bbox.width >= __depth.cols) || (detectY + bbox.height >= __depth.rows)){
+        residual = -1;
+        return;
+    }
 
-    cv::Mat sceneDepth_cropped = sceneDepth(ROI_sceneDepth);
-    cv::Mat sceneCloud_cropped;
-    cv::rgbd::depthTo3d(sceneDepth_cropped, sceneK, sceneCloud_cropped);
-//    imshow("rgb_ren_cropped", rgb_ren(ROI_modelDepth));
-//    imshow("rgb_cropped", rgb(ROI_sceneDepth));
-//    waitKey(0);
+    auto model_pcd = std::make_unique<open3d::geometry::PointCloud>();
+    auto scene_pcd = std::make_unique<open3d::geometry::PointCloud>();
 
-    // get x,y coordinate of obj in scene
-    // previous depth-cropped-first version is for icp
-    // cropping depth first means we move ROI cloud to center of view
-    // relatively, it means we move model to scene roi with a xy shift.
-  
-    cv::Mat sceneCloud;
-    cv::rgbd::depthTo3d(sceneDepth, sceneK, sceneCloud);
+    Eigen::Vector3d center_scene = Eigen::Vector3d::Zero();
+    Eigen::Vector3d center_model = Eigen::Vector3d::Zero();
+    double anchor_dep = modelDepth.at<uint16_t>(modelDepth.rows/2, modelDepth.cols/2)/1000.0;
+    int center_scene_size = 0;
 
-    int smoothSize = 7;
-    //boundary check
-    int offsetX = ROI_sceneDepth.x + ROI_sceneDepth.width/2;
-    int offsetY = ROI_sceneDepth.y + ROI_sceneDepth.height/2;
-    int startoffsetX1 = offsetX - smoothSize/2;
-    if(startoffsetX1 < 0) startoffsetX1 = 0;
-    int startoffsetX2 = offsetX + smoothSize/2;
-    if(startoffsetX2 > sceneCloud.cols) startoffsetX2 = sceneCloud.cols;
-    int startoffsetY1 = offsetY - smoothSize/2;
-    if(startoffsetY1 < 0) startoffsetY1 = 0;
-    int startoffsetY2 = offsetY + smoothSize/2;
-    if(startoffsetY2 > sceneCloud.rows) startoffsetY2 = sceneCloud.rows;
+    for(int r=0; r<bbox.height; r++){
+        for(int c=0; c<bbox.width; c++){
 
-    cv::Vec3f avePoint; int count=0;
-    for(auto i=startoffsetX1; i<startoffsetX2; i++){
-        for(auto j=startoffsetY1; j<startoffsetY2; j++){
-            auto p = sceneCloud.at<cv::Vec3f>(j, i);
-            if(checkRange(p)){
-                avePoint += p;
-                count++;
+            int model_r = r + bbox.y;
+            int model_c = c + bbox.x;
+
+            int scene_r = r + detectY - dilute_half;
+            if(scene_r < 0) scene_r = 0;
+            int scene_c = c + detectX - dilute_half;
+            if(scene_c < 0) scene_c = 0;
+
+            if(modelMask.at<uchar>(model_r, model_c) > 0){
+                if(modelDepth.at<uint16_t>(model_r, model_c) > 0){
+                    double z_pcd = modelDepth.at<uint16_t>(model_r, model_c)/1000.0;
+                    double x_pcd = (model_c - modelK.at<float>(0, 2))/modelK.at<float>(0, 0)*z_pcd;
+                    double y_pcd = (model_r - modelK.at<float>(1, 2))/modelK.at<float>(1, 1)*z_pcd;
+                    model_pcd->points_.emplace_back(x_pcd, y_pcd, z_pcd);
+
+                    center_model += model_pcd->points_.back();
+                }
+                if(__depth.at<uint16_t>(scene_r, scene_c) > 0){
+                    double z_pcd = __depth.at<uint16_t>(scene_r, scene_c)/1000.0;
+                    double x_pcd = (scene_c - sceneK.at<float>(0, 2))/sceneK.at<float>(0, 0)*z_pcd;
+                    double y_pcd = (scene_r - sceneK.at<float>(1, 2))/sceneK.at<float>(1, 1)*z_pcd;
+                    scene_pcd->points_.emplace_back(x_pcd, y_pcd, z_pcd);
+
+                    if(std::abs(z_pcd - anchor_dep) < 0.4
+                            && modelDepth.at<uint16_t>(model_r, model_c) > 0){ // no dilute
+                        center_scene += scene_pcd->points_.back();
+                        center_scene_size ++;
+                    }
+                }
             }
         }
     }
-    avePoint /= count;
-  
-    // the xy shift
-    // assume render depth at center
-  
-    modelT.at<float>(0, 0) = avePoint[0]*1000; // scene cloud unit is meter, transfer to mm
-    modelT.at<float>(1, 0) = avePoint[1]*1000;
-  
-    // meter is more correct? 
-    // !!! untested yet.
-    // modelT.at<float>(0, 0) = avePoint[0];
-    // modelT.at<float>(1, 0) = avePoint[1];
-    
-    // well, it looks stupid
-    auto R_real_icp = cv::Matx33f(modelR.at<float>(0, 0), modelR.at<float>(0, 1), modelR.at<float>(0, 2),
-                       modelR.at<float>(1, 0), modelR.at<float>(1, 1), modelR.at<float>(1, 2),
-                       modelR.at<float>(2, 0), modelR.at<float>(2, 1), modelR.at<float>(2, 2));
-    auto T_real_icp = cv::Vec3f(modelT.at<float>(0, 0), modelT.at<float>(1, 0), modelT.at<float>(2, 0));
 
-    std::vector<cv::Vec3f> pts_real_model_temp;
-    std::vector<cv::Vec3f> pts_real_ref_temp;
-    float px_ratio_missing = matToVec(sceneCloud_cropped, modelCloud_cropped, pts_real_ref_temp, pts_real_model_temp);
+    Eigen::Matrix4d init_guess = Eigen::Matrix4d::Identity(4, 4);
+    center_model /= model_pcd->points_.size();
+    center_scene /= center_scene_size;
+    init_guess.block(0, 3, 3, 1) = center_scene - center_model;
 
-    float px_ratio_match_inliers = 0.0f;
-    float icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-                                     T_real_icp, px_ratio_match_inliers, 1);
+    double voxel_size = 0.0025;
+    auto model_pcd_down = open3d::geometry::VoxelDownSample(*model_pcd, voxel_size);
+    auto scene_pcd_down = open3d::geometry::VoxelDownSample(*scene_pcd, voxel_size);
 
-    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-                               T_real_icp, px_ratio_match_inliers, 2);
+    const bool debug_ = false;
+    if(debug_){
+        auto init_result = open3d::registration::EvaluateRegistration(*model_pcd_down, *scene_pcd_down, threshold, init_guess);
+        std::cout << "init_result.fitness_: " << init_result.fitness_ << std::endl;
+        std::cout << "init_result.inlier_rmse_ : " << init_result.inlier_rmse_ << std::endl;
 
-    icp_dist = icpCloudToCloud(pts_real_ref_temp, pts_real_model_temp, R_real_icp,
-                               T_real_icp, px_ratio_match_inliers, 0);
-    residual = icp_dist;
-    R_refined = Mat(R_real_icp);
-    t_refiend = Mat(T_real_icp);
+        model_pcd_down->PaintUniformColor({1, 0.706, 0});
+        scene_pcd_down->PaintUniformColor({0, 0.651, 0.929});
+        open3d::visualization::DrawGeometries({model_pcd_down, scene_pcd_down});
+    }
+
+#define USE_OPEN3D_P2PL
+
+#ifdef USE_OPEN3D_P2PL
+    // we don't need source pcd normals, but open3d has assertion, so
+    model_pcd_down->normals_.resize(model_pcd_down->points_.size());
+    open3d::geometry::EstimateNormals(*scene_pcd_down);
+    auto final_result = open3d::registration::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
+                                                init_guess,
+                                                open3d::registration::TransformationEstimationPointToPlane());
+#else
+    auto final_result = open3d::registration::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
+                                                init_guess,
+                                                open3d::registration::TransformationEstimationPointToPoint());
+#endif
+    if(debug_){
+        std::cout << "final_result.fitness_: " << final_result.fitness_ << std::endl;
+        std::cout << "final_result.inlier_rmse_ : " << final_result.inlier_rmse_ << std::endl;
+
+        model_pcd_down->Transform(final_result.transformation_);
+        model_pcd_down->PaintUniformColor({1, 0.706, 0});
+        scene_pcd_down->PaintUniformColor({0, 0.651, 0.929});
+        open3d::visualization::DrawGeometries({model_pcd_down, scene_pcd_down});
+    }
+
+    Eigen::Matrix4d result = final_result.transformation_*init_base.cast<double>();
+
+    residual = final_result.fitness_;
+
+    Mat result_cv;
+    eigen2cv(result, result_cv);
+
+    R_refined = result_cv(Rect(0, 0, 3, 3)).clone();
+    t_refiend = result_cv(Rect(3, 0, 1, 3)).clone() * 1000;
 }
 
 float poseRefine::getResidual()

@@ -6,7 +6,6 @@
 #include <chrono>  // for high_resolution_clock
 #include <opencv2/rgbd.hpp>
 #include <opencv2/dnn.hpp>
-#include <opencv2/cudaimgproc.hpp>
 using namespace std;
 using namespace cv;
 
@@ -110,7 +109,7 @@ void detect_test(){
                  -0.26157897, -0.65877056, -0.61767070, 0.22904489, -0.75234390);
     Mat t_ren = (Mat_<float>(3,1) << 0.0, 0.0, 1000.0);
 
-    auto ori_detector = cv::linemod::getDefaultLINEMOD();
+//    auto ori_detector = cv::linemod::getDefaultLINEMOD();
     vector<string> classes;
     classes.push_back("06_template");
 
@@ -122,7 +121,7 @@ void detect_test(){
 
     vector<String> classes_ori;
     classes_ori.push_back("06_template");
-    ori_detector->readClasses(classes_ori, prefix + "/600/%s.yaml");
+//    ori_detector->readClasses(classes_ori, prefix + "/600/%s.yaml");
 
     auto start_time = std::chrono::high_resolution_clock::now();
 //    vector<cv::linemod::Match> matches;
