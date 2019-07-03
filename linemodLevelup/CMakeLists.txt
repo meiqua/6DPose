@@ -40,7 +40,7 @@ set(SOURCE
     linemodLevelup.cpp)
 
 pybind11_add_module(${PROJECT_NAME} ${SOURCE} ${SOURCE_PYBIND})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} ${Open3D_LIBRARIES})
 
 add_executable(${PROJECT_NAME}_executable ${SOURCE} test.cpp)
 target_link_libraries(${PROJECT_NAME}_executable ${OpenCV_LIBS} ${Open3D_LIBRARIES})
