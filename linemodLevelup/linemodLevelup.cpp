@@ -28,7 +28,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
                         Mat &modelR, Mat &modelT, int detectX, int detectY)
 {
     Mat& __depth = sceneDepth;
-    double threshold = 0.1;
+    double threshold = 0.01;
 
 
     cv::Mat init_base_cv(4, 4, CV_32FC1, cv::Scalar(0));
