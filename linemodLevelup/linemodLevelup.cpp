@@ -104,8 +104,9 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
     init_guess.block(0, 3, 3, 1) = center_scene - center_model;
 
     double voxel_size = 0.0025;
-    auto model_pcd_down = open3d::geometry::VoxelDownSample(*model_pcd, voxel_size);
-    auto scene_pcd_down = open3d::geometry::VoxelDownSample(*scene_pcd, voxel_size);
+
+    auto model_pcd_down = model_pcd->VoxelDownSample(voxel_size);
+    auto scene_pcd_down = model_pcd->VoxelDownSample(voxel_size);
 
     const bool debug_ = false;
     if(debug_){
@@ -123,7 +124,7 @@ void poseRefine::process(Mat &sceneDepth, Mat &modelDepth, Mat &sceneK, Mat &mod
 #ifdef USE_OPEN3D_P2PL
     // we don't need source pcd normals, but open3d has assertion, so
     model_pcd_down->normals_.resize(model_pcd_down->points_.size());
-    open3d::geometry::EstimateNormals(*scene_pcd_down);
+    scene_pcd_down->EstimateNormals();
     auto final_result = open3d::registration::RegistrationICP(*model_pcd_down, *scene_pcd_down, threshold,
                                                 init_guess,
                                                 open3d::registration::TransformationEstimationPointToPlane());

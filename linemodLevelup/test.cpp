@@ -1,7 +1,6 @@
 #include "linemodLevelup.h"
 #include <memory>
 #include <iostream>
-#include "linemod_icp.h"
 #include <assert.h>
 #include <chrono>  // for high_resolution_clock
 #include <opencv2/rgbd.hpp>
